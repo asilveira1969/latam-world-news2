@@ -1,5 +1,6 @@
 import type { Article, RegionValue } from "@/lib/types/article";
 import { sortByPublishedDesc, truncateExcerpt } from "@/lib/ranking";
+import manualArticlesData from "@/data/manual-articles.json";
 
 const BASE_DATE = new Date("2026-02-14T12:00:00.000Z");
 
@@ -146,48 +147,10 @@ const impactArticles: Article[] = Array.from({ length: 5 }).map((_, idx) => {
     views: 2200 - idx * 130
   };
 });
-const manualArticles: Article[] = [
-  {
-    id: "manual-1",
-    title: "Cumbre climatica: nuevos compromisos energeticos en Europa",
-    slug: "cumbre-climatica-compromisos-energeticos-europa",
-    excerpt:
-      "Lideres europeos acordaron una hoja de ruta para acelerar renovables y reducir dependencia fosil.",
-    content: null,
-    image_url:
-      "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?auto=format&fit=crop&w=1200&q=80",
-    source_name: "France 24 ES",
-    source_url: "https://www.france24.com/es/",
-    region: "Europa",
-    category: "Energia",
-    tags: ["energia", "europa", "clima"],
-    published_at: "2026-02-15T12:00:00.000Z",
-    created_at: "2026-02-15T12:00:00.000Z",
-    is_featured: false,
-    is_impact: false,
-    views: 120
-  },
-  {
-    id: "manual-impact-1",
-    title: "Impacto en LATAM: que cambia si sube el costo global de la energia",
-    slug: "impacto-latam-costo-global-energia",
-    excerpt:
-      "Analisis original sobre como el precio internacional de energia afecta inflacion y hogares en LATAM.",
-    content:
-      "Cuando sube el costo global de la energia, el primer impacto en America Latina suele aparecer en transporte, alimentos y precios finales. ... (aqui pegas tu texto largo de 200+ palabras)",
-    image_url:
-      "https://images.unsplash.com/photo-1466611653911-95081537e5b7?auto=format&fit=crop&w=1200&q=80",
-    source_name: "DW Espanol",
-    source_url: "https://www.dw.com/es/",
-    region: "LatAm",
-    category: "Impacto",
-    tags: ["impacto-latam", "energia", "inflacion"],
-    published_at: "2026-02-15T13:00:00.000Z",
-    created_at: "2026-02-15T13:00:00.000Z",
-    is_featured: false,
-    is_impact: true,
-    views: 80
-  }
-];
+const manualArticles: Article[] = manualArticlesData as Article[];
 
-export const mockArticles: Article[] = sortByPublishedDesc([...impactArticles, ...generated]);
+export const mockArticles: Article[] = sortByPublishedDesc([
+  ...manualArticles,
+  ...impactArticles,
+  ...generated
+]);
