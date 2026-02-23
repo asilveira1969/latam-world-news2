@@ -40,6 +40,17 @@ export function isAllowedRemoteImage(url: string): boolean {
   }
 }
 
+export function isFallbackImage(url: string | null | undefined): boolean {
+  return (url ?? "") === LOCAL_NEWS_IMAGE_FALLBACK;
+}
+
+export function hasUsableRemoteImage(url: string | null | undefined): boolean {
+  if (!url || isFallbackImage(url)) {
+    return false;
+  }
+  return isAllowedRemoteImage(url);
+}
+
 export function resolveCardImage(url: string | null | undefined): string {
   if (!url) {
     return LOCAL_NEWS_IMAGE_FALLBACK;
