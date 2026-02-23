@@ -16,20 +16,42 @@ import {
   hasSupabaseAnonEnv,
   hasSupabaseServiceEnv
 } from "@/lib/supabase/server";
+import { resolveCardImage } from "@/lib/images";
+import { cleanExcerpt, cleanPlainText, looksLikeSystemError } from "@/lib/text/clean";
 import type { Article, HomeData, RegionKey, SectionKey } from "@/lib/types/article";
 
+function isDisplayableArticle(article: Article): boolean {
+  const combined = `${article.title}\n${article.excerpt}\n${article.source_name}`;
+  if (looksLikeSystemError(combined)) {
+    return false;
+  }
+  if (article.source_name.trim().toLowerCase() === "openclaw system") {
+    return false;
+  }
+  if (article.title.trim().length < 8) {
+    return false;
+  }
+  return true;
+}
+
 function mapRecordToArticle(record: Record<string, unknown>): Article {
+  const rawTitle = String(record.title ?? "");
+  const title = cleanPlainText(rawTitle) || "Actualizacion internacional";
+  const rawExcerpt = String(record.excerpt ?? "");
+  const excerpt = cleanExcerpt(rawExcerpt, 280) || `${title}.`;
+  const rawContent = (record.content as string | null) ?? null;
+
   return {
     id: String(record.id ?? crypto.randomUUID()),
-    title: String(record.title ?? ""),
+    title,
     slug: String(record.slug ?? ""),
-    excerpt: String(record.excerpt ?? ""),
-    content: (record.content as string | null) ?? null,
-    image_url: String(record.image_url ?? "https://picsum.photos/seed/fallback/1200/675"),
-    source_name: String(record.source_name ?? "Fuente externa"),
+    excerpt,
+    content: rawContent ? cleanPlainText(rawContent) : null,
+    image_url: resolveCardImage(String(record.image_url ?? "")),
+    source_name: cleanPlainText(String(record.source_name ?? "Fuente externa")) || "Fuente externa",
     source_url: String(record.source_url ?? "#"),
     region: (record.region as Article["region"]) ?? "Mundo",
-    category: String(record.category ?? "Geopolitica"),
+    category: cleanPlainText(String(record.category ?? "Geopolitica")) || "Geopolitica",
     tags: Array.isArray(record.tags) ? (record.tags as string[]) : [],
     published_at: String(record.published_at ?? new Date().toISOString()),
     created_at: String(record.created_at ?? new Date().toISOString()),
@@ -96,7 +118,7 @@ async function fetchAllArticlesFromSource(): Promise<Article[]> {
 
 export async function getAllArticles(): Promise<Article[]> {
   const all = await fetchAllArticlesFromSource();
-  return dedupeBySourceUrl(sortByPublishedDesc(all));
+  return dedupeBySourceUrl(sortByPublishedDesc(all)).filter(isDisplayableArticle);
 }
 
 export async function getHomeData(): Promise<HomeData> {

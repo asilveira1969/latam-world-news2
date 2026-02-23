@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { notFound } from "next/navigation";
+import NewsImage from "@/components/NewsImage";
 import ViewTracker from "@/components/ViewTracker";
 import { getArticleBySlug } from "@/lib/data/articles-repo";
 import { buildNewsArticleJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
+import { cleanExcerpt, cleanPlainText } from "@/lib/text/clean";
 
 type ImpactDetailPageProps = {
   params: { slug: string };
@@ -21,7 +22,7 @@ export async function generateMetadata({ params }: ImpactDetailPageProps): Promi
   }
   return buildMetadata({
     title: article.title,
-    description: article.excerpt,
+    description: cleanExcerpt(article.excerpt, 180) || article.excerpt,
     pathname: `/impacto/${article.slug}`,
     imageUrl: article.image_url
   });
@@ -34,6 +35,7 @@ export default async function ImpactoDetailPage({ params }: ImpactDetailPageProp
   }
 
   const jsonLd = buildNewsArticleJsonLd(article, `/impacto/${article.slug}`);
+  const safeBody = article.content ? cleanPlainText(article.content) : cleanExcerpt(article.excerpt, 800);
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -46,13 +48,15 @@ export default async function ImpactoDetailPage({ params }: ImpactDetailPageProp
         Publicado: {new Date(article.published_at).toLocaleString("es-ES")}
       </p>
 
-      <div className="relative mt-6 aspect-video overflow-hidden rounded border border-slate-200">
-        <Image src={article.image_url} alt={article.title} fill sizes="100vw" className="object-cover" />
+      <div className="relative mt-6 aspect-video overflow-hidden rounded border border-slate-200 bg-slate-100">
+        <NewsImage src={article.image_url} alt={article.title} sizes="100vw" className="object-cover" />
       </div>
 
       <article className="mt-6 rounded border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-bold">Analisis original</h2>
-        <p className="mt-3 whitespace-pre-line leading-7 text-slate-800">{article.content ?? article.excerpt}</p>
+        <p className="mt-3 whitespace-pre-line leading-7 text-slate-800">
+          {safeBody || "Analisis no disponible."}
+        </p>
         <a
           href={article.source_url}
           target="_blank"

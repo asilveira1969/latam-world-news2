@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { notFound } from "next/navigation";
+import NewsImage from "@/components/NewsImage";
 import ViewTracker from "@/components/ViewTracker";
 import { getArticleBySlug } from "@/lib/data/articles-repo";
 import { buildNewsArticleJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
+import { cleanExcerpt } from "@/lib/text/clean";
 
 type NotePageProps = {
   params: { slug: string };
@@ -21,7 +22,7 @@ export async function generateMetadata({ params }: NotePageProps): Promise<Metad
   }
   return buildMetadata({
     title: article.title,
-    description: article.excerpt,
+    description: cleanExcerpt(article.excerpt, 180) || article.excerpt,
     pathname: `/nota/${article.slug}`,
     imageUrl: article.image_url
   });
@@ -41,20 +42,22 @@ export default async function NotaPage({ params }: NotePageProps) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-        {article.region} · {article.category}
+        {`${article.region} \u00B7 ${article.category}`}
       </p>
       <h1 className="mt-2 text-3xl font-black text-brand">{article.title}</h1>
       <p className="mt-2 text-sm text-slate-600">
         Publicado: {new Date(article.published_at).toLocaleString("es-ES")}
       </p>
 
-      <div className="relative mt-6 aspect-video overflow-hidden rounded border border-slate-200">
-        <Image src={article.image_url} alt={article.title} fill sizes="100vw" className="object-cover" />
+      <div className="relative mt-6 aspect-video overflow-hidden rounded border border-slate-200 bg-slate-100">
+        <NewsImage src={article.image_url} alt={article.title} sizes="100vw" className="object-cover" />
       </div>
 
       <article className="mt-6 rounded border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-bold">Resumen editorial</h2>
-        <p className="mt-3 leading-7 text-slate-800">{article.excerpt}</p>
+        <p className="mt-3 leading-7 text-slate-800">
+          {cleanExcerpt(article.excerpt, 500) || "Resumen editorial no disponible."}
+        </p>
         <p className="mt-4 text-sm text-slate-600">
           Esta pagina es una nota curada: no republica contenido completo de terceros.
         </p>

@@ -1,7 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
-import type { Article } from "@/lib/types/article";
 import AdSlot from "@/components/AdSlot";
+import NewsImage from "@/components/NewsImage";
+import { cleanExcerpt } from "@/lib/text/clean";
+import type { Article } from "@/lib/types/article";
 
 export interface SectionPageProps {
   title: string;
@@ -23,11 +24,10 @@ export default function SectionPage({ title, description, articles }: SectionPag
         {articles.map((article) => (
           <article key={article.id} className="overflow-hidden rounded border border-slate-200 bg-white">
             <Link href={article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`}>
-              <div className="relative aspect-video">
-                <Image
+              <div className="relative aspect-video bg-slate-100">
+                <NewsImage
                   src={article.image_url}
                   alt={article.title}
-                  fill
                   sizes="(max-width: 768px) 100vw, 33vw"
                   className="object-cover"
                 />
@@ -35,12 +35,14 @@ export default function SectionPage({ title, description, articles }: SectionPag
             </Link>
             <div className="p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-                {article.region} · {article.category}
+                {`${article.region} \u00B7 ${article.category}`}
               </p>
               <Link href={article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`}>
                 <h2 className="mt-1 text-lg font-bold">{article.title}</h2>
               </Link>
-              <p className="mt-2 text-sm text-slate-600">{article.excerpt}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {cleanExcerpt(article.excerpt, 220) || "Resumen no disponible."}
+              </p>
               <a
                 href={article.source_url}
                 target="_blank"

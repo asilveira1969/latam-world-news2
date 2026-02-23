@@ -1,6 +1,8 @@
 import type { Article } from "@/lib/types/article";
+import { isValidHttpUrl } from "@/lib/images";
 import type { ParsedRssItem } from "@/lib/rss/parse-rss";
 import { truncateExcerpt } from "@/lib/ranking";
+import { cleanExcerpt } from "@/lib/text/clean";
 
 export type NormalizedArticleInput = Omit<Article, "id" | "created_at"> & {
   id?: string;
@@ -21,12 +23,13 @@ export function normalizeRssItems(items: ParsedRssItem[], sourceName: string): N
   return items.map((item, index) => {
     const slugBase = slugify(item.title || `nota-${index + 1}`);
     const sourceUrl = item.link || `https://example.com/${slugBase}-${index + 1}`;
+    const cleanedExcerpt = cleanExcerpt(item.excerpt || "", 180);
     return {
       title: item.title || "Actualizacion internacional",
       slug: `${slugBase}-${Math.abs(sourceUrl.length % 100000)}`,
-      excerpt: truncateExcerpt(item.excerpt || "Actualizacion internacional."),
+      excerpt: truncateExcerpt(cleanedExcerpt || "Actualizacion internacional.", 180),
       content: null,
-      image_url: item.imageUrl || "https://picsum.photos/seed/rss-fallback/1200/675",
+      image_url: item.imageUrl && isValidHttpUrl(item.imageUrl) ? item.imageUrl : "",
       source_name: sourceName,
       source_url: sourceUrl,
       region: "Mundo",
