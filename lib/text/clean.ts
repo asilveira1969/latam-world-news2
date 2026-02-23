@@ -25,6 +25,32 @@ const SYSTEM_ERROR_PATTERNS = [
   "function web_search"
 ];
 
+function countCorruptionMarkers(text: string): number {
+  const matches = text.match(/[ÃÂâ├┬�]/g);
+  return matches ? matches.length : 0;
+}
+
+export function repairMojibake(text: string): string {
+  if (!text || countCorruptionMarkers(text) === 0) {
+    return text;
+  }
+
+  try {
+    const repaired = Buffer.from(text, "latin1").toString("utf8");
+    return countCorruptionMarkers(repaired) < countCorruptionMarkers(text) ? repaired : text;
+  } catch {
+    return text;
+  }
+}
+
+export function looksCorruptedText(text: string): boolean {
+  const normalized = repairMojibake(text);
+  const replacementCharCount = (normalized.match(/�/g) ?? []).length;
+  const mojibakeMarkers = countCorruptionMarkers(normalized);
+
+  return replacementCharCount >= 2 || mojibakeMarkers >= 4;
+}
+
 export function decodeBasicEntities(text: string): string {
   return text.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, entity: string) => {
     const normalized = entity.toLowerCase();
@@ -64,7 +90,7 @@ export function normalizeWhitespace(text: string): string {
 }
 
 export function cleanPlainText(input: string): string {
-  return normalizeWhitespace(decodeBasicEntities(stripHtml(input)));
+  return normalizeWhitespace(decodeBasicEntities(stripHtml(repairMojibake(input))));
 }
 
 export function cleanExcerpt(input: string, maxLen = 180): string {

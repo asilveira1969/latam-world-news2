@@ -1,4 +1,4 @@
-export const LOCAL_NEWS_IMAGE_FALLBACK = "/images/IMG_20251012_195636.jpg";
+export const LOCAL_NEWS_IMAGE_FALLBACK = "/images/news-fallback.svg";
 
 export const ALLOWED_REMOTE_IMAGE_HOSTS = new Set<string>([
   "images.unsplash.com",

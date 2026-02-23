@@ -2,7 +2,7 @@ import type { Article } from "@/lib/types/article";
 import { isValidHttpUrl } from "@/lib/images";
 import type { ParsedRssItem } from "@/lib/rss/parse-rss";
 import { truncateExcerpt } from "@/lib/ranking";
-import { cleanExcerpt } from "@/lib/text/clean";
+import { cleanExcerpt, cleanPlainText, looksCorruptedText } from "@/lib/text/clean";
 
 export type NormalizedArticleInput = Omit<Article, "id" | "created_at"> & {
   id?: string;
@@ -21,11 +21,16 @@ export function normalizeRssItems(items: ParsedRssItem[], sourceName: string): N
   const now = new Date().toISOString();
 
   return items.map((item, index) => {
-    const slugBase = slugify(item.title || `nota-${index + 1}`);
+    const cleanedTitle = cleanPlainText(item.title || "");
+    const safeTitle =
+      cleanedTitle && !looksCorruptedText(cleanedTitle)
+        ? cleanedTitle
+        : `Actualizacion internacional ${index + 1}`;
+    const slugBase = slugify(safeTitle || `nota-${index + 1}`);
     const sourceUrl = item.link || `https://example.com/${slugBase}-${index + 1}`;
     const cleanedExcerpt = cleanExcerpt(item.excerpt || "", 180);
     return {
-      title: item.title || "Actualizacion internacional",
+      title: safeTitle,
       slug: `${slugBase}-${Math.abs(sourceUrl.length % 100000)}`,
       excerpt: truncateExcerpt(cleanedExcerpt || "Actualizacion internacional.", 180),
       content: null,

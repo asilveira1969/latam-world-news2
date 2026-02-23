@@ -17,12 +17,20 @@ import {
   hasSupabaseServiceEnv
 } from "@/lib/supabase/server";
 import { resolveCardImage } from "@/lib/images";
-import { cleanExcerpt, cleanPlainText, looksLikeSystemError } from "@/lib/text/clean";
+import {
+  cleanExcerpt,
+  cleanPlainText,
+  looksCorruptedText,
+  looksLikeSystemError
+} from "@/lib/text/clean";
 import type { Article, HomeData, RegionKey, SectionKey } from "@/lib/types/article";
 
 function isDisplayableArticle(article: Article): boolean {
   const combined = `${article.title}\n${article.excerpt}\n${article.source_name}`;
   if (looksLikeSystemError(combined)) {
+    return false;
+  }
+  if (looksCorruptedText(`${article.title}\n${article.excerpt}`)) {
     return false;
   }
   if (article.source_name.trim().toLowerCase() === "openclaw system") {

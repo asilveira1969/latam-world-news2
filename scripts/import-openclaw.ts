@@ -3,7 +3,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { cleanExcerpt, cleanPlainText, looksLikeSystemError } from "../lib/text/clean";
+import {
+  cleanExcerpt,
+  cleanPlainText,
+  looksCorruptedText,
+  looksLikeSystemError
+} from "../lib/text/clean";
 import { isValidHttpUrl } from "../lib/images";
 
 loadEnv({ path: ".env.local" });
@@ -230,6 +235,9 @@ function shouldRejectRow(row: ArticleRow): string | null {
   }
   if (looksLikeSystemError(combined)) {
     return "System/config error content";
+  }
+  if (looksCorruptedText(`${row.title}\n${row.excerpt}`)) {
+    return "Corrupted text encoding";
   }
   if (row.title.length < 12) {
     return "Title too short";
