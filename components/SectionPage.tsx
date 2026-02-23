@@ -1,7 +1,7 @@
 import Link from "next/link";
 import AdSlot from "@/components/AdSlot";
 import NewsImage from "@/components/NewsImage";
-import { hasUsableRemoteImage } from "@/lib/images";
+import { hasUsableRemoteImage, isImageLikelyFromSource } from "@/lib/images";
 import { cleanExcerpt } from "@/lib/text/clean";
 import type { Article } from "@/lib/types/article";
 
@@ -16,6 +16,15 @@ function articleHref(article: Article) {
 }
 
 export default function SectionPage({ title, description, articles }: SectionPageProps) {
+  const imageUsageCount = new Map<string, number>();
+
+  for (const article of articles) {
+    if (!article.image_url) {
+      continue;
+    }
+    imageUsageCount.set(article.image_url, (imageUsageCount.get(article.image_url) ?? 0) + 1);
+  }
+
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
       <header className="mb-6">
@@ -28,7 +37,10 @@ export default function SectionPage({ title, description, articles }: SectionPag
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {articles.map((article) => {
           const href = articleHref(article);
-          const showImageCard = hasUsableRemoteImage(article.image_url);
+          const imageRepeated = (imageUsageCount.get(article.image_url) ?? 0) > 1;
+          const imageMatchesSource = isImageLikelyFromSource(article.image_url, article.source_url);
+          const showImageCard =
+            hasUsableRemoteImage(article.image_url) && imageMatchesSource && !imageRepeated;
 
           if (!showImageCard) {
             return (
