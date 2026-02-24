@@ -44,5 +44,6 @@ export const PRIMARY_NAV: Array<{ href: string; label: string }> = [
   { href: "/economia-global", label: "Economia" },
   { href: "/energia", label: "Energia" },
   { href: "/tecnologia", label: "Tecnologia" },
-  { href: "/impacto", label: "Impacto" }
+  { href: "/impacto", label: "Impacto" },
+  { href: "/v2", label: "V2" }
 ];
