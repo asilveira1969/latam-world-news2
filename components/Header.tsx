@@ -8,19 +8,21 @@ export default function Header() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-4 py-4">
-        <Link href="/" className="shrink-0">
-          <p className="text-lg font-black text-brand">{SITE_NAME}</p>
-          <p className="text-xs text-slate-600">{SITE_TAGLINE}</p>
+    <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3">
+        <Link href="/" className="shrink-0 leading-tight">
+          <p className="text-xl font-black tracking-tight text-brand">{SITE_NAME}</p>
+          <p className="text-[11px] uppercase tracking-[0.08em] text-slate-500 sm:block">
+            {SITE_TAGLINE}
+          </p>
         </Link>
 
-        <nav className="hidden flex-1 items-center justify-center gap-3 lg:flex">
+        <nav className="hidden flex-1 items-center justify-center gap-2 lg:flex" aria-label="Principal">
           {PRIMARY_NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-full border border-slate-300 bg-slate-50 px-5 py-2 text-lg font-black text-slate-700 transition hover:border-brand hover:bg-brand hover:text-white"
+              className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-extrabold tracking-tight text-slate-800 transition hover:border-brand hover:bg-brand hover:text-white"
             >
               {item.label}
             </Link>
@@ -32,11 +34,11 @@ export default function Header() {
             type="search"
             name="q"
             placeholder="Buscar noticias..."
-            className="w-56 rounded border border-slate-300 px-3 py-2 text-sm"
+            className="w-48 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand"
           />
           <button
             type="submit"
-            className="rounded bg-brand px-3 py-2 text-sm font-semibold text-white"
+            className="rounded-full border border-brand bg-brand px-3 py-2 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-brand/90"
           >
             Buscar
           </button>
@@ -44,7 +46,7 @@ export default function Header() {
 
         <button
           type="button"
-          className="ml-auto rounded border border-slate-300 px-3 py-2 text-sm font-semibold lg:hidden"
+          className="ml-auto rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-700 lg:hidden"
           onClick={() => setOpen((prev) => !prev)}
           aria-expanded={open}
           aria-controls="mobile-nav"
@@ -55,12 +57,12 @@ export default function Header() {
 
       {open ? (
         <div id="mobile-nav" className="border-t border-slate-200 bg-white px-4 py-4 lg:hidden">
-          <div className="mb-4 grid grid-cols-2 gap-3">
+          <div className="mb-4 grid grid-cols-2 gap-2">
             {PRIMARY_NAV.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+                className="rounded-full border border-slate-200 px-3 py-2 text-center text-sm font-semibold text-slate-700"
                 onClick={() => setOpen(false)}
               >
                 {item.label}
@@ -72,11 +74,11 @@ export default function Header() {
               type="search"
               name="q"
               placeholder="Buscar noticias..."
-              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-full border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand"
             />
             <button
               type="submit"
-              className="rounded bg-brand px-3 py-2 text-sm font-semibold text-white"
+              className="rounded-full bg-brand px-3 py-2 text-sm font-semibold text-white"
             >
               Ir
             </button>
