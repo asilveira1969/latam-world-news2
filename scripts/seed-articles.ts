@@ -1,7 +1,10 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
+
+loadEnv({ path: ".env.local" });
+loadEnv();
 
 type SeedArticle = {
   title: string;
