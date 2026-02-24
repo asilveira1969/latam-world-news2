@@ -15,12 +15,12 @@ export default function Header() {
           <p className="text-xs text-slate-600">{SITE_TAGLINE}</p>
         </Link>
 
-        <nav className="hidden flex-1 items-center gap-4 lg:flex">
+        <nav className="hidden flex-1 items-center justify-center gap-3 lg:flex">
           {PRIMARY_NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="text-sm font-semibold text-slate-700 transition hover:text-brand-accent"
+              className="rounded-full border border-slate-300 bg-slate-50 px-5 py-2 text-lg font-black text-slate-700 transition hover:border-brand hover:bg-brand hover:text-white"
             >
               {item.label}
             </Link>
