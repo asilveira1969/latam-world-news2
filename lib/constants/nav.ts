@@ -1,7 +1,7 @@
 import type { RegionKey, RegionValue, SectionKey } from "@/lib/types/article";
 
 export const SITE_NAME = "LATAM World News";
-export const SITE_TAGLINE = "Noticias internacionales explicadas para America Latina";
+export const SITE_TAGLINE = "Noticias de LatinoAmerica y el Mundo";
 
 export const REGION_ROUTE_MAP: Record<RegionKey, RegionValue> = {
   mundo: "Mundo",
@@ -35,6 +35,6 @@ export const SECTION_TITLE_MAP: Record<SectionKey, string> = {
 };
 
 export const PRIMARY_NAV: Array<{ href: string; label: string }> = [
-  { href: "/mundo", label: "Mundo" },
-  { href: "/latinoamerica", label: "Latinoamerica" }
+  { href: "/latinoamerica", label: "Latinoamerica" },
+  { href: "/mundo", label: "Mundo" }
 ];
