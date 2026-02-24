@@ -36,14 +36,5 @@ export const SECTION_TITLE_MAP: Record<SectionKey, string> = {
 
 export const PRIMARY_NAV: Array<{ href: string; label: string }> = [
   { href: "/mundo", label: "Mundo" },
-  { href: "/latinoamerica", label: "Latinoamerica" },
-  { href: "/eeuu", label: "EE.UU." },
-  { href: "/europa", label: "Europa" },
-  { href: "/asia", label: "Asia" },
-  { href: "/medio-oriente", label: "Medio Oriente" },
-  { href: "/economia-global", label: "Economia" },
-  { href: "/energia", label: "Energia" },
-  { href: "/tecnologia", label: "Tecnologia" },
-  { href: "/impacto", label: "Impacto" },
-  { href: "/v2", label: "V2" }
+  { href: "/latinoamerica", label: "Latinoamerica" }
 ];
