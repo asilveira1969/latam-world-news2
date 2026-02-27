@@ -25,6 +25,18 @@ import {
 } from "@/lib/text/clean";
 import type { Article, HomeData, RegionKey, SectionKey } from "@/lib/types/article";
 
+const LATAM_COUNTRIES = ["uy", "ar", "br", "mx", "cl"] as const;
+const COUNTRY_REGION_CODES = ["UY", "AR", "BR", "MX", "CL"] as const;
+const LATAM_REGION_VALUES = ["LatAm", ...COUNTRY_REGION_CODES] as const;
+
+function isLatamCountry(value: string): boolean {
+  return LATAM_COUNTRIES.includes(value.toLowerCase() as (typeof LATAM_COUNTRIES)[number]);
+}
+
+function isLatamRegion(value: string): boolean {
+  return LATAM_REGION_VALUES.includes(value as (typeof LATAM_REGION_VALUES)[number]);
+}
+
 function isDisplayableArticle(article: Article): boolean {
   const combined = `${article.title}\n${article.excerpt}\n${article.source_name}`;
   if (looksLikeSystemError(combined)) {
@@ -45,9 +57,18 @@ function isDisplayableArticle(article: Article): boolean {
 function mapRecordToArticle(record: Record<string, unknown>): Article {
   const rawTitle = String(record.title ?? "");
   const title = cleanPlainText(rawTitle) || "Actualizacion internacional";
-  const rawExcerpt = String(record.excerpt ?? "");
+  const rawExcerpt = String(record.summary ?? record.excerpt ?? "");
   const excerpt = cleanExcerpt(rawExcerpt, 280) || `${title}.`;
   const rawContent = (record.content as string | null) ?? null;
+  const country = String(record.country ?? "").toLowerCase();
+  const regionInput = String(record.region ?? "").trim();
+  const derivedRegion =
+    (regionInput as Article["region"]) ||
+    (country && isLatamCountry(country)
+      ? (country.toUpperCase() as Article["region"])
+      : "Mundo");
+  const sourceNameInput = String(record.source ?? record.source_name ?? "Fuente externa");
+  const sourceUrlInput = String(record.url ?? record.source_url ?? "#");
 
   return {
     id: String(record.id ?? crypto.randomUUID()),
@@ -56,9 +77,9 @@ function mapRecordToArticle(record: Record<string, unknown>): Article {
     excerpt,
     content: rawContent ? cleanPlainText(rawContent) : null,
     image_url: resolveCardImage(String(record.image_url ?? "")),
-    source_name: cleanPlainText(String(record.source_name ?? "Fuente externa")) || "Fuente externa",
-    source_url: String(record.source_url ?? "#"),
-    region: (record.region as Article["region"]) ?? "Mundo",
+    source_name: cleanPlainText(sourceNameInput) || "Fuente externa",
+    source_url: sourceUrlInput || "#",
+    region: derivedRegion,
     category: cleanPlainText(String(record.category ?? "Geopolitica")) || "Geopolitica",
     tags: Array.isArray(record.tags) ? (record.tags as string[]) : [],
     published_at: String(record.published_at ?? new Date().toISOString()),
@@ -124,13 +145,99 @@ async function fetchAllArticlesFromSource(): Promise<Article[]> {
   }
 }
 
+async function fetchArticlesFromSupabaseQuery(input: {
+  limit: number;
+  countries?: string[];
+  region?: Article["region"];
+  onlyNewsdata?: boolean;
+}): Promise<Article[]> {
+  if (!hasSupabaseAnonEnv) {
+    return [];
+  }
+
+  try {
+    const supabase = getSupabaseServerClient();
+    let query = supabase
+      .from("articles")
+      .select("*")
+      .order("published_at", { ascending: false })
+      .limit(input.limit);
+
+    if (input.region) {
+      query = query.eq("region", input.region);
+    } else if (input.countries && input.countries.length > 0) {
+      query = query.in("country", input.countries);
+    }
+
+    if (input.onlyNewsdata) {
+      query = query.contains("tags", ["newsdata"]);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("Supabase filtered read failed:", error.message);
+      return [];
+    }
+
+    const mapped = (data ?? []).map((record: Record<string, unknown>) => mapRecordToArticle(record));
+    return dedupeBySourceUrl(sortByPublishedDesc(mapped)).filter(isDisplayableArticle);
+  } catch (error) {
+    console.error("Supabase filtered read failed:", error);
+    return [];
+  }
+}
+
 export async function getAllArticles(): Promise<Article[]> {
   const all = await fetchAllArticlesFromSource();
   return dedupeBySourceUrl(sortByPublishedDesc(all)).filter(isDisplayableArticle);
 }
 
-export async function getHomeData(): Promise<HomeData> {
+export async function getMundoArticles(
+  limit = 50,
+  region?: Article["region"],
+  onlyNewsdata = false
+): Promise<Article[]> {
+  const filtered = await fetchArticlesFromSupabaseQuery({ limit, region, onlyNewsdata });
+  if (filtered.length > 0) {
+    return filtered.slice(0, limit);
+  }
+
   const all = await getAllArticles();
+  const base = onlyNewsdata
+    ? all.filter((article) => article.tags.includes("newsdata"))
+    : all;
+  return region
+    ? base.filter((article) => article.region === region).slice(0, limit)
+    : base.slice(0, limit);
+}
+
+export async function getLatinoamericaArticles(limit = 50): Promise<Article[]> {
+  const filtered = await fetchArticlesFromSupabaseQuery({
+    limit,
+    countries: [...LATAM_COUNTRIES]
+  });
+  if (filtered.length > 0) {
+    return filtered.slice(0, limit);
+  }
+
+  const all = await getAllArticles();
+  return all
+    .filter((article) => isLatamRegion(article.region))
+    .slice(0, limit);
+}
+
+export async function getHomeData(input?: {
+  region?: Article["region"];
+  onlyNewsdata?: boolean;
+}): Promise<HomeData> {
+  const allArticles = await getAllArticles();
+  const sourceScoped = input?.onlyNewsdata
+    ? allArticles.filter((article) => article.tags.includes("newsdata"))
+    : allArticles;
+  const scoped = input?.region
+    ? sourceScoped.filter((article) => article.region === input.region)
+    : sourceScoped;
+  const all = scoped.length > 0 ? scoped : allArticles;
   const nonImpact = all.filter((article) => !article.is_impact);
   const pool = nonImpact.length > 0 ? nonImpact : all;
   const hero = pickHero(pool);
@@ -276,4 +383,17 @@ export async function incrementArticleViews(slug: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export function parseCountryRegionFilter(
+  value: string | string[] | undefined
+): Article["region"] | undefined {
+  const normalized = typeof value === "string" ? value.trim().toUpperCase() : "";
+  if (!normalized) {
+    return undefined;
+  }
+
+  return COUNTRY_REGION_CODES.includes(normalized as (typeof COUNTRY_REGION_CODES)[number])
+    ? (normalized as Article["region"])
+    : undefined;
 }

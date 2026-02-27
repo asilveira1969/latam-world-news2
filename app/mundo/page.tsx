@@ -1,6 +1,10 @@
 import { Metadata } from "next";
 import MundoLayoutV2 from "@/components/v2/MundoLayoutV2";
-import { getHomeData, getRegionArticles } from "@/lib/data/articles-repo";
+import {
+  getHomeData,
+  getMundoArticles,
+  parseCountryRegionFilter
+} from "@/lib/data/articles-repo";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
@@ -8,9 +12,16 @@ export const metadata: Metadata = buildMetadata({
   description: "Cobertura de politica internacional, diplomacia y seguridad global.",
   pathname: "/mundo"
 });
+export const revalidate = 300;
 
-export default async function MundoPage() {
-  const articles = await getRegionArticles("mundo", 30);
+export default async function MundoPage({
+  searchParams
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolvedParams = (await searchParams) ?? {};
+  const regionFilter = parseCountryRegionFilter(resolvedParams.region);
+  const articles = await getMundoArticles(50, regionFilter);
 
   if (articles.length >= 3) {
     return (
@@ -22,9 +33,11 @@ export default async function MundoPage() {
     );
   }
 
-  const home = await getHomeData();
+  const home = await getHomeData(regionFilter ? { region: regionFilter } : undefined);
   const fallbackLatest =
-    articles.length > 0 ? articles : home.latest.filter((item) => item.region === "Mundo");
+    articles.length > 0
+      ? articles
+      : home.latest.filter((item) => (regionFilter ? item.region === regionFilter : true));
   const heroLead = fallbackLatest[0] ?? home.heroLead;
   const heroSecondary = fallbackLatest.slice(1, 3);
 
