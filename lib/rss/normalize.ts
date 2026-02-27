@@ -2,6 +2,7 @@ import type { Article } from "@/lib/types/article";
 import { isValidHttpUrl } from "@/lib/images";
 import type { ParsedRssItem } from "@/lib/rss/parse-rss";
 import { truncateExcerpt } from "@/lib/ranking";
+import type { MundoRssSource } from "@/lib/sources";
 import { cleanExcerpt, cleanPlainText, looksCorruptedText } from "@/lib/text/clean";
 
 export type NormalizedArticleInput = Omit<Article, "id" | "created_at"> & {
@@ -17,7 +18,10 @@ function slugify(input: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
-export function normalizeRssItems(items: ParsedRssItem[], sourceName: string): NormalizedArticleInput[] {
+export function normalizeRssItems(
+  items: ParsedRssItem[],
+  sourceConfig: Pick<MundoRssSource, "name" | "region" | "tag">
+): NormalizedArticleInput[] {
   const now = new Date().toISOString();
 
   return items.map((item, index) => {
@@ -35,11 +39,11 @@ export function normalizeRssItems(items: ParsedRssItem[], sourceName: string): N
       excerpt: truncateExcerpt(cleanedExcerpt || "Actualizacion internacional.", 180),
       content: null,
       image_url: item.imageUrl && isValidHttpUrl(item.imageUrl) ? item.imageUrl : "",
-      source_name: sourceName,
+      source_name: sourceConfig.name,
       source_url: sourceUrl,
-      region: "Mundo",
+      region: sourceConfig.region,
       category: "Geopolitica",
-      tags: ["internacional", "rss"],
+      tags: ["internacional", "rss", "mundo-rss", sourceConfig.tag],
       published_at: new Date(item.pubDate || now).toISOString(),
       is_featured: false,
       is_impact: false,

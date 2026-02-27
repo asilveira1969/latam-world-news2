@@ -28,6 +28,13 @@ import type { Article, HomeData, RegionKey, SectionKey } from "@/lib/types/artic
 const LATAM_COUNTRIES = ["uy", "ar", "br", "mx", "cl"] as const;
 const COUNTRY_REGION_CODES = ["UY", "AR", "BR", "MX", "CL"] as const;
 const LATAM_REGION_VALUES = ["LatAm", ...COUNTRY_REGION_CODES] as const;
+const MUNDO_RSS_TAG = "mundo-rss";
+
+export interface MundoSourceSummary {
+  sourceName: string;
+  articleCount: number;
+  latest: Article[];
+}
 
 function isLatamCountry(value: string): boolean {
   return LATAM_COUNTRIES.includes(value.toLowerCase() as (typeof LATAM_COUNTRIES)[number]);
@@ -145,6 +152,34 @@ async function fetchAllArticlesFromSource(): Promise<Article[]> {
   }
 }
 
+async function fetchMundoRssArticlesFromSupabase(limit: number): Promise<Article[]> {
+  if (!hasSupabaseAnonEnv) {
+    return [];
+  }
+
+  try {
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("articles")
+      .select("*")
+      .eq("region", "Mundo")
+      .contains("tags", [MUNDO_RSS_TAG])
+      .order("published_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error("Supabase mundo-rss read failed:", error.message);
+      return [];
+    }
+
+    const mapped = (data ?? []).map((record: Record<string, unknown>) => mapRecordToArticle(record));
+    return dedupeBySourceUrl(sortByPublishedDesc(mapped)).filter(isDisplayableArticle);
+  } catch (error) {
+    console.error("Supabase mundo-rss read failed:", error);
+    return [];
+  }
+}
+
 async function fetchArticlesFromSupabaseQuery(input: {
   limit: number;
   countries?: string[];
@@ -212,6 +247,43 @@ export async function getMundoArticles(
   return region
     ? base.filter((article) => article.region === region).slice(0, limit)
     : base.slice(0, limit);
+}
+
+export async function getMundoRssArticles(limit = 50): Promise<Article[]> {
+  const filtered = await fetchMundoRssArticlesFromSupabase(Math.max(limit, 120));
+  if (filtered.length >= 3) {
+    return filtered.slice(0, limit);
+  }
+
+  const fallback = await getMundoArticles(limit);
+  if (filtered.length === 0) {
+    return fallback;
+  }
+
+  const combined = dedupeBySourceUrl(sortByPublishedDesc([...filtered, ...fallback]));
+  return combined.slice(0, limit);
+}
+
+export async function getMundoRssSourceSummaries(limitPerSource = 3): Promise<MundoSourceSummary[]> {
+  const filtered = await fetchMundoRssArticlesFromSupabase(120);
+  if (filtered.length === 0) {
+    return [];
+  }
+
+  const groups = new Map<string, Article[]>();
+  for (const article of filtered) {
+    const current = groups.get(article.source_name) ?? [];
+    current.push(article);
+    groups.set(article.source_name, current);
+  }
+
+  return [...groups.entries()]
+    .map(([sourceName, items]) => ({
+      sourceName,
+      articleCount: items.length,
+      latest: items.slice(0, limitPerSource)
+    }))
+    .sort((a, b) => b.articleCount - a.articleCount || a.sourceName.localeCompare(b.sourceName));
 }
 
 export async function getLatinoamericaArticles(

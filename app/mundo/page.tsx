@@ -3,7 +3,8 @@ import MundoLayoutV2 from "@/components/v2/MundoLayoutV2";
 import {
   getHomeData,
   getMundoArticles,
-  parseCountryRegionFilter
+  getMundoRssArticles,
+  getMundoRssSourceSummaries
 } from "@/lib/data/articles-repo";
 import { buildMetadata } from "@/lib/seo";
 
@@ -14,14 +15,9 @@ export const metadata: Metadata = buildMetadata({
 });
 export const revalidate = 300;
 
-export default async function MundoPage({
-  searchParams
-}: {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const resolvedParams = (await searchParams) ?? {};
-  const regionFilter = parseCountryRegionFilter(resolvedParams.region);
-  const articles = await getMundoArticles(50, regionFilter);
+export default async function MundoPage() {
+  const articles = await getMundoRssArticles(50);
+  const sourceSummaries = await getMundoRssSourceSummaries(3);
 
   if (articles.length >= 3) {
     return (
@@ -29,15 +25,13 @@ export default async function MundoPage({
         heroLead={articles[0]}
         heroSecondary={articles.slice(1, 3)}
         latest={articles}
+        sourceSummaries={sourceSummaries}
       />
     );
   }
 
-  const home = await getHomeData(regionFilter ? { region: regionFilter } : undefined);
-  const fallbackLatest =
-    articles.length > 0
-      ? articles
-      : home.latest.filter((item) => (regionFilter ? item.region === regionFilter : true));
+  const home = await getHomeData({ region: "Mundo" });
+  const fallbackLatest = articles.length > 0 ? articles : await getMundoArticles(50);
   const heroLead = fallbackLatest[0] ?? home.heroLead;
   const heroSecondary = fallbackLatest.slice(1, 3);
 
@@ -46,6 +40,7 @@ export default async function MundoPage({
       heroLead={heroLead}
       heroSecondary={heroSecondary.length > 0 ? heroSecondary : home.heroSecondary.slice(0, 2)}
       latest={fallbackLatest.length > 0 ? fallbackLatest : home.latest}
+      sourceSummaries={sourceSummaries}
     />
   );
 }
