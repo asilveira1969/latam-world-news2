@@ -148,6 +148,7 @@ async function fetchAllArticlesFromSource(): Promise<Article[]> {
 async function fetchArticlesFromSupabaseQuery(input: {
   limit: number;
   countries?: string[];
+  country?: string;
   region?: Article["region"];
   onlyNewsdata?: boolean;
 }): Promise<Article[]> {
@@ -163,7 +164,9 @@ async function fetchArticlesFromSupabaseQuery(input: {
       .order("published_at", { ascending: false })
       .limit(input.limit);
 
-    if (input.region) {
+    if (input.country) {
+      query = query.eq("country", input.country);
+    } else if (input.region) {
       query = query.eq("region", input.region);
     } else if (input.countries && input.countries.length > 0) {
       query = query.in("country", input.countries);
@@ -211,16 +214,35 @@ export async function getMundoArticles(
     : base.slice(0, limit);
 }
 
-export async function getLatinoamericaArticles(limit = 50): Promise<Article[]> {
-  const filtered = await fetchArticlesFromSupabaseQuery({
-    limit,
-    countries: [...LATAM_COUNTRIES]
-  });
+export async function getLatinoamericaArticles(
+  limit = 50,
+  region?: Article["region"]
+): Promise<Article[]> {
+  const latamCountry =
+    region && isLatamRegion(region) && region !== "LatAm" ? region.toLowerCase() : undefined;
+  const filtered = await fetchArticlesFromSupabaseQuery(
+    latamCountry
+      ? {
+          limit,
+          country: latamCountry
+        }
+      : {
+          limit,
+          countries: [...LATAM_COUNTRIES]
+        }
+  );
   if (filtered.length > 0) {
+    const scoped = region ? filtered.filter((article) => article.region === region) : filtered;
+    if (scoped.length > 0) {
+      return scoped.slice(0, limit);
+    }
     return filtered.slice(0, limit);
   }
 
   const all = await getAllArticles();
+  if (region && isLatamRegion(region) && region !== "LatAm") {
+    return all.filter((article) => article.region === region).slice(0, limit);
+  }
   return all
     .filter((article) => isLatamRegion(article.region))
     .slice(0, limit);

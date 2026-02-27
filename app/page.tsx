@@ -27,10 +27,10 @@ export default async function HomePage() {
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-8">
           <Hero lead={home.heroLead} secondary={home.heroSecondary} />
-          <LiveStream sources={LIVE_STREAM_SOURCES} />
-          <ImpactSection items={home.impact} />
           <LatestFeed items={home.latest} />
           <RegionBlocks regions={home.regionBlocks} />
+          <ImpactSection items={home.impact} />
+          <LiveStream sources={LIVE_STREAM_SOURCES} />
         </div>
 
         <Sidebar trendingTags={home.trendingTags} mostRead={home.mostRead} />

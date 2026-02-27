@@ -35,6 +35,10 @@ export default function MundoLayoutV2({
           <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} />
         </section>
 
+        <section aria-label="Ultimas Noticias">
+          <LatestFeed items={latest} />
+        </section>
+
         <PlaceholderSectionV2
           title="Agenda"
           subtitle="Próximamente agenda global"
@@ -48,10 +52,6 @@ export default function MundoLayoutV2({
         />
 
         <PlaceholderSectionV2 title="Pop / Entretenimiento" cards={POP_PLACEHOLDER_CARDS} />
-
-        <section aria-label="Últimas Noticias">
-          <LatestFeed items={latest} />
-        </section>
       </div>
     </main>
   );
