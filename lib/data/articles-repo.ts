@@ -16,7 +16,7 @@ import {
   hasSupabaseAnonEnv,
   hasSupabaseServiceEnv
 } from "@/lib/supabase/server";
-import { resolveCardImage } from "@/lib/images";
+import { hasUsableRemoteImage, resolveCardImage } from "@/lib/images";
 import {
   cleanExcerpt,
   cleanPlainText,
@@ -152,6 +152,23 @@ async function fetchAllArticlesFromSource(): Promise<Article[]> {
   }
 }
 
+function sortMundoFeedForDisplay(articles: Article[]): Article[] {
+  return [...articles].sort((a, b) => {
+    const aHasImage = hasUsableRemoteImage(a.image_url);
+    const bHasImage = hasUsableRemoteImage(b.image_url);
+
+    if (aHasImage !== bHasImage) {
+      return aHasImage ? -1 : 1;
+    }
+
+    return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();
+  });
+}
+
+export function sortMundoArticlesForDisplay(articles: Article[]): Article[] {
+  return sortMundoFeedForDisplay(articles);
+}
+
 async function fetchMundoRssArticlesFromSupabase(limit: number): Promise<Article[]> {
   if (!hasSupabaseAnonEnv) {
     return [];
@@ -252,16 +269,16 @@ export async function getMundoArticles(
 export async function getMundoRssArticles(limit = 50): Promise<Article[]> {
   const filtered = await fetchMundoRssArticlesFromSupabase(Math.max(limit, 120));
   if (filtered.length >= 3) {
-    return filtered.slice(0, limit);
+    return sortMundoFeedForDisplay(filtered).slice(0, limit);
   }
 
   const fallback = await getMundoArticles(limit);
   if (filtered.length === 0) {
-    return fallback;
+    return sortMundoFeedForDisplay(fallback);
   }
 
   const combined = dedupeBySourceUrl(sortByPublishedDesc([...filtered, ...fallback]));
-  return combined.slice(0, limit);
+  return sortMundoFeedForDisplay(combined).slice(0, limit);
 }
 
 export async function getMundoRssSourceSummaries(limitPerSource = 3): Promise<MundoSourceSummary[]> {

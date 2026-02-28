@@ -6,6 +6,7 @@ export interface ParsedRssItem {
   pubDate: string;
   excerpt: string;
   imageUrl?: string;
+  categories?: string[];
 }
 
 function pickText(value: unknown): string {
@@ -20,6 +21,36 @@ function pickText(value: unknown): string {
     return String(raw["#text"] ?? raw.href ?? "").trim();
   }
   return String(value);
+}
+
+function pickTextList(value: unknown): string[] {
+  if (!value) {
+    return [];
+  }
+
+  const values = Array.isArray(value) ? value : [value];
+  return values
+    .map((item) => pickText(item))
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function pickAtomCategoryTerms(value: unknown): string[] {
+  if (!value) {
+    return [];
+  }
+
+  const values = Array.isArray(value) ? value : [value];
+  return values
+    .map((item) => {
+      if (typeof item === "object" && item !== null) {
+        const raw = item as Record<string, unknown>;
+        return String(raw["@_term"] ?? raw["#text"] ?? "").trim();
+      }
+      return pickText(item);
+    })
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 export function parseRss(xml: string): ParsedRssItem[] {
@@ -49,7 +80,11 @@ export function parseRss(xml: string): ParsedRssItem[] {
           pickText(value.description) ||
           pickText(value["content:encoded"]) ||
           "Actualizacion internacional.",
-        imageUrl: pickText(enclosure?.["@_url"]) || pickText(mediaContent?.["@_url"]) || undefined
+        imageUrl: pickText(enclosure?.["@_url"]) || pickText(mediaContent?.["@_url"]) || undefined,
+        categories: [
+          ...pickTextList(value.category),
+          ...pickTextList(value["dc:subject"])
+        ]
       };
     });
   }
@@ -63,7 +98,8 @@ export function parseRss(xml: string): ParsedRssItem[] {
         title: pickText(value.title),
         link: pickText(value.link),
         pubDate: pickText(value.updated) || pickText(value.published) || new Date().toISOString(),
-        excerpt: pickText(value.summary) || "Actualizacion internacional."
+        excerpt: pickText(value.summary) || "Actualizacion internacional.",
+        categories: pickAtomCategoryTerms(value.category)
       };
     });
   }

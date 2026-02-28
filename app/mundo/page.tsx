@@ -4,7 +4,8 @@ import {
   getHomeData,
   getMundoArticles,
   getMundoRssArticles,
-  getMundoRssSourceSummaries
+  getMundoRssSourceSummaries,
+  sortMundoArticlesForDisplay
 } from "@/lib/data/articles-repo";
 import { buildMetadata } from "@/lib/seo";
 
@@ -31,7 +32,9 @@ export default async function MundoPage() {
   }
 
   const home = await getHomeData({ region: "Mundo" });
-  const fallbackLatest = articles.length > 0 ? articles : await getMundoArticles(50);
+  const fallbackLatest = sortMundoArticlesForDisplay(
+    articles.length > 0 ? articles : await getMundoArticles(50)
+  );
   const heroLead = fallbackLatest[0] ?? home.heroLead;
   const heroSecondary = fallbackLatest.slice(1, 3);
 
