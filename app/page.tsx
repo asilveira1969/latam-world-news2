@@ -19,6 +19,7 @@ export const metadata: Metadata = buildMetadata({
 
 export default async function HomePage() {
   const home = await getHomeData();
+  const staticMeta = () => "Mundo - Internacional";
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
@@ -26,8 +27,8 @@ export default async function HomePage() {
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-8">
-          <Hero lead={home.heroLead} secondary={home.heroSecondary} />
-          <LatestFeed items={home.latest} />
+          <Hero lead={home.heroLead} secondary={home.heroSecondary} formatMeta={staticMeta} />
+          <LatestFeed items={home.latest} formatMeta={staticMeta} />
           <RegionBlocks regions={home.regionBlocks} />
           <ImpactSection items={home.impact} />
           <LiveStream sources={LIVE_STREAM_SOURCES} />

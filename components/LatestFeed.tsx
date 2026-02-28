@@ -5,13 +5,14 @@ import AdSlot from "@/components/AdSlot";
 
 export interface LatestFeedProps {
   items: Article[];
+  formatMeta?: (article: Article) => string;
 }
 
 function articleHref(article: Article) {
   return article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`;
 }
 
-export default function LatestFeed({ items }: LatestFeedProps) {
+export default function LatestFeed({ items, formatMeta }: LatestFeedProps) {
   return (
     <section aria-label="Ultimas">
       <h2 className="mb-3 text-2xl font-black text-brand">Ultimas</h2>
@@ -30,7 +31,7 @@ export default function LatestFeed({ items }: LatestFeedProps) {
               </Link>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-                  {article.region} · {article.category}
+                  {formatMeta ? formatMeta(article) : `${article.region} · ${article.category}`}
                 </p>
                 <Link href={articleHref(article)}>
                   <h3 className="mt-1 text-lg font-bold">{article.title}</h3>

@@ -5,16 +5,21 @@ import type { Article } from "@/lib/types/article";
 export interface HeroProps {
   lead: Article;
   secondary: Article[];
+  formatMeta?: (article: Article) => string;
 }
 
 function ArticleCard({
   article,
-  compact = false
+  compact = false,
+  formatMeta
 }: {
   article: Article;
   compact?: boolean;
+  formatMeta?: (article: Article) => string;
 }) {
   const href = article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`;
+  const meta = formatMeta ? formatMeta(article) : `${article.region} · ${article.category}`;
+
   return (
     <article className="group overflow-hidden rounded border border-slate-200 bg-white">
       <Link href={href} className="block">
@@ -30,7 +35,7 @@ function ArticleCard({
       </Link>
       <div className={compact ? "p-3" : "p-4"}>
         <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-accent">
-          {article.region} · {article.category}
+          {meta}
         </p>
         <Link href={href}>
           <h2 className={compact ? "text-base font-bold" : "text-2xl font-black"}>{article.title}</h2>
@@ -41,14 +46,14 @@ function ArticleCard({
   );
 }
 
-export default function Hero({ lead, secondary }: HeroProps) {
+export default function Hero({ lead, secondary, formatMeta }: HeroProps) {
   return (
     <section aria-label="Hero">
       <div className="grid gap-4 lg:grid-cols-2">
-        <ArticleCard article={lead} />
+        <ArticleCard article={lead} formatMeta={formatMeta} />
         <div className="grid gap-4 sm:grid-cols-2">
           {secondary.map((article) => (
-            <ArticleCard key={article.id} article={article} compact />
+            <ArticleCard key={article.id} article={article} compact formatMeta={formatMeta} />
           ))}
         </div>
       </div>
