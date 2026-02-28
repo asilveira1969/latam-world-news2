@@ -59,17 +59,8 @@ export default function LatinoamericaLayoutV2({
             <h1 className="mt-2 text-3xl font-black text-brand">{sectionTitle}</h1>
             <p className="mt-1 text-sm text-slate-600">{sectionCopy}</p>
           </div>
-          <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} formatMeta={latamMetaLabel} />
-        </section>
-
-        <section aria-label="Paises principales de Latinoamerica" className="space-y-3">
-          <div>
-            <h2 className="text-2xl font-black text-brand">Paises principales</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Acceso rapido a coberturas por pais dentro de Latinoamerica.
-            </p>
-          </div>
           <CountryExplorerV2 activeCountry={activeCountry} />
+          <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} formatMeta={latamMetaLabel} />
         </section>
 
         <section aria-label="Ultimas Noticias de Latinoamerica" className="space-y-3">
