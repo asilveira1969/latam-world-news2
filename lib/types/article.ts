@@ -4,7 +4,12 @@ export type RegionValue =
   | "EE.UU."
   | "Europa"
   | "Asia"
-  | "Medio Oriente";
+  | "Medio Oriente"
+  | "UY"
+  | "AR"
+  | "BR"
+  | "MX"
+  | "CL";
 
 export type RegionKey =
   | "mundo"

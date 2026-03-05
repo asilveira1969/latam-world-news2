@@ -2,6 +2,7 @@ import { config as loadEnv } from "dotenv";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import {
   cleanExcerpt,
@@ -56,6 +57,24 @@ type ArticleRow = {
   views: number;
 };
 
+export type OpenClawCliArgs = {
+  file: string;
+  dryRun: boolean;
+  reportJson: boolean;
+};
+
+export type OpenClawImportReport = {
+  ok: boolean;
+  mode: "validate" | "import";
+  file: string;
+  raw_items: number;
+  valid_items: number;
+  rejected_items: number;
+  fallback_published_at_used: number;
+  errors_preview: string[];
+  imported: boolean;
+};
+
 const DEFAULT_INPUT_PATH = path.join(process.cwd(), "openclaw", "ingested", "latest.json");
 const IMAGE_FALLBACK = "https://picsum.photos/seed/openclaw-fallback/1200/675";
 const BLOCKED_SOURCE_NAMES = new Set(["openclaw system"]);
@@ -73,15 +92,27 @@ function hash4(input: string): string {
   return createHash("sha1").update(input).digest("hex").slice(0, 4);
 }
 
-function parseArgs(argv: string[]): { file: string } {
+export function parseArgs(argv: string[]): OpenClawCliArgs {
   let file = DEFAULT_INPUT_PATH;
+  let dryRun = false;
+  let reportJson = false;
+
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--file") {
       file = argv[i + 1] ? path.resolve(argv[i + 1]) : file;
       i += 1;
+      continue;
+    }
+    if (argv[i] === "--dry-run") {
+      dryRun = true;
+      continue;
+    }
+    if (argv[i] === "--report-json") {
+      reportJson = true;
     }
   }
-  return { file };
+
+  return { file, dryRun, reportJson };
 }
 
 function asNonEmptyString(value: unknown): string | null {
@@ -93,16 +124,14 @@ function asNonEmptyString(value: unknown): string | null {
 }
 
 function maybeFixMojibake(value: string): string {
-  // Heuristic: attempt latin1->utf8 repair only when common mojibake markers appear.
-  if (!/[ÃÂâ€�â€“â€™├┬]/.test(value)) {
+  if (!/[ÃƒÃ‚Ã¢â‚¬ï¿½Ã¢â‚¬â€œÃ¢â‚¬â„¢â”œâ”¬]/.test(value)) {
     return value;
   }
 
   try {
     const repaired = Buffer.from(value, "latin1").toString("utf8");
-    // Keep the repaired version only if it reduces mojibake markers and remains printable.
-    const beforeScore = (value.match(/[ÃÂâ€�â€“â€™├┬]/g) ?? []).length;
-    const afterScore = (repaired.match(/[ÃÂâ€�â€“â€™├┬]/g) ?? []).length;
+    const beforeScore = (value.match(/[ÃƒÃ‚Ã¢â‚¬ï¿½Ã¢â‚¬â€œÃ¢â‚¬â„¢â”œâ”¬]/g) ?? []).length;
+    const afterScore = (repaired.match(/[ÃƒÃ‚Ã¢â‚¬ï¿½Ã¢â‚¬â€œÃ¢â‚¬â„¢â”œâ”¬]/g) ?? []).length;
     return afterScore < beforeScore ? repaired : value;
   } catch {
     return value;
@@ -259,7 +288,7 @@ function parsePotentialJsonText(value: string): unknown {
   }
 }
 
-function extractItemsFromUnknown(payload: unknown): OpenClawNewsItem[] {
+export function extractItemsFromUnknown(payload: unknown): OpenClawNewsItem[] {
   if (Array.isArray(payload)) {
     return payload as OpenClawNewsItem[];
   }
@@ -360,23 +389,13 @@ function mapItemToArticle(item: OpenClawNewsItem): {
   return { row, fallbackDateUsed: published.fallbackUsed };
 }
 
-async function run() {
-  const { file } = parseArgs(process.argv.slice(2));
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !serviceRoleKey) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
-  }
-
+async function readJsonFileWithBom(file: string): Promise<unknown> {
   const rawFile = await readFile(file);
   let raw: string;
 
-  // PowerShell redirection (>) often writes UTF-16 LE text. Detect BOMs first.
   if (rawFile.length >= 2 && rawFile[0] === 0xff && rawFile[1] === 0xfe) {
     raw = rawFile.toString("utf16le");
   } else if (rawFile.length >= 2 && rawFile[0] === 0xfe && rawFile[1] === 0xff) {
-    // UTF-16 BE BOM: swap bytes into LE before decoding.
     const swapped = Buffer.from(rawFile);
     for (let i = 0; i + 1 < swapped.length; i += 2) {
       const tmp = swapped[i];
@@ -388,19 +407,65 @@ async function run() {
     raw = rawFile.toString("utf8");
   }
 
-  // Strip BOM/leading non-JSON noise if present.
   raw = raw.replace(/^\uFEFF/, "").trimStart();
+  return JSON.parse(raw) as unknown;
+}
 
-  const payload = JSON.parse(raw) as unknown;
+function buildReport(params: {
+  mode: "validate" | "import";
+  file: string;
+  rawItems: number;
+  validItems: number;
+  rejectedItems: number;
+  fallbackDateCount: number;
+  errors: string[];
+  imported: boolean;
+}): OpenClawImportReport {
+  return {
+    ok: params.validItems > 0,
+    mode: params.mode,
+    file: path.relative(process.cwd(), params.file) || params.file,
+    raw_items: params.rawItems,
+    valid_items: params.validItems,
+    rejected_items: params.rejectedItems,
+    fallback_published_at_used: params.fallbackDateCount,
+    errors_preview: params.errors.slice(0, 10),
+    imported: params.imported
+  };
+}
+
+function printReport(report: OpenClawImportReport, reportJson: boolean) {
+  if (reportJson) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  const modeLabel = report.mode === "validate" ? "OpenClaw validation" : "OpenClaw import";
+  console.log(`${modeLabel} completed for ${report.file}`);
+  console.log(`Raw items: ${report.raw_items}`);
+  console.log(`Valid items: ${report.valid_items}`);
+  console.log(`Rejected items: ${report.rejected_items}`);
+  console.log(`Fallback published_at used: ${report.fallback_published_at_used}`);
+
+  if (report.errors_preview.length > 0) {
+    console.warn("Rejected item summary (first 10):");
+    report.errors_preview.forEach((msg) => console.warn(`- ${msg}`));
+  }
+}
+
+export async function runOpenClawImportCli(
+  argv: string[],
+  options?: { forceDryRun?: boolean }
+): Promise<number> {
+  const parsed = parseArgs(argv);
+  const dryRun = options?.forceDryRun ? true : parsed.dryRun;
+  const mode = dryRun ? "validate" : "import";
+
+  const payload = await readJsonFileWithBom(parsed.file);
   const items = extractItemsFromUnknown(payload);
 
   if (!Array.isArray(items)) {
     throw new Error("Invalid OpenClaw payload: expected an items array.");
-  }
-
-  if (items.length === 0) {
-    console.warn(`OpenClaw import: no items found in ${file}`);
-    return;
   }
 
   const errors: string[] = [];
@@ -418,48 +483,59 @@ async function run() {
     }
 
     const existing = deduped.get(mapped.row.source_url);
-    if (!existing) {
-      deduped.set(mapped.row.source_url, mapped.row);
-      continue;
-    }
-
-    if (scoreItemCompleteness(mapped.row) > scoreItemCompleteness(existing)) {
+    if (!existing || scoreItemCompleteness(mapped.row) > scoreItemCompleteness(existing)) {
       deduped.set(mapped.row.source_url, mapped.row);
     }
   }
 
   const rows = [...deduped.values()];
-  if (rows.length === 0) {
-    console.warn(`OpenClaw import: 0 valid items after validation from ${items.length} raw item(s).`);
-    errors.slice(0, 10).forEach((msg) => console.warn(msg));
-    return;
+  let imported = false;
+
+  if (rows.length > 0 && !dryRun) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !serviceRoleKey) {
+      throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
+    }
+
+    const supabase = createClient(url, serviceRoleKey, {
+      auth: { persistSession: false }
+    });
+
+    const { error } = await supabase.from("articles").upsert(rows, {
+      onConflict: "source_url"
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    imported = true;
   }
 
-  const supabase = createClient(url, serviceRoleKey, {
-    auth: { persistSession: false }
+  const report = buildReport({
+    mode,
+    file: parsed.file,
+    rawItems: items.length,
+    validItems: rows.length,
+    rejectedItems: errors.length,
+    fallbackDateCount,
+    errors,
+    imported
   });
 
-  const { error } = await supabase.from("articles").upsert(rows, {
-    onConflict: "source_url"
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  console.log(`OpenClaw import completed from ${path.relative(process.cwd(), file) || file}`);
-  console.log(`Raw items: ${items.length}`);
-  console.log(`Valid items: ${rows.length}`);
-  console.log(`Rejected items: ${errors.length}`);
-  console.log(`Fallback published_at used: ${fallbackDateCount}`);
-
-  if (errors.length > 0) {
-    console.warn("Rejected item summary (first 10):");
-    errors.slice(0, 10).forEach((msg) => console.warn(`- ${msg}`));
-  }
+  printReport(report, parsed.reportJson);
+  return rows.length > 0 ? 0 : 2;
 }
 
-run().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+const isMain = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isMain) {
+  runOpenClawImportCli(process.argv.slice(2))
+    .then((code) => {
+      process.exit(code);
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+}

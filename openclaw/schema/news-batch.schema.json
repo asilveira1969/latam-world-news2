@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://latam-world-news.local/openclaw/schema/news-batch.schema.json",
+  "title": "OpenClaw News Batch (MVP)",
+  "type": "object",
+  "required": ["generated_at", "source_batch", "items"],
+  "properties": {
+    "generated_at": {
+      "type": "string",
+      "description": "ISO-8601 timestamp when the batch was generated."
+    },
+    "source_batch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "source_url"],
+        "properties": {
+          "title": { "type": "string", "minLength": 1 },
+          "source_name": { "type": "string" },
+          "source_url": { "type": "string", "format": "uri" },
+          "excerpt": { "type": "string" },
+          "published_at": { "type": "string" },
+          "region": {
+            "type": "string",
+            "description": "Preferred: LatAm|EE.UU.|Europa|Asia|Medio Oriente|Mundo"
+          },
+          "category": { "type": "string" },
+          "tags": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              { "type": "string" }
+            ]
+          },
+          "image_url": { "type": "string", "format": "uri" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

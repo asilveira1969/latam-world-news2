@@ -7,8 +7,11 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "verify": "npm run typecheck && npm run build",
+    "smoke:local": "tsx scripts/smoke-local.ts",
     "seed": "tsx scripts/seed-articles.ts",
     "ingest:rss": "tsx scripts/ingest-rss.ts",
+    "openclaw:validate": "tsx scripts/validate-openclaw.ts",
     "ingest:openclaw": "tsx scripts/import-openclaw.ts"
   },
   "dependencies": {

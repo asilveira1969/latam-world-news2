@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Article } from "@/lib/types/article";
 import { isValidHttpUrl } from "@/lib/images";
 import type { ParsedRssItem } from "@/lib/rss/parse-rss";
@@ -91,7 +92,13 @@ function slugify(input: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 80);
+}
+
+function makeDeterministicSlug(title: string, sourceUrl: string): string {
+  const hash = createHash("sha1").update(sourceUrl).digest("hex").slice(0, 10);
+  return `${slugify(title)}-${hash}`;
 }
 
 function normalizeCategoryText(value: string): string {
@@ -175,7 +182,7 @@ export function normalizeRssItems(
     const category = resolveRssCategory(item);
     return {
       title: safeTitle,
-      slug: `${slugBase}-${Math.abs(sourceUrl.length % 100000)}`,
+      slug: makeDeterministicSlug(safeTitle, sourceUrl),
       excerpt: truncateExcerpt(cleanedExcerpt || "Actualizacion internacional.", 180),
       content: null,
       image_url: item.imageUrl && isValidHttpUrl(item.imageUrl) ? item.imageUrl : "",
