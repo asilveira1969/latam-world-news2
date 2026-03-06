@@ -22,7 +22,14 @@ function titleWithoutTrailingPeriod(title: string): string {
 
 function toSentenceList(tags: string[]): string {
   const cleaned = tags
-    .map((tag) => cleanPlainText(tag).toLowerCase())
+    .map((tag) =>
+      cleanPlainText(tag)
+        .toLowerCase()
+        .replace(/-/g, " ")
+        .replace("impacto latam", "impacto en LATAM")
+        .replace("energia", "energ\u00eda")
+        .replace("inflacion", "inflaci\u00f3n")
+    )
     .filter(Boolean)
     .slice(0, 3);
 
