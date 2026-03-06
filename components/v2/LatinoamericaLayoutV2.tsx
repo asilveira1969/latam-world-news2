@@ -56,9 +56,12 @@ export default function LatinoamericaLayoutV2({
             <h1 className="text-3xl font-black text-brand">{sectionTitle}</h1>
             <p className="mt-1 text-sm text-slate-600">{sectionCopy}</p>
           </div>
-          <CountryExplorerV2 activeCountry={activeCountry} />
           <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} formatMeta={latamMetaLabel} />
         </section>
+
+        <div className="sticky top-[72px] z-20 -mx-1 bg-brand-soft/95 px-1 py-2 backdrop-blur">
+          <CountryExplorerV2 activeCountry={activeCountry} />
+        </div>
 
         <section aria-label="Ultimas Noticias de Latinoamerica" className="space-y-3">
           {emptyStateMessage ? (
