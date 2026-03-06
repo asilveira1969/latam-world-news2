@@ -9,11 +9,11 @@ const COUNTRY_LINKS: Array<{
   code: CountryTabCode;
   label: string;
 }> = [
-  { code: "UY", label: "Uruguay" },
   { code: "AR", label: "Argentina" },
   { code: "BR", label: "Brasil" },
   { code: "CL", label: "Chile" },
-  { code: "MX", label: "Mexico" }
+  { code: "MX", label: "México" },
+  { code: "UY", label: "Uruguay" }
 ];
 
 function CountryFlag({ code }: { code: CountryTabCode }) {

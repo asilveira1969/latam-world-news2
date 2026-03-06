@@ -22,7 +22,7 @@ const COUNTRY_LABELS: Record<CountryTabCode, string> = {
   UY: "Uruguay",
   AR: "Argentina",
   BR: "Brasil",
-  MX: "Mexico",
+  MX: "México",
   CL: "Chile"
 };
 
