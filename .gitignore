@@ -7,4 +7,6 @@ coverage
 
 *.tsbuildinfo
 openclaw/ingested/*.json
+estructura*.txt
+docs/operations/*.pdf
 
