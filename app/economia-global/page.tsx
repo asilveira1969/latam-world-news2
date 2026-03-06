@@ -5,7 +5,7 @@ import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Economia Global",
-  description: "Mercados, comercio y tendencias macroeconomicas con impacto en LATAM.",
+  description: "Mercados, comercio y tendencias macroeconómicas con impacto en LATAM.",
   pathname: "/economia-global"
 });
 
@@ -14,8 +14,9 @@ export default async function EconomiaGlobalPage() {
   return (
     <SectionPage
       title="Economia Global"
-      description="Inflacion, tasas, comercio y finanzas internacionales."
+      description="Inflación, tasas, comercio y finanzas internacionales."
       articles={articles}
+      pathname="/economia-global"
     />
   );
 }

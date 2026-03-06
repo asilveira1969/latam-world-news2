@@ -16,7 +16,7 @@ function articleHref(article: Article) {
 
 export default function LatestFeed({ items, formatMeta }: LatestFeedProps) {
   return (
-    <section aria-label="Últimas">
+    <section aria-label="Últimas noticias internacionales">
       <h2 className="mb-3 text-2xl font-black text-brand">Últimas</h2>
       <div className="space-y-4">
         {items.slice(0, 30).map((article, index) => (

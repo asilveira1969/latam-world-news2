@@ -83,6 +83,17 @@ function mapRecordToArticle(record: Record<string, unknown>): Article {
     slug: String(record.slug ?? ""),
     excerpt,
     content: rawContent ? cleanPlainText(rawContent) : null,
+    seo_title: record.seo_title ? cleanPlainText(String(record.seo_title)) : null,
+    seo_description: record.seo_description
+      ? cleanExcerpt(String(record.seo_description), 180)
+      : null,
+    editorial_context: record.editorial_context
+      ? cleanExcerpt(String(record.editorial_context), 320)
+      : null,
+    latam_angle: record.latam_angle ? cleanExcerpt(String(record.latam_angle), 260) : null,
+    faq_items: Array.isArray(record.faq_items)
+      ? (record.faq_items as Array<{ question: string; answer: string }>)
+      : null,
     image_url: resolveCardImage(String(record.image_url ?? "")),
     source_name: cleanPlainText(sourceNameInput) || "Fuente externa",
     source_url: sourceUrlInput || "#",
@@ -521,6 +532,49 @@ export async function incrementArticleViews(slug: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export async function getSitemapArticles(): Promise<
+  Array<{ slug: string; kind: "nota" | "impacto"; lastModified: string }>
+> {
+  const all = await getAllArticles();
+  return all.map((article) => ({
+    slug: article.slug,
+    kind: article.is_impact ? "impacto" : "nota",
+    lastModified: article.published_at || article.created_at
+  }));
+}
+
+export async function getRelatedArticles(article: Article, limit = 4): Promise<Article[]> {
+  const all = await getAllArticles();
+
+  return all
+    .filter((candidate) => candidate.slug !== article.slug)
+    .map((candidate) => {
+      let score = 0;
+      if (candidate.region === article.region) {
+        score += 3;
+      }
+      if (candidate.category === article.category) {
+        score += 3;
+      }
+      const sharedTags = candidate.tags.filter((tag) => article.tags.includes(tag)).length;
+      score += sharedTags * 2;
+      if (candidate.is_impact === article.is_impact) {
+        score += 1;
+      }
+
+      return { candidate, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return new Date(b.candidate.published_at).getTime() - new Date(a.candidate.published_at).getTime();
+    })
+    .slice(0, limit)
+    .map((item) => item.candidate);
 }
 
 export function parseCountryRegionFilter(

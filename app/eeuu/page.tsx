@@ -5,7 +5,7 @@ import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "EE.UU.",
-  description: "Cobertura de Estados Unidos con lectura para America Latina.",
+  description: "Cobertura de Estados Unidos con lectura para América Latina.",
   pathname: "/eeuu"
 });
 
@@ -14,8 +14,9 @@ export default async function EeuuPage() {
   return (
     <SectionPage
       title="EE.UU."
-      description="Economia, politica y decisiones de Washington con impacto regional."
+      description="Economía, política y decisiones de Washington con impacto regional."
       articles={articles}
+      pathname="/eeuu"
     />
   );
 }

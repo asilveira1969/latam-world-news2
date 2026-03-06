@@ -5,7 +5,7 @@ import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Energia",
-  description: "Cobertura de energia global y su impacto en precios y suministro regional.",
+  description: "Cobertura de energía global y su impacto en precios y suministro regional.",
   pathname: "/energia"
 });
 
@@ -14,8 +14,9 @@ export default async function EnergiaPage() {
   return (
     <SectionPage
       title="Energia"
-      description="Petroleo, gas, renovables y seguridad energetica."
+      description="Petróleo, gas, renovables y seguridad energética."
       articles={articles}
+      pathname="/energia"
     />
   );
 }

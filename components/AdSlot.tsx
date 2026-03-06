@@ -33,10 +33,10 @@ export default function AdSlot({ slotId, className, format = "auto" }: AdSlotPro
       className={["rounded border border-slate-300 bg-slate-50 p-3 text-center", className]
         .filter(Boolean)
         .join(" ")}
-      aria-label="Advertisements"
+      aria-label="Publicidad"
     >
       <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        Advertisements
+        Publicidad
       </p>
       {ADSENSE_ENABLED && ADSENSE_CLIENT_ID ? (
         <ins
@@ -49,7 +49,7 @@ export default function AdSlot({ slotId, className, format = "auto" }: AdSlotPro
         />
       ) : (
         <div className="flex min-h-[90px] items-center justify-center rounded border border-dashed border-slate-300 bg-white text-sm text-slate-600">
-          Ad placeholder ({slotId})
+          Espacio publicitario ({slotId})
         </div>
       )}
     </aside>

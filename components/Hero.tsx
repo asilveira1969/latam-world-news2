@@ -52,7 +52,7 @@ function ArticleCard({
 
 export default function Hero({ lead, secondary, formatMeta }: HeroProps) {
   return (
-    <section aria-label="Hero">
+    <section aria-label="Cobertura destacada">
       <div className="grid gap-4 lg:grid-cols-2">
         <ArticleCard article={lead} formatMeta={formatMeta} />
         <div className="grid gap-4 sm:grid-cols-2">

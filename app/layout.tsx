@@ -5,19 +5,36 @@ import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import TopbarTicker from "@/components/TopbarTicker";
+import StructuredData from "@/components/StructuredData";
 import { getLatest } from "@/lib/data/articles-repo";
 import { buildMetadata } from "@/lib/seo";
-import { buildOrganizationJsonLd } from "@/lib/jsonld";
+import { buildOrganizationJsonLd, buildWebsiteJsonLd } from "@/lib/jsonld";
 import { ADSENSE_CLIENT_ID, ADSENSE_ENABLED } from "@/lib/config/ads";
 
-export const dynamic = "force-dynamic";
-
-export const metadata: Metadata = buildMetadata({
-  title: "Noticias internacionales para LATAM",
-  description:
-    "Portal de noticias internacionales en espanol con enfoque explicativo para America Latina.",
-  pathname: "/"
-});
+export const metadata: Metadata = {
+  ...buildMetadata({
+    title: "Noticias internacionales para LATAM",
+    description:
+      "Portal de noticias internacionales en espa\u00f1ol con contexto regional, an\u00e1lisis propio y cobertura curada para Am\u00e9rica Latina.",
+    pathname: "/",
+    keywords: [
+      "noticias internacionales",
+      "Am\u00e9rica Latina",
+      "geopol\u00edtica",
+      "econom\u00eda global",
+      "energ\u00eda",
+      "tecnolog\u00eda"
+    ]
+  }),
+  authors: [{ name: "LATAM World News" }],
+  creator: "LATAM World News",
+  publisher: "LATAM World News",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/apple-icon.svg"
+  },
+  manifest: "/manifest.webmanifest"
+};
 
 export default async function RootLayout({
   children
@@ -25,6 +42,7 @@ export default async function RootLayout({
   const latest = await getLatest({ limit: 10 });
   const headlines = latest.map((article) => article.title);
   const orgJsonLd = buildOrganizationJsonLd();
+  const websiteJsonLd = buildWebsiteJsonLd();
 
   return (
     <html lang="es">
@@ -38,10 +56,8 @@ export default async function RootLayout({
             crossOrigin="anonymous"
           />
         ) : null}
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
-        />
+        <StructuredData data={orgJsonLd} />
+        <StructuredData data={websiteJsonLd} />
         <TopbarTicker headlines={headlines} />
         <Header />
         {children}

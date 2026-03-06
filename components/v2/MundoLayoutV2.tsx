@@ -1,12 +1,6 @@
 import Hero from "@/components/Hero";
 import LatestFeed from "@/components/LatestFeed";
-import PlaceholderSectionV2 from "@/components/v2/PlaceholderSectionV2";
 import type { MundoSourceSummary } from "@/lib/data/articles-repo";
-import {
-  AGENDA_PLACEHOLDER_CARDS,
-  POP_PLACEHOLDER_CARDS,
-  SPORTS_PLACEHOLDER_CARDS
-} from "@/components/v2/v2-placeholders";
 import { formatSourceDisplayName } from "@/lib/sources";
 import type { Article } from "@/lib/types/article";
 
@@ -23,16 +17,16 @@ export default function MundoLayoutV2({
   latest,
   sourceSummaries
 }: MundoLayoutV2Props) {
-  const staticMeta = () => "Mundo - Internacional";
+  const staticMeta = () => "Mundo · Internacional";
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
       <div className="space-y-10">
-        <section aria-label="Top Stories Mundo" className="space-y-3">
+        <section aria-label="Cobertura destacada del mundo" className="space-y-3">
           <div>
             <h1 className="text-3xl font-black text-brand">Mundo</h1>
             <p className="mt-1 text-sm text-slate-600">
-              Hub operativo de noticias internacionales por RSS en español.
+              Cobertura internacional en español con seguimiento editorial y foco en lo que mueve a América Latina.
             </p>
           </div>
           <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} formatMeta={staticMeta} />
@@ -42,7 +36,7 @@ export default function MundoLayoutV2({
           <div>
             <h2 className="text-2xl font-black text-brand">Fuentes activas</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Monitoreo visual de feeds RSS internacionales en español.
+              Monitoreo de medios internacionales en español con prioridad en actualidad, geopolítica y economía.
             </p>
           </div>
           {sourceSummaries.length > 0 ? (
@@ -72,28 +66,14 @@ export default function MundoLayoutV2({
             </div>
           ) : (
             <p className="rounded border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-              Aún no hay suficientes artículos RSS curados para mostrar monitoreo por fuente.
+              Aún no hay suficientes artículos RSS curados para mostrar el monitoreo por fuente.
             </p>
           )}
         </section>
 
-        <section aria-label="Últimas Noticias">
+        <section aria-label="Últimas noticias del mundo">
           <LatestFeed items={latest} formatMeta={staticMeta} />
         </section>
-
-        <PlaceholderSectionV2
-          title="Agenda"
-          subtitle="Próximamente agenda global"
-          cards={AGENDA_PLACEHOLDER_CARDS}
-        />
-
-        <PlaceholderSectionV2
-          title="Deportes"
-          subtitle="Próximamente deportes"
-          cards={SPORTS_PLACEHOLDER_CARDS}
-        />
-
-        <PlaceholderSectionV2 title="Pop / Entretenimiento" cards={POP_PLACEHOLDER_CARDS} />
       </div>
     </main>
   );

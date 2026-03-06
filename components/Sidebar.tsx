@@ -43,28 +43,6 @@ export default function Sidebar({ trendingTags, mostRead }: SidebarProps) {
             ))}
           </ul>
         </section>
-
-        <section className="rounded border border-slate-200 bg-white p-4">
-          <h3 className="mb-2 text-lg font-black text-brand">Newsletter</h3>
-          <p className="mb-3 text-sm text-slate-600">
-            Recibe un resumen diario de noticias internacionales.
-          </p>
-          <form action="/api/newsletter" method="post" className="space-y-2">
-            <input
-              name="email"
-              type="email"
-              required
-              placeholder="tu@email.com"
-              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-            />
-            <button
-              type="submit"
-              className="w-full rounded bg-brand px-3 py-2 text-sm font-semibold text-white"
-            >
-              Suscribirme
-            </button>
-          </form>
-        </section>
       </div>
     </aside>
   );

@@ -5,7 +5,7 @@ import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Tecnologia",
-  description: "IA, semiconductores y regulacion digital con enfoque regional.",
+  description: "IA, semiconductores y regulación digital con enfoque regional.",
   pathname: "/tecnologia"
 });
 
@@ -14,8 +14,9 @@ export default async function TecnologiaPage() {
   return (
     <SectionPage
       title="Tecnologia"
-      description="Innovacion global y competitividad de LATAM."
+      description="Innovación global y competitividad de LATAM."
       articles={articles}
+      pathname="/tecnologia"
     />
   );
 }

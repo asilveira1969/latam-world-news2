@@ -8,8 +8,9 @@ import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Impacto en LATAM",
-  description: "Analisis original y contexto propio sobre el impacto de noticias globales en America Latina.",
-  pathname: "/impacto"
+  description: "Análisis original y contexto propio sobre el impacto de noticias globales en América Latina.",
+  pathname: "/impacto",
+  keywords: ["impacto en LATAM", "análisis internacional", "América Latina"]
 });
 
 export default async function ImpactoPage() {
@@ -20,7 +21,7 @@ export default async function ImpactoPage() {
       <header className="mb-6">
         <h1 className="text-3xl font-black text-brand">Impacto en LATAM</h1>
         <p className="mt-2 text-slate-600">
-          Analisis original con enfoque regional. Estas paginas contienen texto propio.
+          Análisis original con enfoque regional. Estas páginas contienen texto propio.
         </p>
       </header>
 
@@ -50,7 +51,7 @@ export default async function ImpactoPage() {
                 href={`/impacto/${article.slug}`}
                 className="mt-3 inline-block text-sm font-semibold text-brand-accent underline"
               >
-                Leer analisis
+                Leer análisis
               </Link>
             </div>
           </article>

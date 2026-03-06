@@ -32,6 +32,14 @@ export interface Article {
   slug: string;
   excerpt: string;
   content: string | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  editorial_context?: string | null;
+  latam_angle?: string | null;
+  faq_items?: Array<{
+    question: string;
+    answer: string;
+  }> | null;
   image_url: string;
   source_name: string;
   source_url: string;

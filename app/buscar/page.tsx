@@ -5,18 +5,20 @@ import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Buscar",
-  description: "Busca noticias internacionales por titulo, region, categoria o etiquetas.",
-  pathname: "/buscar"
+  description: "Busca noticias internacionales por título, región, categoría o etiquetas.",
+  pathname: "/buscar",
+  noindex: true
 });
 
 type SearchPageProps = {
-  searchParams: {
+  searchParams?: Promise<{
     q?: string;
-  };
+  }>;
 };
 
 export default async function BuscarPage({ searchParams }: SearchPageProps) {
-  const q = searchParams.q?.trim() ?? "";
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const q = resolvedSearchParams.q?.trim() ?? "";
   const results = await searchArticles(q, 50);
 
   return (
@@ -36,7 +38,7 @@ export default async function BuscarPage({ searchParams }: SearchPageProps) {
       </form>
 
       <p className="mt-4 text-sm text-slate-600">
-        {q ? `Resultados para "${q}": ${results.length}` : "Mostrando las noticias mas recientes."}
+        {q ? `Resultados para "${q}": ${results.length}` : "Mostrando las noticias más recientes."}
       </p>
 
       <div className="mt-6 space-y-4">

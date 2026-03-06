@@ -1,6 +1,9 @@
 import Link from "next/link";
 import AdSlot from "@/components/AdSlot";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import NewsImage from "@/components/NewsImage";
+import StructuredData from "@/components/StructuredData";
+import { buildBreadcrumbJsonLd, buildCollectionPageJsonLd } from "@/lib/jsonld";
 import { hasUsableRemoteImage, isImageLikelyFromSource } from "@/lib/images";
 import { formatSourceDisplayName } from "@/lib/sources";
 import { cleanExcerpt } from "@/lib/text/clean";
@@ -10,13 +13,14 @@ export interface SectionPageProps {
   title: string;
   description: string;
   articles: Article[];
+  pathname: string;
 }
 
 function articleHref(article: Article) {
   return article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`;
 }
 
-export default function SectionPage({ title, description, articles }: SectionPageProps) {
+export default function SectionPage({ title, description, articles, pathname }: SectionPageProps) {
   const imageUsageCount = new Map<string, number>();
 
   for (const article of articles) {
@@ -28,6 +32,17 @@ export default function SectionPage({ title, description, articles }: SectionPag
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
+      <StructuredData
+        data={buildBreadcrumbJsonLd([
+          { name: "Inicio", pathname: "/" },
+          { name: title, pathname }
+        ])}
+      />
+      <StructuredData
+        data={buildCollectionPageJsonLd({ title, description, pathname, items: articles })}
+      />
+      <Breadcrumbs items={[{ label: "Inicio", href: "/" }, { label: title }]} />
+
       <header className="mb-6">
         <h1 className="text-3xl font-black text-brand">{title}</h1>
         <p className="mt-2 text-slate-600">{description}</p>
@@ -50,7 +65,7 @@ export default function SectionPage({ title, description, articles }: SectionPag
                 className="rounded border border-slate-200 bg-white p-4 transition-colors hover:border-slate-300 xl:col-span-3"
               >
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-                  {`${article.region} \u00B7 ${article.category}`}
+                  {`${article.region} · ${article.category}`}
                 </p>
                 <Link href={href}>
                   <h2 className="mt-1 text-lg font-bold leading-snug">{article.title}</h2>
@@ -84,7 +99,7 @@ export default function SectionPage({ title, description, articles }: SectionPag
               </Link>
               <div className="p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-                  {`${article.region} \u00B7 ${article.category}`}
+                  {`${article.region} · ${article.category}`}
                 </p>
                 <Link href={href}>
                   <h2 className="mt-1 text-lg font-bold">{article.title}</h2>

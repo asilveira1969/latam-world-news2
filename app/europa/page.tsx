@@ -5,7 +5,7 @@ import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Europa",
-  description: "Cobertura de Europa en economia, energia y regulacion.",
+  description: "Cobertura de Europa en economía, energía y regulación.",
   pathname: "/europa"
 });
 
@@ -14,8 +14,9 @@ export default async function EuropaPage() {
   return (
     <SectionPage
       title="Europa"
-      description="Cambios regulatorios, energia y mercados europeos."
+      description="Cambios regulatorios, energía y mercados europeos."
       articles={articles}
+      pathname="/europa"
     />
   );
 }

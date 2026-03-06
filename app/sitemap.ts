@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getAllArticleSlugs } from "@/lib/data/articles-repo";
+import { getSitemapArticles } from "@/lib/data/articles-repo";
 import { absoluteUrl } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -15,31 +15,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/energia",
     "/tecnologia",
     "/impacto",
-    "/buscar"
+    "/acerca",
+    "/contacto",
+    "/fuentes",
+    "/privacidad",
+    "/terminos",
+    "/cookies",
+    "/publicidad"
   ];
 
-  const slugs = await getAllArticleSlugs();
+  const articles = await getSitemapArticles();
 
   const staticEntries: MetadataRoute.Sitemap = staticRoutes.map((route) => ({
     url: absoluteUrl(route),
-    lastModified: new Date(),
-    changeFrequency: "hourly",
-    priority: route === "/" ? 1 : 0.8
+    lastModified: route === "/" ? new Date() : undefined,
+    changeFrequency: route === "/" ? "hourly" : "daily",
+    priority: route === "/" ? 1 : 0.7
   }));
 
-  const noteEntries: MetadataRoute.Sitemap = slugs.notes.map((slug) => ({
-    url: absoluteUrl(`/nota/${slug}`),
-    lastModified: new Date(),
-    changeFrequency: "daily",
-    priority: 0.7
+  const articleEntries: MetadataRoute.Sitemap = articles.map((article) => ({
+    url: absoluteUrl(`/${article.kind}/${article.slug}`),
+    lastModified: article.lastModified ? new Date(article.lastModified) : undefined,
+    changeFrequency: article.kind === "impacto" ? "weekly" : "daily",
+    priority: article.kind === "impacto" ? 0.85 : 0.72
   }));
 
-  const impactEntries: MetadataRoute.Sitemap = slugs.impact.map((slug) => ({
-    url: absoluteUrl(`/impacto/${slug}`),
-    lastModified: new Date(),
-    changeFrequency: "daily",
-    priority: 0.7
-  }));
-
-  return [...staticEntries, ...noteEntries, ...impactEntries];
+  return [...staticEntries, ...articleEntries];
 }

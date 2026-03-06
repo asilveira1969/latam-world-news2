@@ -5,7 +5,7 @@ import manualArticlesData from "@/data/manual-articles.json";
 const BASE_DATE = new Date("2026-02-14T12:00:00.000Z");
 
 const SOURCE_POOL = [
-  { name: "France 24 ES", domain: "https://www.france24.com/es" },
+  { name: "France 24 Español", domain: "https://www.france24.com/es" },
   { name: "DW Español", domain: "https://www.dw.com/es" },
   { name: "RT en Español", domain: "https://actualidad.rt.com" },
   { name: "BBC Mundo", domain: "https://www.bbc.com/mundo" },
@@ -35,25 +35,25 @@ const TEMPLATES: Template[] = [
   {
     region: "EE.UU.",
     category: "Economia",
-    topic: "Indicadores de la economia estadounidense",
+    topic: "Indicadores de la economía estadounidense",
     tags: ["inflacion", "empleo", "tasas"]
   },
   {
     region: "Europa",
     category: "Energia",
-    topic: "Mercado energetico europeo",
+    topic: "Mercado energético europeo",
     tags: ["gas", "renovables", "costos"]
   },
   {
     region: "Asia",
     category: "Tecnologia",
-    topic: "Cadena de suministro tecnologica",
+    topic: "Cadena de suministro tecnológica",
     tags: ["semiconductores", "ia", "industria"]
   },
   {
     region: "Medio Oriente",
     category: "Energia",
-    topic: "Produccion estrategica de crudo",
+    topic: "Producción estratégica de crudo",
     tags: ["petroleo", "opec", "logistica"]
   },
   {
@@ -65,7 +65,7 @@ const TEMPLATES: Template[] = [
   {
     region: "Europa",
     category: "Tecnologia",
-    topic: "Regulacion digital comunitaria",
+    topic: "Regulación digital comunitaria",
     tags: ["datos", "plataformas", "regulacion"]
   }
 ];
@@ -81,9 +81,9 @@ function slugify(input: string): string {
 
 function impactBody(regionFocus: string): string {
   return [
-    `El impacto en LATAM de este tema se ve primero en precios, financiamiento y comercio. Cuando un bloque economico ajusta su estrategia, los bancos de la region recalculan riesgo, el credito cambia de costo y las importaciones claves llegan con nuevos tiempos.`,
-    `Para gobiernos y empresas latinoamericanas, la lectura util no es solo lo que anuncio la fuente original, sino la velocidad de transmision: energia, alimentos, transporte y tecnologia reaccionan en cadena. Eso exige cobertura explicativa, con datos comparables y escenarios practicos para ciudadanos, pymes y tomadores de decision.`,
-    `En ${regionFocus}, el efecto mas inmediato suele sentirse en presupuesto familiar y tipo de cambio. Por eso esta pieza prioriza contexto regional, muestra ganadores y perdedores de corto plazo, y separa ruido politico de tendencias verificables. El objetivo editorial es traducir un hecho internacional en decisiones concretas para America Latina.`
+    "El impacto en LATAM de este tema se ve primero en precios, financiamiento y comercio. Cuando un bloque económico ajusta su estrategia, los bancos de la región recalculan riesgo, el crédito cambia de costo y las importaciones clave llegan con nuevos tiempos.",
+    "Para gobiernos y empresas latinoamericanas, la lectura útil no es solo lo que anunció la fuente original, sino la velocidad de transmisión: energía, alimentos, transporte y tecnología reaccionan en cadena. Eso exige cobertura explicativa, con datos comparables y escenarios prácticos para ciudadanos, pymes y tomadores de decisión.",
+    `En ${regionFocus}, el efecto más inmediato suele sentirse en presupuesto familiar y tipo de cambio. Por eso esta pieza prioriza contexto regional, muestra ganadores y perdedores de corto plazo, y separa ruido político de tendencias verificables. El objetivo editorial es traducir un hecho internacional en decisiones concretas para América Latina.`
   ].join(" ");
 }
 
@@ -94,7 +94,7 @@ for (const template of TEMPLATES) {
   for (let i = 1; i <= 5; i += 1) {
     const source = SOURCE_POOL[count % SOURCE_POOL.length];
     const publishedAt = new Date(BASE_DATE.getTime() - count * 52 * 60 * 1000).toISOString();
-    const title = `${template.topic}: actualizacion clave ${i}`;
+    const title = `${template.topic}: actualización clave ${i}`;
     const slugBase = slugify(title);
     const sourcePath = `${source.domain}/noticia/${slugBase}-${count + 1}`;
     generated.push({
@@ -102,7 +102,7 @@ for (const template of TEMPLATES) {
       title,
       slug: `${slugBase}-${count + 1}`,
       excerpt: truncateExcerpt(
-        `Resumen internacional: ${template.topic.toLowerCase()} marca una señal relevante para mercados y politica. Esta nota agrega contexto confirmado, cita fuente original y evita republicar contenido completo protegido.`
+        `Resumen internacional: ${template.topic.toLowerCase()} marca una señal relevante para mercados y política. Esta nota agrega contexto confirmado, cita fuente original y evita republicar contenido completo protegido.`
       ),
       content: null,
       image_url: `https://picsum.photos/seed/latam-${count + 1}/1200/675`,
@@ -124,16 +124,16 @@ for (const template of TEMPLATES) {
 const impactArticles: Article[] = Array.from({ length: 5 }).map((_, idx) => {
   const source = SOURCE_POOL[idx % SOURCE_POOL.length];
   const publishedAt = new Date(BASE_DATE.getTime() - (idx + 1) * 35 * 60 * 1000).toISOString();
-  const title = `Impacto en LATAM: lectura estrategica ${idx + 1}`;
+  const title = `Impacto en LATAM: lectura estratégica ${idx + 1}`;
   const slugBase = slugify(title);
   return {
     id: `impact-${idx + 1}`,
     title,
     slug: `${slugBase}-${idx + 1}`,
     excerpt: truncateExcerpt(
-      "Analisis original sobre efectos economicos, regulatorios y sociales en America Latina a partir de un hecho internacional reciente."
+      "Análisis original sobre efectos económicos, regulatorios y sociales en América Latina a partir de un hecho internacional reciente."
     ),
-    content: impactBody("America Latina"),
+    content: impactBody("América Latina"),
     image_url: `https://picsum.photos/seed/impacto-${idx + 1}/1200/675`,
     source_name: source.name,
     source_url: `${source.domain}/impacto/origen-${idx + 1}`,

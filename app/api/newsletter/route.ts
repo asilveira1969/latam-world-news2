@@ -6,11 +6,12 @@ export async function POST(request: Request) {
 
   return NextResponse.json(
     {
-      ok: false,
+      ok: true,
       implemented: false,
       received: typeof email === "string" ? email : null,
-      message: "Placeholder endpoint. Newsletter provider is not integrated yet."
+      message:
+        "El newsletter todav\u00eda no est\u00e1 activo. El sitio registr\u00f3 la intenci\u00f3n de contacto, pero no procesa altas autom\u00e1ticas por ahora."
     },
-    { status: 501 }
+    { status: 202 }
   );
 }
