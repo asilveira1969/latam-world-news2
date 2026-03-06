@@ -16,30 +16,82 @@ const COUNTRY_LINKS: Array<{
   { code: "MX", label: "Mexico" }
 ];
 
-function FlagStripes({ colors }: { colors: string[] }) {
-  return (
-    <span className="inline-flex h-5 w-8 overflow-hidden rounded-sm border border-slate-300 shadow-sm">
-      {colors.map((color, index) => (
-        <span key={`${color}-${index}`} className={`h-full flex-1 ${color}`} />
-      ))}
-    </span>
-  );
-}
-
 function CountryFlag({ code }: { code: CountryTabCode }) {
   if (code === "UY") {
-    return <FlagStripes colors={["bg-white", "bg-sky-500", "bg-white", "bg-sky-500"]} />;
+    return (
+      <svg
+        viewBox="0 0 28 20"
+        aria-hidden="true"
+        className="h-5 w-8 overflow-hidden rounded-sm border border-slate-300 shadow-sm"
+      >
+        <rect width="28" height="20" fill="#ffffff" />
+        <rect y="2.5" width="28" height="2.5" fill="#38bdf8" />
+        <rect y="7.5" width="28" height="2.5" fill="#38bdf8" />
+        <rect y="12.5" width="28" height="2.5" fill="#38bdf8" />
+        <rect y="17.5" width="28" height="2.5" fill="#38bdf8" />
+        <circle cx="5" cy="5" r="2.2" fill="#f59e0b" />
+      </svg>
+    );
   }
   if (code === "AR") {
-    return <FlagStripes colors={["bg-sky-400", "bg-white", "bg-sky-400"]} />;
+    return (
+      <svg
+        viewBox="0 0 28 20"
+        aria-hidden="true"
+        className="h-5 w-8 overflow-hidden rounded-sm border border-slate-300 shadow-sm"
+      >
+        <rect width="28" height="20" fill="#74c0fc" />
+        <rect y="6.67" width="28" height="6.66" fill="#ffffff" />
+        <circle cx="14" cy="10" r="1.9" fill="#f59e0b" />
+      </svg>
+    );
   }
   if (code === "BR") {
-    return <FlagStripes colors={["bg-emerald-600", "bg-yellow-400", "bg-emerald-600"]} />;
+    return (
+      <svg
+        viewBox="0 0 28 20"
+        aria-hidden="true"
+        className="h-5 w-8 overflow-hidden rounded-sm border border-slate-300 shadow-sm"
+      >
+        <rect width="28" height="20" fill="#16a34a" />
+        <polygon points="14,3 23,10 14,17 5,10" fill="#facc15" />
+        <circle cx="14" cy="10" r="4.2" fill="#1d4ed8" />
+      </svg>
+    );
   }
   if (code === "CL") {
-    return <FlagStripes colors={["bg-blue-700", "bg-white", "bg-red-600"]} />;
+    return (
+      <svg
+        viewBox="0 0 28 20"
+        aria-hidden="true"
+        className="h-5 w-8 overflow-hidden rounded-sm border border-slate-300 shadow-sm"
+      >
+        <rect width="28" height="20" fill="#dc2626" />
+        <rect width="28" height="10" fill="#ffffff" />
+        <rect width="10" height="10" fill="#1d4ed8" />
+        <polygon points="5,2.2 5.9,4.8 8.7,4.8 6.4,6.4 7.3,9 5,7.3 2.7,9 3.6,6.4 1.3,4.8 4.1,4.8" fill="#ffffff" />
+      </svg>
+    );
   }
-  return <FlagStripes colors={["bg-emerald-600", "bg-white", "bg-red-600"]} />;
+  return (
+    <svg
+      viewBox="0 0 28 20"
+      aria-hidden="true"
+      className="h-5 w-8 overflow-hidden rounded-sm border border-slate-300 shadow-sm"
+    >
+      <rect width="28" height="20" fill="#ffffff" />
+      <rect width="7" height="20" fill="#16a34a" />
+      <rect x="21" width="7" height="20" fill="#dc2626" />
+      <circle cx="14" cy="10" r="4.2" fill="#ffffff" opacity="0.95" />
+      <path
+        d="M10.2 10c1.3-1.9 5.7-1.9 7 0"
+        fill="none"
+        stroke="#92400e"
+        strokeWidth="0.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
 }
 
 export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Props) {
@@ -78,12 +130,7 @@ export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Pr
               ].join(" ")}
             >
               <CountryFlag code={country.code} />
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-slate-900">{country.label}</p>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {country.code}
-                </p>
-              </div>
+              <p className="min-w-0 text-sm font-bold text-slate-900">{country.label}</p>
             </Link>
           );
         })}

@@ -53,10 +53,7 @@ export default function LatinoamericaLayoutV2({
       <div className="space-y-10">
         <section aria-label="Top Stories Latinoamerica" className="space-y-3">
           <div>
-            <p className="inline-flex rounded border border-slate-300 bg-slate-50 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700">
-              Seleccion regional (beta)
-            </p>
-            <h1 className="mt-2 text-3xl font-black text-brand">{sectionTitle}</h1>
+            <h1 className="text-3xl font-black text-brand">{sectionTitle}</h1>
             <p className="mt-1 text-sm text-slate-600">{sectionCopy}</p>
           </div>
           <CountryExplorerV2 activeCountry={activeCountry} />
