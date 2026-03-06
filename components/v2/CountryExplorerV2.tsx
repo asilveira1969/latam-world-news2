@@ -114,7 +114,7 @@ export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Pr
         </Link>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="flex flex-wrap gap-3">
         {COUNTRY_LINKS.map((country) => {
           const isActive = activeCountry === country.code;
           return (
@@ -123,7 +123,7 @@ export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Pr
               href={`/latinoamerica?region=${country.code}`}
               aria-current={isActive ? "page" : undefined}
               className={[
-                "flex items-center gap-3 rounded-lg border p-3 transition",
+                "flex min-w-[220px] items-center gap-3 rounded-lg border px-4 py-3 transition",
                 isActive
                   ? "border-brand bg-brand/5 ring-1 ring-brand/30"
                   : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
