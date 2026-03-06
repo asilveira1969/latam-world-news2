@@ -91,10 +91,10 @@ export default async function ImpactoDetailPage({ params }: ImpactDetailPageProp
           <h2 className="text-lg font-bold">Resumen ejecutivo</h2>
           <p className="mt-3 leading-7 text-slate-800">{editorial.summary}</p>
 
-          <h2 className="mt-6 text-lg font-bold">Lectura para Am\u00e9rica Latina</h2>
+          <h2 className="mt-6 text-lg font-bold">Lectura para America Latina</h2>
           <p className="mt-3 leading-7 text-slate-800">{editorial.latamAngle}</p>
 
-          <h2 className="mt-6 text-lg font-bold">Desarrollo del an\u00e1lisis</h2>
+          <h2 className="mt-6 text-lg font-bold">Desarrollo del analisis</h2>
           <div className="mt-3 space-y-4 text-slate-800">
             {bodyParagraphs.map((paragraph, index) => (
               <p key={`${article.slug}-${index}`} className="leading-7">
@@ -103,7 +103,7 @@ export default async function ImpactoDetailPage({ params }: ImpactDetailPageProp
             ))}
           </div>
 
-          <h2 className="mt-6 text-lg font-bold">Conclusi\u00f3n</h2>
+          <h2 className="mt-6 text-lg font-bold">Conclusion</h2>
           <p className="mt-3 leading-7 text-slate-800">{editorial.conclusion}</p>
 
           <a
