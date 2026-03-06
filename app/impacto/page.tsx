@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import AdSlot from "@/components/AdSlot";
 import NewsImage from "@/components/NewsImage";
+import { formatEditorialDate } from "@/lib/dates";
 import { getImpactArticles } from "@/lib/data/articles-repo";
 import { buildMetadata } from "@/lib/seo";
 
@@ -41,6 +42,9 @@ export default async function ImpactoPage() {
             </Link>
             <div className="p-4">
               <h2 className="text-lg font-bold">{article.title}</h2>
+              <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
+                {formatEditorialDate(article.published_at)}
+              </p>
               <p className="mt-2 text-sm text-slate-600">{article.excerpt}</p>
               <Link
                 href={`/impacto/${article.slug}`}

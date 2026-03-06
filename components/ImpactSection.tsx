@@ -1,5 +1,6 @@
 import Link from "next/link";
 import NewsImage from "@/components/NewsImage";
+import { formatEditorialDate } from "@/lib/dates";
 import type { Article } from "@/lib/types/article";
 
 export interface ImpactSectionProps {
@@ -30,6 +31,9 @@ export default function ImpactSection({ items }: ImpactSectionProps) {
               </div>
               <div className="p-4">
                 <h3 className="text-base font-bold">{article.title}</h3>
+                <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
+                  {formatEditorialDate(article.published_at)}
+                </p>
                 <p className="mt-2 text-sm text-slate-600">{article.excerpt}</p>
               </div>
             </Link>

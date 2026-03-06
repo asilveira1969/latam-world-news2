@@ -1,5 +1,6 @@
 import Link from "next/link";
 import NewsImage from "@/components/NewsImage";
+import { formatEditorialDate } from "@/lib/dates";
 import type { Article } from "@/lib/types/article";
 
 export interface HeroProps {
@@ -40,6 +41,9 @@ function ArticleCard({
         <Link href={href}>
           <h2 className={compact ? "text-base font-bold" : "text-2xl font-black"}>{article.title}</h2>
         </Link>
+        <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
+          {formatEditorialDate(article.published_at)}
+        </p>
         <p className="mt-2 text-sm text-slate-600">{article.excerpt}</p>
       </div>
     </article>

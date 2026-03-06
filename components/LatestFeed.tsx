@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Article } from "@/lib/types/article";
 import AdSlot from "@/components/AdSlot";
 import NewsImage from "@/components/NewsImage";
+import { formatEditorialDate } from "@/lib/dates";
 
 export interface LatestFeedProps {
   items: Article[];
@@ -36,6 +37,9 @@ export default function LatestFeed({ items, formatMeta }: LatestFeedProps) {
                 <Link href={articleHref(article)}>
                   <h3 className="mt-1 text-lg font-bold">{article.title}</h3>
                 </Link>
+                <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
+                  {formatEditorialDate(article.published_at)}
+                </p>
                 <p className="mt-2 text-sm text-slate-600">{article.excerpt}</p>
                 <a
                   href={article.source_url}
