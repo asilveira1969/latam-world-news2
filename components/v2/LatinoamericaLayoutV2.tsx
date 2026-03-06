@@ -51,6 +51,10 @@ export default function LatinoamericaLayoutV2({
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
       <div className="space-y-10">
+        <div className="sticky top-[72px] z-20 -mx-1 bg-brand-soft/95 px-1 py-2 backdrop-blur">
+          <CountryExplorerV2 activeCountry={activeCountry} />
+        </div>
+
         <section aria-label="Top Stories Latinoamerica" className="space-y-3">
           <div>
             <h1 className="text-3xl font-black text-brand">{sectionTitle}</h1>
@@ -58,10 +62,6 @@ export default function LatinoamericaLayoutV2({
           </div>
           <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} formatMeta={latamMetaLabel} />
         </section>
-
-        <div className="sticky top-[72px] z-20 -mx-1 bg-brand-soft/95 px-1 py-2 backdrop-blur">
-          <CountryExplorerV2 activeCountry={activeCountry} />
-        </div>
 
         <section aria-label="Ultimas Noticias de Latinoamerica" className="space-y-3">
           {emptyStateMessage ? (
