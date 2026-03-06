@@ -12,6 +12,25 @@ export interface MundoRssSource {
   tag: string;
 }
 
+export function formatSourceDisplayName(name: string): string {
+  const normalized = name.trim().toLowerCase();
+
+  if (normalized === "france 24 espanol") {
+    return "France 24 Español";
+  }
+  if (normalized === "dw espanol") {
+    return "DW Español";
+  }
+  if (normalized === "rt en espanol") {
+    return "RT en Español";
+  }
+  if (normalized === "el pais") {
+    return "El País";
+  }
+
+  return name;
+}
+
 export const SOURCES: SourceRegistryEntry[] = [
   {
     id: "newsdata-uy",
@@ -72,7 +91,7 @@ export const MUNDO_RSS_SOURCES: MundoRssSource[] = [
   },
   {
     id: "rss-france24-es",
-    name: "France 24 Espanol",
+    name: "France 24 Español",
     feedUrl: "https://www.france24.com/es/rss",
     region: "Mundo",
     language: "es",
@@ -92,7 +111,7 @@ export const MUNDO_RSS_SOURCES: MundoRssSource[] = [
   },
   {
     id: "rss-dw-es",
-    name: "DW Espanol",
+    name: "DW Español",
     feedUrl: "https://rss.dw.com/rdf/rss-es-all",
     region: "Mundo",
     language: "es",

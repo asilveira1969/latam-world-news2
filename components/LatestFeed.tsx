@@ -3,6 +3,7 @@ import type { Article } from "@/lib/types/article";
 import AdSlot from "@/components/AdSlot";
 import NewsImage from "@/components/NewsImage";
 import { formatEditorialDate } from "@/lib/dates";
+import { formatSourceDisplayName } from "@/lib/sources";
 
 export interface LatestFeedProps {
   items: Article[];
@@ -47,7 +48,7 @@ export default function LatestFeed({ items, formatMeta }: LatestFeedProps) {
                   rel="noreferrer"
                   className="mt-2 inline-block text-xs font-semibold text-slate-700 underline"
                 >
-                  Fuente: {article.source_name}
+                  Fuente: {formatSourceDisplayName(article.source_name)}
                 </a>
               </div>
             </article>

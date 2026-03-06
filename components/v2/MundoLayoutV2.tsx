@@ -7,6 +7,7 @@ import {
   POP_PLACEHOLDER_CARDS,
   SPORTS_PLACEHOLDER_CARDS
 } from "@/components/v2/v2-placeholders";
+import { formatSourceDisplayName } from "@/lib/sources";
 import type { Article } from "@/lib/types/article";
 
 export interface MundoLayoutV2Props {
@@ -52,7 +53,9 @@ export default function MundoLayoutV2({
                   className="rounded border border-slate-200 bg-white p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-base font-bold text-slate-900">{source.sourceName}</h3>
+                    <h3 className="text-base font-bold text-slate-900">
+                      {formatSourceDisplayName(source.sourceName)}
+                    </h3>
                     <span className="rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
                       {source.articleCount} recientes
                     </span>

@@ -6,10 +6,10 @@ const BASE_DATE = new Date("2026-02-14T12:00:00.000Z");
 
 const SOURCE_POOL = [
   { name: "France 24 ES", domain: "https://www.france24.com/es" },
-  { name: "DW Espanol", domain: "https://www.dw.com/es" },
-  { name: "RT en Espanol", domain: "https://actualidad.rt.com" },
+  { name: "DW Español", domain: "https://www.dw.com/es" },
+  { name: "RT en Español", domain: "https://actualidad.rt.com" },
   { name: "BBC Mundo", domain: "https://www.bbc.com/mundo" },
-  { name: "El Pais", domain: "https://elpais.com" }
+  { name: "El País", domain: "https://elpais.com" }
 ];
 
 type Template = {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import AdSlot from "@/components/AdSlot";
 import NewsImage from "@/components/NewsImage";
 import { hasUsableRemoteImage, isImageLikelyFromSource } from "@/lib/images";
+import { formatSourceDisplayName } from "@/lib/sources";
 import { cleanExcerpt } from "@/lib/text/clean";
 import type { Article } from "@/lib/types/article";
 
@@ -63,7 +64,7 @@ export default function SectionPage({ title, description, articles }: SectionPag
                   rel="noreferrer"
                   className="mt-2 inline-block text-xs font-semibold text-slate-700 underline"
                 >
-                  Fuente: {article.source_name}
+                  Fuente: {formatSourceDisplayName(article.source_name)}
                 </a>
               </article>
             );
@@ -97,7 +98,7 @@ export default function SectionPage({ title, description, articles }: SectionPag
                   rel="noreferrer"
                   className="mt-2 inline-block text-xs font-semibold text-slate-700 underline"
                 >
-                  Fuente: {article.source_name}
+                  Fuente: {formatSourceDisplayName(article.source_name)}
                 </a>
               </div>
             </article>
