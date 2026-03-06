@@ -1,6 +1,15 @@
 import { cleanExcerpt, cleanPlainText } from "@/lib/text/clean";
 import type { Article } from "@/lib/types/article";
 
+const GENERIC_TAGS = new Set([
+  "rss",
+  "mundo rss",
+  "internacional",
+  "newsdata",
+  "mundo",
+  "latam"
+]);
+
 export type FaqItem = {
   question: string;
   answer: string;
@@ -31,6 +40,7 @@ function toSentenceList(tags: string[]): string {
         .replace("inflacion", "inflaci\u00f3n")
     )
     .filter(Boolean)
+    .filter((tag) => !GENERIC_TAGS.has(tag))
     .slice(0, 3);
 
   if (cleaned.length === 0) {
@@ -41,6 +51,23 @@ function toSentenceList(tags: string[]): string {
 }
 
 function articleTopic(article: Article): string {
+  const sourceText = cleanPlainText(`${article.title} ${article.excerpt}`).toLowerCase();
+  if (sourceText.includes("corteidh") || sourceText.includes("derechos humanos")) {
+    return "derechos humanos y justicia internacional";
+  }
+  if (sourceText.includes("iran") || sourceText.includes("ucrania") || sourceText.includes("guerra")) {
+    return "geopolitica internacional";
+  }
+  if (sourceText.includes("energia") || sourceText.includes("gas") || sourceText.includes("petroleo")) {
+    return "energia global";
+  }
+  if (sourceText.includes("tecnologia") || sourceText.includes("semiconductor") || sourceText.includes("ia")) {
+    return "tecnologia";
+  }
+  if (sourceText.includes("econom") || sourceText.includes("inflacion") || sourceText.includes("tasas")) {
+    return "economia internacional";
+  }
+
   return cleanPlainText(article.category || "actualidad internacional").toLowerCase();
 }
 

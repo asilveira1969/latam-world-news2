@@ -5,6 +5,7 @@ import Image from "next/image";
 import {
   LOCAL_NEWS_IMAGE_FALLBACK,
   isFallbackImage,
+  isValidHttpUrl,
   resolveCardImage
 } from "@/lib/images";
 
@@ -37,6 +38,24 @@ export default function NewsImage({
       ? "bg-slate-100 object-contain p-8 opacity-70"
       : "";
   const mergedClassName = [className, fallbackClassName].filter(Boolean).join(" ");
+
+  if (isValidHttpUrl(currentSrc)) {
+    return (
+      <img
+        src={currentSrc}
+        alt={alt}
+        className={mergedClassName}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+        sizes={sizes}
+        loading={priority ? "eager" : "lazy"}
+        onError={() => {
+          if (currentSrc !== LOCAL_NEWS_IMAGE_FALLBACK) {
+            setCurrentSrc(LOCAL_NEWS_IMAGE_FALLBACK);
+          }
+        }}
+      />
+    );
+  }
 
   return (
     <Image

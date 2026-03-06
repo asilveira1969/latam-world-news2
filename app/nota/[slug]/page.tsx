@@ -132,13 +132,13 @@ export default async function NotaPage({ params }: NotePageProps) {
         </div>
 
         <section className="mt-6 rounded border border-slate-200 bg-white p-5">
-          <h2 className="text-lg font-bold">Qu\u00e9 pas\u00f3</h2>
+          <h2 className="text-lg font-bold">{"Qu\u00e9 pas\u00f3"}</h2>
           <p className="mt-3 leading-7 text-slate-800">{editorial.summary}</p>
 
-          <h2 className="mt-6 text-lg font-bold">Por qu\u00e9 importa en LATAM</h2>
+          <h2 className="mt-6 text-lg font-bold">{"Por qu\u00e9 importa en LATAM"}</h2>
           <p className="mt-3 leading-7 text-slate-800">{editorial.latamAngle}</p>
 
-          <h2 className="mt-6 text-lg font-bold">Claves r\u00e1pidas</h2>
+          <h2 className="mt-6 text-lg font-bold">{"Claves r\u00e1pidas"}</h2>
           <ul className="mt-3 space-y-2 text-slate-800">
             {editorial.keyPoints.map((point) => (
               <li key={point} className="list-inside list-disc leading-7">
@@ -148,9 +148,9 @@ export default async function NotaPage({ params }: NotePageProps) {
           </ul>
 
           <div className="mt-6 rounded border border-slate-100 bg-slate-50 p-4">
-            <h2 className="text-base font-bold">Fuente y atribuci\u00f3n</h2>
+            <h2 className="text-base font-bold">{"Fuente y atribuci\u00f3n"}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-700">
-              Esta p\u00e1gina es una nota curada: resume el hecho, a\u00f1ade contexto regional propio y no republica el contenido completo de terceros.
+              {"Esta p\u00e1gina es una nota curada: resume el hecho, a\u00f1ade contexto regional propio y no republica el contenido completo de terceros."}
             </p>
             <a
               href={article.source_url}
