@@ -13,7 +13,7 @@ export default function ImpactSection({ items }: ImpactSectionProps) {
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-2xl font-black text-brand">Impacto en LATAM</h2>
         <Link href="/impacto" className="text-sm font-semibold text-brand-accent underline">
-          Ver mas
+          Ver m\u00e1s
         </Link>
       </div>
       <div className="grid gap-4 md:grid-cols-3">

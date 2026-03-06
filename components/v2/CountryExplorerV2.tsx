@@ -12,7 +12,7 @@ const COUNTRY_LINKS: Array<{
   { code: "AR", label: "Argentina" },
   { code: "BR", label: "Brasil" },
   { code: "CL", label: "Chile" },
-  { code: "MX", label: "México" },
+  { code: "MX", label: "M\u00e9xico" },
   { code: "UY", label: "Uruguay" }
 ];
 
@@ -96,10 +96,13 @@ function CountryFlag({ code }: { code: CountryTabCode }) {
 
 export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Props) {
   return (
-    <section aria-label="Acceso rapido por pais" className="space-y-4 rounded border border-slate-200 bg-white p-4">
+    <section
+      aria-label="Acceso r\u00e1pido por pa\u00eds"
+      className="space-y-4 rounded border border-slate-200 bg-white p-4"
+    >
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm text-slate-600">
-          Acceso rapido a coberturas por pais dentro de Latinoamerica.
+          Acceso r\u00e1pido a coberturas por pa\u00eds dentro de Latinoam\u00e9rica.
         </p>
         <Link
           href="/latinoamerica"

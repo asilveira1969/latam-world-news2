@@ -15,8 +15,8 @@ function articleHref(article: Article) {
 
 export default function LatestFeed({ items, formatMeta }: LatestFeedProps) {
   return (
-    <section aria-label="Ultimas">
-      <h2 className="mb-3 text-2xl font-black text-brand">Ultimas</h2>
+    <section aria-label="\u00daltimas">
+      <h2 className="mb-3 text-2xl font-black text-brand">\u00daltimas</h2>
       <div className="space-y-4">
         {items.slice(0, 30).map((article, index) => (
           <div key={article.id}>
