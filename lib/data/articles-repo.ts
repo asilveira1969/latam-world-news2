@@ -36,6 +36,13 @@ export interface MundoSourceSummary {
   latest: Article[];
 }
 
+function getFallbackImpactArticles(limit: number): Article[] {
+  return dedupeBySourceUrl(sortByPublishedDesc(mockArticles))
+    .filter((article) => article.is_impact)
+    .filter(isDisplayableArticle)
+    .slice(0, limit);
+}
+
 function isLatamCountry(value: string): boolean {
   return LATAM_COUNTRIES.includes(value.toLowerCase() as (typeof LATAM_COUNTRIES)[number]);
 }
@@ -382,11 +389,14 @@ export async function getHomeData(input?: {
 
   const ticker = pool.slice(0, 10).map((article) => article.title);
 
+  const impactArticles = all.filter((article) => article.is_impact);
+  const fallbackImpact = impactArticles.length > 0 ? impactArticles : getFallbackImpactArticles(3);
+
   return {
     ticker: ticker.length >= 6 ? ticker : fallbackTickerHeadlines,
     heroLead: hero.lead,
     heroSecondary: hero.secondary,
-    impact: all.filter((article) => article.is_impact).slice(0, 3),
+    impact: fallbackImpact.slice(0, 3),
     latest: all.slice(0, 30),
     regionBlocks,
     trendingTags: topTagsLastHours(all, 24, 10),
@@ -414,7 +424,12 @@ export async function getRegionArticles(
 
 export async function getImpactArticles(limit = 3): Promise<Article[]> {
   const all = await getAllArticles();
-  return all.filter((article) => article.is_impact).slice(0, limit);
+  const impactArticles = all.filter((article) => article.is_impact).slice(0, limit);
+  if (impactArticles.length > 0) {
+    return impactArticles;
+  }
+
+  return getFallbackImpactArticles(limit);
 }
 
 export async function getArticleBySlug(
@@ -451,6 +466,10 @@ export async function getArticleBySlug(
   const all = await getAllArticles();
   const article = all.find((item) => item.slug === slug);
   if (!article) {
+    if (kind === "impacto") {
+      const fallbackImpact = getFallbackImpactArticles(20).find((item) => item.slug === slug);
+      return fallbackImpact ?? null;
+    }
     return null;
   }
   if (kind === "nota" && article.is_impact) {
