@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Article } from "@/lib/types/article";
 import AdSlot from "@/components/AdSlot";
+import NewsImage from "@/components/NewsImage";
 
 export interface LatestFeedProps {
   items: Article[];
@@ -21,12 +21,12 @@ export default function LatestFeed({ items, formatMeta }: LatestFeedProps) {
           <div key={article.id}>
             <article className="grid gap-3 overflow-hidden rounded border border-slate-200 bg-white p-3 sm:grid-cols-[220px_1fr]">
               <Link href={articleHref(article)} className="relative block aspect-video">
-                <Image
+                <NewsImage
                   src={article.image_url}
                   alt={article.title}
-                  fill
                   sizes="(max-width: 640px) 100vw, 220px"
                   className="rounded object-cover"
+                  fallbackTone="subtle"
                 />
               </Link>
               <div>

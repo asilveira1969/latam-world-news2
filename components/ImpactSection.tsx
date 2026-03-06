@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import NewsImage from "@/components/NewsImage";
 import type { Article } from "@/lib/types/article";
 
 export interface ImpactSectionProps {
@@ -20,12 +20,12 @@ export default function ImpactSection({ items }: ImpactSectionProps) {
           <article key={article.id} className="overflow-hidden rounded border border-slate-200 bg-white">
             <Link href={`/impacto/${article.slug}`} className="block">
               <div className="relative aspect-video">
-                <Image
+                <NewsImage
                   src={article.image_url}
                   alt={article.title}
-                  fill
                   sizes="(max-width: 768px) 100vw, 33vw"
                   className="object-cover"
+                  fallbackTone="subtle"
                 />
               </div>
               <div className="p-4">

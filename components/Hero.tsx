@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import NewsImage from "@/components/NewsImage";
 import type { Article } from "@/lib/types/article";
 
 export interface HeroProps {
@@ -24,12 +24,12 @@ function ArticleCard({
     <article className="group overflow-hidden rounded border border-slate-200 bg-white">
       <Link href={href} className="block">
         <div className="relative aspect-video">
-          <Image
+          <NewsImage
             src={article.image_url}
             alt={article.title}
-            fill
             sizes={compact ? "(max-width: 1024px) 100vw, 25vw" : "(max-width: 1024px) 100vw, 50vw"}
             className="object-cover transition duration-300 group-hover:scale-[1.02]"
+            fallbackTone={compact ? "subtle" : "default"}
           />
         </div>
       </Link>
