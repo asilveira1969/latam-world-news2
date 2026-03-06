@@ -410,6 +410,33 @@ export async function getArticleBySlug(
   slug: string,
   kind: "nota" | "impacto"
 ): Promise<Article | null> {
+  if (hasSupabaseAnonEnv) {
+    try {
+      const supabase = getSupabaseServerClient();
+      const { data, error } = await supabase
+        .from("articles")
+        .select("*")
+        .eq("slug", slug)
+        .maybeSingle();
+
+      if (!error && data) {
+        const article = mapRecordToArticle(data as Record<string, unknown>);
+        if (!isDisplayableArticle(article)) {
+          return null;
+        }
+        if (kind === "nota" && article.is_impact) {
+          return null;
+        }
+        if (kind === "impacto" && !article.is_impact) {
+          return null;
+        }
+        return article;
+      }
+    } catch (error) {
+      console.error("Supabase slug lookup failed, falling back to in-memory scan:", error);
+    }
+  }
+
   const all = await getAllArticles();
   const article = all.find((item) => item.slug === slug);
   if (!article) {
