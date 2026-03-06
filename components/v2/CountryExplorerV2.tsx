@@ -110,9 +110,9 @@ export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Pr
         <Link
           href="/latinoamerica"
           className={[
-            "rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition",
+            "rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-colors duration-150",
             activeCountry
-              ? "border-slate-300 bg-slate-50 text-slate-700 hover:border-slate-400"
+              ? "border-slate-300 bg-slate-50 text-slate-700 hover:border-slate-900 hover:bg-slate-200 hover:text-slate-900"
               : "border-brand bg-brand text-white"
           ].join(" ")}
         >
@@ -129,10 +129,10 @@ export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Pr
               href={`/latinoamerica?region=${country.code}`}
               aria-current={isActive ? "page" : undefined}
               className={[
-                "flex min-w-[220px] items-center gap-3 rounded-lg border px-4 py-3 transition",
+                "flex min-w-[220px] items-center gap-3 rounded-lg border px-4 py-3 transition-colors duration-150",
                 isActive
                   ? "border-brand bg-brand/5 ring-1 ring-brand/30"
-                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                  : "border-slate-200 bg-white hover:border-slate-900 hover:bg-slate-200 hover:text-slate-950"
               ].join(" ")}
             >
               <CountryFlag code={country.code} />
