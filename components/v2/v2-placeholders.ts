@@ -115,4 +115,3 @@ export const POP_PLACEHOLDER_CARDS: PlaceholderCard[] = [
     excerpt: "Espacio reservado para lanzamientos, streaming y escena regional."
   }
 ];
-

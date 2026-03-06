@@ -12,7 +12,7 @@ const COUNTRY_LINKS: Array<{
   { code: "AR", label: "Argentina" },
   { code: "BR", label: "Brasil" },
   { code: "CL", label: "Chile" },
-  { code: "MX", label: "M\u00e9xico" },
+  { code: "MX", label: "México" },
   { code: "UY", label: "Uruguay" }
 ];
 
@@ -69,7 +69,10 @@ function CountryFlag({ code }: { code: CountryTabCode }) {
         <rect width="28" height="20" fill="#dc2626" />
         <rect width="28" height="10" fill="#ffffff" />
         <rect width="10" height="10" fill="#1d4ed8" />
-        <polygon points="5,2.2 5.9,4.8 8.7,4.8 6.4,6.4 7.3,9 5,7.3 2.7,9 3.6,6.4 1.3,4.8 4.1,4.8" fill="#ffffff" />
+        <polygon
+          points="5,2.2 5.9,4.8 8.7,4.8 6.4,6.4 7.3,9 5,7.3 2.7,9 3.6,6.4 1.3,4.8 4.1,4.8"
+          fill="#ffffff"
+        />
       </svg>
     );
   }
@@ -97,12 +100,12 @@ function CountryFlag({ code }: { code: CountryTabCode }) {
 export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Props) {
   return (
     <section
-      aria-label="Acceso r\u00e1pido por pa\u00eds"
+      aria-label="Acceso rápido por país"
       className="space-y-4 rounded border border-slate-200 bg-white p-4"
     >
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm text-slate-600">
-          Acceso r\u00e1pido a coberturas por pa\u00eds dentro de Latinoam\u00e9rica.
+          Acceso rápido a coberturas por país dentro de Latinoamérica.
         </p>
         <Link
           href="/latinoamerica"

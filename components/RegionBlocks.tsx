@@ -15,7 +15,7 @@ export default function RegionBlocks({ regions }: RegionBlocksProps) {
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-bold">{region.title}</h3>
               <Link href={region.href} className="text-sm font-semibold text-brand-accent underline">
-                Ver m\u00e1s
+                Ver más
               </Link>
             </div>
             <ul className="space-y-2">

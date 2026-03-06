@@ -31,7 +31,7 @@ export default function MundoLayoutV2({
           <div>
             <h1 className="text-3xl font-black text-brand">Mundo</h1>
             <p className="mt-1 text-sm text-slate-600">
-              Hub operativo de noticias internacionales por RSS en espa\u00f1ol.
+              Hub operativo de noticias internacionales por RSS en español.
             </p>
           </div>
           <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} formatMeta={staticMeta} />
@@ -41,7 +41,7 @@ export default function MundoLayoutV2({
           <div>
             <h2 className="text-2xl font-black text-brand">Fuentes activas</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Monitoreo visual de feeds RSS internacionales en espa\u00f1ol.
+              Monitoreo visual de feeds RSS internacionales en español.
             </p>
           </div>
           {sourceSummaries.length > 0 ? (
@@ -69,24 +69,24 @@ export default function MundoLayoutV2({
             </div>
           ) : (
             <p className="rounded border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-              A\u00fan no hay suficientes art\u00edculos RSS curados para mostrar monitoreo por fuente.
+              Aún no hay suficientes artículos RSS curados para mostrar monitoreo por fuente.
             </p>
           )}
         </section>
 
-        <section aria-label="\u00daltimas Noticias">
+        <section aria-label="Últimas Noticias">
           <LatestFeed items={latest} formatMeta={staticMeta} />
         </section>
 
         <PlaceholderSectionV2
           title="Agenda"
-          subtitle="Pr\u00f3ximamente agenda global"
+          subtitle="Próximamente agenda global"
           cards={AGENDA_PLACEHOLDER_CARDS}
         />
 
         <PlaceholderSectionV2
           title="Deportes"
-          subtitle="Pr\u00f3ximamente deportes"
+          subtitle="Próximamente deportes"
           cards={SPORTS_PLACEHOLDER_CARDS}
         />
 
