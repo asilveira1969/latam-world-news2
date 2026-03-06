@@ -96,9 +96,12 @@
 
 - Para actualizar manualmente las noticias RSS de `/mundo`, ejecutar:
 - `npm run ingest:rss`
+- Alternativa en produccion protegida:
+- `https://latam-world-news2.vercel.app/api/rss/ingest?token=TU_ADMIN_SECRET`
 - Despues de correrlo, recargar `/mundo`
 - Las noticias nuevas suben arriba por fecha
 - El hub RSS mantiene las fuentes curadas y el ranking visual por imagen ya incorporados en codigo
+- En produccion queda automatizado por cron diario de Vercel hacia `/api/cron/rss`
 
 ## Operacion diaria de NewsData
 

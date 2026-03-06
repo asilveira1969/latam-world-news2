@@ -7,6 +7,8 @@
 - Manual trigger: `GET` or `POST /api/ingest` (requires `ADMIN_SECRET` or `CRON_SECRET` via `Authorization: Bearer <secret>` or `?token=<secret>`)
 - Cron trigger: `GET /api/cron/ingest` (requires `CRON_SECRET` via `Authorization: Bearer <secret>` or `?token=<secret>`)
 - Admin report trigger: `GET` or `POST /api/admin/ingest/report` (requires `ADMIN_SECRET` or `CRON_SECRET` via bearer or `?token=`). Returns aggregate + per-source ingestion metrics.
+- RSS Mundo manual trigger: `GET` or `POST /api/rss/ingest` (requires `ADMIN_SECRET` or `CRON_SECRET`)
+- RSS Mundo cron trigger: `GET /api/cron/rss` (requires `CRON_SECRET`)
 - Optional country filter in frontend pages:
   - `/mundo?region=UY|AR|BR|MX|CL`
   - `/v2?region=UY|AR|BR|MX|CL`
