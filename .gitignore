@@ -1,4 +1,6 @@
 .next
+.next-dev.err
+.next-dev.log
 node_modules
 .env.local
 .env
