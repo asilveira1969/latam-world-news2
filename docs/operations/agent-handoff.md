@@ -29,6 +29,7 @@
 - `/mundo`
   - usa noticias RSS curadas desde Supabase
   - fuentes iniciales:
+    - `El País España`
     - `RT Actualidad`
     - `France 24 Espanol`
     - `BBC Mundo`

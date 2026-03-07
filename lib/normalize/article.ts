@@ -1,4 +1,5 @@
 import type { IngestLanguage, IngestRegion, NormalizedArticle } from "@/lib/types";
+import { formatSourceDisplayName } from "@/lib/sources";
 
 function firstNonEmptyString(values: unknown[]): string | null {
   for (const value of values) {
@@ -45,7 +46,7 @@ export function normalizeArticle(input: {
 }): NormalizedArticle | null {
   const title = firstNonEmptyString([input.title]);
   const sourceUrl = firstNonEmptyString([input.source_url]);
-  const sourceName = firstNonEmptyString([input.source_name]) ?? "NewsData";
+  const sourceName = formatSourceDisplayName(firstNonEmptyString([input.source_name]) ?? "NewsData");
   const summary = firstNonEmptyString([input.summary]);
   const imageUrl = firstNonEmptyString([input.image_url]);
   const publishedAt = toIsoOrNull(input.published_at);

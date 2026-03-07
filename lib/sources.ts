@@ -24,8 +24,8 @@ export function formatSourceDisplayName(name: string): string {
   if (normalized === "rt en espanol") {
     return "RT en Español";
   }
-  if (normalized === "el pais") {
-    return "El País";
+  if (normalized === "el pais" || normalized === "el pais espana") {
+    return "El País España";
   }
 
   return name;
@@ -88,6 +88,17 @@ export const MUNDO_RSS_SOURCES: MundoRssSource[] = [
     enabled: true,
     priority: 10,
     tag: "rss-rt"
+  },
+  {
+    id: "rss-elpais-ultimas",
+    name: "El País España",
+    feedUrl:
+      "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/ultimas-noticias/portada",
+    region: "Mundo",
+    language: "es",
+    enabled: true,
+    priority: 15,
+    tag: "rss-elpais"
   },
   {
     id: "rss-france24-es",

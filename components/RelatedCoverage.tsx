@@ -19,19 +19,25 @@ export default function RelatedCoverage({
   return (
     <section
       aria-label={title}
-      className="mt-8 rounded border border-slate-200 bg-white p-5"
+      className="mt-8 border-y border-slate-200 bg-gradient-to-b from-stone-50 to-white px-4 py-6 sm:mt-10 sm:px-6 sm:py-7"
     >
-      <h2 className="text-xl font-black text-brand">{title}</h2>
-      <ul className="mt-4 space-y-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 sm:tracking-[0.24em]">
+        Lecturas recomendadas
+      </p>
+      <h2 className="mt-2 text-xl font-black tracking-tight text-brand">{title}</h2>
+      <ul className="mt-5 space-y-0">
         {items.map((article) => (
-          <li key={article.id} className="border-b border-slate-100 pb-3 last:border-b-0 last:pb-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-              {article.region} · {article.category}
+          <li key={article.id} className="border-t border-slate-200 py-4 first:border-t-0 first:pt-0 last:pb-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-accent">
+              {article.region} {"\u00b7"} {article.category}
             </p>
-            <Link href={articleHref(article)} className="mt-1 block font-bold hover:underline">
+            <Link
+              href={articleHref(article)}
+              className="mt-2 block text-base font-bold leading-snug tracking-tight text-slate-950 transition hover:text-brand hover:underline sm:text-lg"
+            >
               {article.title}
             </Link>
-            <p className="mt-1 text-sm text-slate-600">{article.excerpt}</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{article.excerpt}</p>
           </li>
         ))}
       </ul>

@@ -17,6 +17,7 @@ import {
   hasSupabaseServiceEnv
 } from "@/lib/supabase/server";
 import { hasUsableRemoteImage, resolveCardImage } from "@/lib/images";
+import { formatSourceDisplayName } from "@/lib/sources";
 import {
   cleanExcerpt,
   cleanPlainText,
@@ -121,7 +122,7 @@ function mapRecordToArticle(record: Record<string, unknown>): Article {
       ? (record.faq_items as Array<{ question: string; answer: string }>)
       : null,
     image_url: resolveCardImage(String(record.image_url ?? "")),
-    source_name: cleanPlainText(sourceNameInput) || "Fuente externa",
+    source_name: formatSourceDisplayName(cleanPlainText(sourceNameInput) || "Fuente externa"),
     source_url: sourceUrlInput || "#",
     region: derivedRegion,
     category: cleanPlainText(String(record.category ?? "Geopolitica")) || "Geopolitica",
