@@ -18,9 +18,16 @@ function pickText(value: unknown): string {
   }
   if (typeof value === "object" && value !== null) {
     const raw = value as Record<string, unknown>;
-    return String(raw["#text"] ?? raw.href ?? "").trim();
+    return String(raw["#text"] ?? raw.href ?? raw["@_href"] ?? "").trim();
   }
   return String(value);
+}
+
+function pickFirst(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+  return value;
 }
 
 function pickTextList(value: unknown): string[] {
@@ -70,8 +77,12 @@ export function parseRss(xml: string): ParsedRssItem[] {
     const items = Array.isArray(channelItems) ? channelItems : [channelItems];
     return items.map((item) => {
       const value = item as Record<string, unknown>;
-      const enclosure = value.enclosure as Record<string, unknown> | undefined;
-      const mediaContent = value["media:content"] as Record<string, unknown> | undefined;
+      const enclosure = pickFirst(value.enclosure) as Record<string, unknown> | undefined;
+      const mediaContent = pickFirst(value["media:content"]) as Record<string, unknown> | undefined;
+      const mediaThumbnail = pickFirst(value["media:thumbnail"]) as
+        | Record<string, unknown>
+        | undefined;
+
       return {
         title: pickText(value.title),
         link: pickText(value.link),
@@ -80,7 +91,11 @@ export function parseRss(xml: string): ParsedRssItem[] {
           pickText(value.description) ||
           pickText(value["content:encoded"]) ||
           "Actualizacion internacional.",
-        imageUrl: pickText(enclosure?.["@_url"]) || pickText(mediaContent?.["@_url"]) || undefined,
+        imageUrl:
+          pickText(enclosure?.["@_url"]) ||
+          pickText(mediaContent?.["@_url"]) ||
+          pickText(mediaThumbnail?.["@_url"]) ||
+          undefined,
         categories: [
           ...pickTextList(value.category),
           ...pickTextList(value["dc:subject"])
@@ -94,9 +109,19 @@ export function parseRss(xml: string): ParsedRssItem[] {
     const entries = Array.isArray(feedEntries) ? feedEntries : [feedEntries];
     return entries.map((entry) => {
       const value = entry as Record<string, unknown>;
+      const atomLink = Array.isArray(value.link)
+        ? (value.link.find((item) => {
+            if (typeof item !== "object" || item === null) {
+              return false;
+            }
+            const raw = item as Record<string, unknown>;
+            return String(raw["@_rel"] ?? "").trim() === "alternate";
+          }) ?? value.link[0])
+        : value.link;
+
       return {
         title: pickText(value.title),
-        link: pickText(value.link),
+        link: pickText(atomLink),
         pubDate: pickText(value.updated) || pickText(value.published) || new Date().toISOString(),
         excerpt: pickText(value.summary) || "Actualizacion internacional.",
         categories: pickAtomCategoryTerms(value.category)

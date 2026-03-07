@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test:parse-rss": "tsx scripts/test-parse-rss.ts",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm run build",
     "smoke:local": "tsx scripts/smoke-local.ts",
