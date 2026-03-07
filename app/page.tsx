@@ -24,6 +24,8 @@ export const metadata: Metadata = buildMetadata({
   ]
 });
 
+export const revalidate = 300;
+
 export default async function HomePage() {
   const home = await getHomeData();
   const staticMeta = () => "Mundo \u00b7 Internacional";
