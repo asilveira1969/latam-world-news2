@@ -29,6 +29,14 @@ const LATAM_COUNTRIES = ["uy", "ar", "br", "mx", "cl"] as const;
 const COUNTRY_REGION_CODES = ["UY", "AR", "BR", "MX", "CL"] as const;
 const LATAM_REGION_VALUES = ["LatAm", ...COUNTRY_REGION_CODES] as const;
 const MUNDO_RSS_TAG = "mundo-rss";
+const INTERNAL_TAGS = new Set([
+  "rss",
+  "mundo-rss",
+  "rss-rt",
+  "rss-france24-es",
+  "rss-bbc-mundo",
+  "rss-dw-es"
+]);
 
 export interface MundoSourceSummary {
   sourceName: string;
@@ -66,6 +74,17 @@ function isDisplayableArticle(article: Article): boolean {
     return false;
   }
   return true;
+}
+
+function sanitizeArticleTags(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((tag) => cleanPlainText(String(tag)).toLowerCase())
+    .filter(Boolean)
+    .filter((tag) => !INTERNAL_TAGS.has(tag));
 }
 
 function mapRecordToArticle(record: Record<string, unknown>): Article {
@@ -106,7 +125,7 @@ function mapRecordToArticle(record: Record<string, unknown>): Article {
     source_url: sourceUrlInput || "#",
     region: derivedRegion,
     category: cleanPlainText(String(record.category ?? "Geopolitica")) || "Geopolitica",
-    tags: Array.isArray(record.tags) ? (record.tags as string[]) : [],
+    tags: sanitizeArticleTags(record.tags),
     published_at: String(record.published_at ?? new Date().toISOString()),
     created_at: String(record.created_at ?? new Date().toISOString()),
     is_featured: Boolean(record.is_featured),

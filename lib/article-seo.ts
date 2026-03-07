@@ -7,7 +7,11 @@ const GENERIC_TAGS = new Set([
   "internacional",
   "newsdata",
   "mundo",
-  "latam"
+  "latam",
+  "rss rt",
+  "rss france24 es",
+  "rss bbc mundo",
+  "rss dw es"
 ]);
 
 export type FaqItem = {

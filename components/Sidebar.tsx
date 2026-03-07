@@ -29,7 +29,7 @@ export default function Sidebar({ trendingTags, mostRead }: SidebarProps) {
         </section>
 
         <section className="rounded border border-slate-200 bg-white p-4">
-          <h3 className="mb-3 text-lg font-black text-brand">Más leídas</h3>
+          <h3 className="mb-3 text-lg font-black text-brand">Mas leidas</h3>
           <ul className="space-y-2">
             {mostRead.slice(0, 8).map((article) => (
               <li key={article.id}>
