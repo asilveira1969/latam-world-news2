@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import type { CountryTabCode } from "@/components/v2/v2-placeholders";
 
 export interface CountryExplorerV2Props {
@@ -12,7 +15,7 @@ const COUNTRY_LINKS: Array<{
   { code: "AR", label: "Argentina" },
   { code: "BR", label: "Brasil" },
   { code: "CL", label: "Chile" },
-  { code: "MX", label: "México" },
+  { code: "MX", label: "M\u00e9xico" },
   { code: "UY", label: "Uruguay" }
 ];
 
@@ -97,15 +100,20 @@ function CountryFlag({ code }: { code: CountryTabCode }) {
   );
 }
 
-export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Props) {
+function CountryLinks({
+  activeCountry,
+  onSelectCountry,
+  onSelectLatam
+}: {
+  activeCountry?: CountryTabCode;
+  onSelectCountry?: () => void;
+  onSelectLatam?: () => void;
+}) {
   return (
-    <section
-      aria-label="Acceso rápido por país"
-      className="space-y-4 rounded border border-slate-200 bg-white p-4"
-    >
+    <>
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm text-slate-600">
-          Acceso rápido a coberturas por país dentro de Latinoamérica.
+          Acceso rapido a coberturas por pais dentro de Latinoamerica.
         </p>
         <Link
           href="/latinoamerica"
@@ -115,6 +123,7 @@ export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Pr
               ? "border-slate-300 bg-slate-50 text-slate-700 hover:border-slate-900 hover:bg-slate-200 hover:text-slate-900"
               : "border-brand bg-brand text-white"
           ].join(" ")}
+          onClick={onSelectLatam}
         >
           Todo LatAm
         </Link>
@@ -134,12 +143,69 @@ export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Pr
                   ? "border-brand bg-brand/5 ring-1 ring-brand/30"
                   : "border-slate-200 bg-white hover:border-slate-900 hover:bg-slate-200 hover:text-slate-950"
               ].join(" ")}
+              onClick={onSelectCountry}
             >
               <CountryFlag code={country.code} />
               <p className="min-w-0 text-sm font-bold text-slate-900">{country.label}</p>
             </Link>
           );
         })}
+      </div>
+    </>
+  );
+}
+
+export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Props) {
+  const [isMobileExpanded, setIsMobileExpanded] = useState(!activeCountry);
+  const activeCountryData = useMemo(
+    () => COUNTRY_LINKS.find((country) => country.code === activeCountry),
+    [activeCountry]
+  );
+
+  useEffect(() => {
+    setIsMobileExpanded(!activeCountry);
+  }, [activeCountry]);
+
+  return (
+    <section
+      aria-label="Acceso rapido por pais"
+      className="space-y-4 rounded border border-slate-200 bg-white p-4"
+    >
+      <div className="lg:hidden">
+        {activeCountryData && !isMobileExpanded ? (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <CountryFlag code={activeCountryData.code} />
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Pa\u00eds activo
+                </p>
+                <p className="truncate text-sm font-bold text-slate-900">{activeCountryData.label}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="shrink-0 rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700"
+              onClick={() => setIsMobileExpanded(true)}
+              aria-expanded={isMobileExpanded}
+              aria-controls="latam-country-links"
+            >
+              Cambiar pa\u00eds
+            </button>
+          </div>
+        ) : (
+          <div id="latam-country-links" className="space-y-4">
+            <CountryLinks
+              activeCountry={activeCountry}
+              onSelectCountry={() => setIsMobileExpanded(false)}
+              onSelectLatam={() => setIsMobileExpanded(true)}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="hidden space-y-4 lg:block">
+        <CountryLinks activeCountry={activeCountry} />
       </div>
     </section>
   );
