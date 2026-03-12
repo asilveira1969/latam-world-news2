@@ -46,6 +46,20 @@ export default async function RootLayout({
 
   return (
     <html lang="es">
+      <head>
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-0Q2589WZWE"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-0Q2589WZWE');
+          `}
+        </Script>
+      </head>
       <body>
         {ADSENSE_ENABLED && ADSENSE_CLIENT_ID ? (
           <Script
