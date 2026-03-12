@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import NewsImage from "@/components/NewsImage";
 import RelatedCoverage from "@/components/RelatedCoverage";
+import ArticleEngagementTracker from "@/components/ArticleEngagementTracker";
 import StructuredData from "@/components/StructuredData";
+import TrackedExternalLink from "@/components/TrackedExternalLink";
 import ViewTracker from "@/components/ViewTracker";
 import { getEditorialBlocks } from "@/lib/article-seo";
 import { getArticleBySlug, getRelatedArticles } from "@/lib/data/articles-repo";
@@ -111,6 +113,7 @@ export default async function NotaPage({ params }: NotePageProps) {
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <ViewTracker slug={article.slug} />
+      <ArticleEngagementTracker slug={article.slug} title={article.title} section={sectionLabel} />
       <StructuredData data={breadcrumbJsonLd} />
       <StructuredData data={jsonLd} />
       <Breadcrumbs items={breadcrumbItems} />
@@ -131,14 +134,20 @@ export default async function NotaPage({ params }: NotePageProps) {
         </div>
 
         <section className="mt-6 border-y border-slate-200 px-4 py-4 sm:mt-8 sm:px-6 sm:py-4">
-          <a
+          <TrackedExternalLink
             href={article.source_url}
             target="_blank"
             rel="noreferrer"
+            eventParams={{
+              article_slug: article.slug,
+              article_title: article.title,
+              source_name: article.source_name,
+              placement: "article_detail"
+            }}
             className="inline-block text-sm font-semibold text-brand-accent underline decoration-brand-accent/60 underline-offset-4 transition hover:decoration-brand-accent"
           >
             Leer fuente original: {article.source_name}
-          </a>
+          </TrackedExternalLink>
         </section>
       </article>
 

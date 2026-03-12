@@ -3,6 +3,7 @@ import AdSlot from "@/components/AdSlot";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import NewsImage from "@/components/NewsImage";
 import StructuredData from "@/components/StructuredData";
+import TrackedExternalLink from "@/components/TrackedExternalLink";
 import { buildBreadcrumbJsonLd, buildCollectionPageJsonLd } from "@/lib/jsonld";
 import { hasUsableRemoteImage, isImageLikelyFromSource } from "@/lib/images";
 import { formatSourceDisplayName } from "@/lib/sources";
@@ -73,14 +74,20 @@ export default function SectionPage({ title, description, articles, pathname }: 
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   {cleanExcerpt(article.excerpt, 180) || "Resumen no disponible."}
                 </p>
-                <a
+                <TrackedExternalLink
                   href={article.source_url}
                   target="_blank"
                   rel="noreferrer"
+                  eventParams={{
+                    article_slug: article.slug,
+                    article_title: article.title,
+                    source_name: article.source_name,
+                    placement: "section_page"
+                  }}
                   className="mt-2 inline-block text-xs font-semibold text-slate-700 underline"
                 >
                   Fuente: {formatSourceDisplayName(article.source_name)}
-                </a>
+                </TrackedExternalLink>
               </article>
             );
           }
@@ -107,14 +114,20 @@ export default function SectionPage({ title, description, articles, pathname }: 
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   {cleanExcerpt(article.excerpt, 220) || "Resumen no disponible."}
                 </p>
-                <a
+                <TrackedExternalLink
                   href={article.source_url}
                   target="_blank"
                   rel="noreferrer"
+                  eventParams={{
+                    article_slug: article.slug,
+                    article_title: article.title,
+                    source_name: article.source_name,
+                    placement: "section_page"
+                  }}
                   className="mt-2 inline-block text-xs font-semibold text-slate-700 underline"
                 >
                   Fuente: {formatSourceDisplayName(article.source_name)}
-                </a>
+                </TrackedExternalLink>
               </div>
             </article>
           );

@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
+import SearchForm from "@/components/SearchForm";
 import { searchArticles } from "@/lib/data/articles-repo";
 import { buildMetadata } from "@/lib/seo";
 
@@ -24,7 +25,7 @@ export default async function BuscarPage({ searchParams }: SearchPageProps) {
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
       <h1 className="text-3xl font-black text-brand">Buscar</h1>
-      <form action="/buscar" method="get" className="mt-4 flex max-w-xl gap-2">
+      <SearchForm action="/buscar" method="get" className="mt-4 flex max-w-xl gap-2">
         <input
           type="search"
           name="q"
@@ -35,7 +36,7 @@ export default async function BuscarPage({ searchParams }: SearchPageProps) {
         <button type="submit" className="rounded bg-brand px-4 py-2 text-sm font-semibold text-white">
           Buscar
         </button>
-      </form>
+      </SearchForm>
 
       <p className="mt-4 text-sm text-slate-600">
         {q ? `Resultados para "${q}": ${results.length}` : "Mostrando las noticias más recientes."}

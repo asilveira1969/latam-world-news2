@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import NewsImage from "@/components/NewsImage";
 import RelatedCoverage from "@/components/RelatedCoverage";
+import ArticleEngagementTracker from "@/components/ArticleEngagementTracker";
 import StructuredData from "@/components/StructuredData";
+import TrackedExternalLink from "@/components/TrackedExternalLink";
 import ViewTracker from "@/components/ViewTracker";
 import { getEditorialBlocks } from "@/lib/article-seo";
 import { getArticleBySlug, getRelatedArticles } from "@/lib/data/articles-repo";
@@ -64,6 +66,7 @@ export default async function ImpactoDetailPage({ params }: ImpactDetailPageProp
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <ViewTracker slug={article.slug} />
+      <ArticleEngagementTracker slug={article.slug} title={article.title} section="Impacto en LATAM" />
       <StructuredData data={breadcrumbJsonLd} />
       <StructuredData data={jsonLd} />
       <Breadcrumbs
@@ -106,14 +109,20 @@ export default async function ImpactoDetailPage({ params }: ImpactDetailPageProp
           <h2 className="mt-6 text-lg font-bold">{"Conclusi\u00f3n"}</h2>
           <p className="mt-3 leading-7 text-slate-800">{editorial.conclusion}</p>
 
-          <a
+          <TrackedExternalLink
             href={article.source_url}
             target="_blank"
             rel="noreferrer"
+            eventParams={{
+              article_slug: article.slug,
+              article_title: article.title,
+              source_name: article.source_name,
+              placement: "impact_detail"
+            }}
             className="mt-5 inline-block text-sm font-semibold text-brand-accent underline"
           >
             Fuente original: {article.source_name}
-          </a>
+          </TrackedExternalLink>
         </section>
       </article>
 

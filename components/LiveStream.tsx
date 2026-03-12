@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import TrackedExternalLink from "@/components/TrackedExternalLink";
 
 export interface LiveStreamSource {
   key: string;
@@ -32,14 +33,18 @@ export default function LiveStream({ sources }: LiveStreamProps) {
     <section className="rounded border border-slate-200 bg-white p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-black text-brand">LIVE NEWS 24/7</h2>
-        <a
+        <TrackedExternalLink
           href={selected.sourceUrl}
           target="_blank"
           rel="noreferrer"
+          eventParams={{
+            source_name: selected.label,
+            placement: "live_stream"
+          }}
           className="text-sm font-semibold text-brand-accent underline"
         >
           Ver fuente
-        </a>
+        </TrackedExternalLink>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">

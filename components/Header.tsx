@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import SearchForm from "@/components/SearchForm";
 import { PRIMARY_NAV, SITE_NAME, SITE_TAGLINE } from "@/lib/constants/nav";
 
 export default function Header() {
@@ -29,7 +30,7 @@ export default function Header() {
           ))}
         </nav>
 
-        <form action="/buscar" method="get" className="hidden items-center gap-2 md:flex">
+        <SearchForm action="/buscar" method="get" className="hidden items-center gap-2 md:flex">
           <input
             type="search"
             name="q"
@@ -42,7 +43,7 @@ export default function Header() {
           >
             Buscar
           </button>
-        </form>
+        </SearchForm>
 
         <button
           type="button"
@@ -69,7 +70,7 @@ export default function Header() {
               </Link>
             ))}
           </div>
-          <form action="/buscar" method="get" className="flex items-center gap-2">
+          <SearchForm action="/buscar" method="get" className="flex items-center gap-2">
             <input
               type="search"
               name="q"
@@ -82,7 +83,7 @@ export default function Header() {
             >
               Ir
             </button>
-          </form>
+          </SearchForm>
         </div>
       ) : null}
     </header>
