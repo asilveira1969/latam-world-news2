@@ -36,5 +36,6 @@ export const SECTION_TITLE_MAP: Record<SectionKey, string> = {
 
 export const PRIMARY_NAV: Array<{ href: string; label: string }> = [
   { href: "/latinoamerica", label: "Latinoam\u00e9rica" },
-  { href: "/mundo", label: "Mundo" }
+  { href: "/mundo", label: "Mundo" },
+  { href: "/impacto", label: "Impacto" }
 ];

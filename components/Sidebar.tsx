@@ -34,7 +34,17 @@ export default function Sidebar({ trendingTags, mostRead }: SidebarProps) {
             {mostRead.slice(0, 8).map((article) => (
               <li key={article.id}>
                 <Link
-                  href={article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`}
+                  href={
+                    article.impact_format === "editorial"
+                      ? `/impacto/editorial/${article.slug}`
+                      : article.impact_format === "opinion"
+                        ? `/impacto/opinion/${article.slug}`
+                        : article.impact_format === "columnist"
+                          ? `/impacto/columnistas/${article.slug}`
+                      : article.is_impact
+                        ? `/impacto/${article.slug}`
+                        : `/nota/${article.slug}`
+                  }
                   className="text-sm font-medium hover:underline"
                 >
                   {article.title}

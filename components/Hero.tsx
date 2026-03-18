@@ -6,7 +6,21 @@ import type { Article } from "@/lib/types/article";
 export interface HeroProps {
   lead: Article;
   secondary: Article[];
+  editorial?: Article | null;
   formatMeta?: (article: Article) => string;
+}
+
+function articleHref(article: Article) {
+  if (article.impact_format === "editorial") {
+    return `/impacto/editorial/${article.slug}`;
+  }
+  if (article.impact_format === "opinion") {
+    return `/impacto/opinion/${article.slug}`;
+  }
+  if (article.impact_format === "columnist") {
+    return `/impacto/columnistas/${article.slug}`;
+  }
+  return article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`;
 }
 
 function ArticleCard({
@@ -18,7 +32,7 @@ function ArticleCard({
   compact?: boolean;
   formatMeta?: (article: Article) => string;
 }) {
-  const href = article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`;
+  const href = articleHref(article);
   const meta = formatMeta ? formatMeta(article) : `${article.region} · ${article.category}`;
 
   return (
@@ -50,9 +64,31 @@ function ArticleCard({
   );
 }
 
-export default function Hero({ lead, secondary, formatMeta }: HeroProps) {
+export default function Hero({ lead, secondary, editorial, formatMeta }: HeroProps) {
   return (
     <section aria-label="Cobertura destacada">
+      {editorial ? (
+        <Link
+          href={articleHref(editorial)}
+          className="mb-4 block rounded-2xl border border-brand/20 bg-gradient-to-r from-brand to-brand/85 px-5 py-4 text-white shadow-sm transition hover:shadow-md"
+        >
+          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-white/80">
+            Impacto
+          </p>
+          <div className="mt-2 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <h2 className="text-2xl font-black tracking-tight lg:text-3xl">
+                Editorial Impacto Latinoam&eacute;rica
+              </h2>
+              <p className="mt-2 text-sm font-semibold text-white/90">{editorial.title}</p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">{editorial.excerpt}</p>
+            </div>
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/85">
+              Leer editorial
+            </span>
+          </div>
+        </Link>
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
         <ArticleCard article={lead} formatMeta={formatMeta} />
         <div className="grid gap-4 sm:grid-cols-2">

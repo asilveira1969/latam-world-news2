@@ -21,6 +21,16 @@ export default async function BuscarPage({ searchParams }: SearchPageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const q = resolvedSearchParams.q?.trim() ?? "";
   const results = await searchArticles(q, 50);
+  const articleHref = (slug: string, isImpact: boolean, impactFormat?: string | null) =>
+    impactFormat === "editorial"
+      ? `/impacto/editorial/${slug}`
+      : impactFormat === "opinion"
+        ? `/impacto/opinion/${slug}`
+        : impactFormat === "columnist"
+          ? `/impacto/columnistas/${slug}`
+          : isImpact
+            ? `/impacto/${slug}`
+            : `/nota/${slug}`;
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
@@ -49,7 +59,7 @@ export default async function BuscarPage({ searchParams }: SearchPageProps) {
               {article.region} · {article.category}
             </p>
             <Link
-              href={article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`}
+              href={articleHref(article.slug, article.is_impact, article.impact_format)}
               className="mt-1 block text-lg font-bold hover:underline"
             >
               {article.title}

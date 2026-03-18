@@ -12,6 +12,15 @@ export interface LatestFeedProps {
 }
 
 function articleHref(article: Article) {
+  if (article.impact_format === "editorial") {
+    return `/impacto/editorial/${article.slug}`;
+  }
+  if (article.impact_format === "opinion") {
+    return `/impacto/opinion/${article.slug}`;
+  }
+  if (article.impact_format === "columnist") {
+    return `/impacto/columnistas/${article.slug}`;
+  }
   return article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`;
 }
 

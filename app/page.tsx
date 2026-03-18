@@ -34,7 +34,12 @@ export default async function HomePage() {
     <main className="mx-auto max-w-7xl px-4 py-8">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-8">
-          <Hero lead={home.heroLead} secondary={home.heroSecondary} formatMeta={staticMeta} />
+          <Hero
+            lead={home.heroLead}
+            secondary={home.heroSecondary}
+            editorial={home.latestEditorial}
+            formatMeta={staticMeta}
+          />
           <AdSlot slotId="top-banner" className="mb-2" format="horizontal" />
           <LatestFeed items={home.latest} formatMeta={staticMeta} />
           <RegionBlocks regions={home.regionBlocks} />

@@ -24,7 +24,13 @@ import {
   looksCorruptedText,
   looksLikeSystemError
 } from "@/lib/text/clean";
-import type { Article, HomeData, RegionKey, SectionKey } from "@/lib/types/article";
+import type {
+  Article,
+  EditorialSections,
+  HomeData,
+  RegionKey,
+  SectionKey
+} from "@/lib/types/article";
 
 const LATAM_COUNTRIES = ["uy", "ar", "br", "mx", "cl"] as const;
 const COUNTRY_REGION_CODES = ["UY", "AR", "BR", "MX", "CL"] as const;
@@ -47,9 +53,13 @@ export interface MundoSourceSummary {
 
 function getFallbackImpactArticles(limit: number): Article[] {
   return dedupeBySourceUrl(sortByPublishedDesc(mockArticles))
-    .filter((article) => article.is_impact)
+    .filter((article) => article.is_impact && article.impact_format === "analysis")
     .filter(isDisplayableArticle)
     .slice(0, limit);
+}
+
+function mergeWithManualArticles(articles: Article[]): Article[] {
+  return dedupeBySourceUrl(sortByPublishedDesc([...articles, ...mockArticles])).filter(isDisplayableArticle);
 }
 
 function isLatamCountry(value: string): boolean {
@@ -127,6 +137,24 @@ function mapRecordToArticle(record: Record<string, unknown>): Article {
     region: derivedRegion,
     category: cleanPlainText(String(record.category ?? "Geopolitica")) || "Geopolitica",
     tags: sanitizeArticleTags(record.tags),
+    countries: Array.isArray(record.countries)
+      ? (record.countries as string[]).map((item) => cleanPlainText(String(item)).toLowerCase())
+      : null,
+    impact_format:
+      record.impact_format === "editorial" ||
+      record.impact_format === "analysis" ||
+      record.impact_format === "opinion" ||
+      record.impact_format === "columnist"
+        ? (record.impact_format as Article["impact_format"])
+        : Boolean(record.is_impact)
+          ? "analysis"
+          : null,
+    editorial_sections:
+      record.editorial_sections &&
+      typeof record.editorial_sections === "object" &&
+      !Array.isArray(record.editorial_sections)
+        ? (record.editorial_sections as EditorialSections)
+        : null,
     published_at: String(record.published_at ?? new Date().toISOString()),
     created_at: String(record.created_at ?? new Date().toISOString()),
     is_featured: Boolean(record.is_featured),
@@ -137,7 +165,9 @@ function mapRecordToArticle(record: Record<string, unknown>): Article {
 
 function filterBySection(articles: Article[], section: SectionKey): Article[] {
   if (section === "impacto") {
-    return articles.filter((article) => article.is_impact);
+    return articles.filter(
+      (article) => article.is_impact && article.impact_format === "analysis"
+    );
   }
   if (section === "economia-global") {
     return articles.filter(
@@ -183,7 +213,7 @@ async function fetchAllArticlesFromSource(): Promise<Article[]> {
     if (mapped.length === 0) {
       return mockArticles;
     }
-    return sortByPublishedDesc(mapped);
+      return mergeWithManualArticles(mapped);
   } catch (error) {
     console.error("Supabase read failed, using mock data:", error);
     return mockArticles;
@@ -410,12 +440,15 @@ export async function getHomeData(input?: {
   const ticker = pool.slice(0, 10).map((article) => article.title);
 
   const impactArticles = all.filter((article) => article.is_impact);
-  const fallbackImpact = impactArticles.length > 0 ? impactArticles : getFallbackImpactArticles(3);
+  const editorialArticles = impactArticles.filter((article) => article.impact_format === "editorial");
+  const analysisArticles = impactArticles.filter((article) => article.impact_format !== "editorial");
+  const fallbackImpact = analysisArticles.length > 0 ? analysisArticles : getFallbackImpactArticles(3);
 
   return {
     ticker: ticker.length >= 6 ? ticker : fallbackTickerHeadlines,
     heroLead: hero.lead,
     heroSecondary: hero.secondary,
+    latestEditorial: editorialArticles[0] ?? null,
     impact: fallbackImpact.slice(0, 3),
     latest: all.slice(0, 30),
     regionBlocks,
@@ -444,7 +477,9 @@ export async function getRegionArticles(
 
 export async function getImpactArticles(limit = 3): Promise<Article[]> {
   const all = await getAllArticles();
-  const impactArticles = all.filter((article) => article.is_impact).slice(0, limit);
+  const impactArticles = all
+    .filter((article) => article.is_impact && article.impact_format === "analysis")
+    .slice(0, limit);
   if (impactArticles.length > 0) {
     return impactArticles;
   }
@@ -452,9 +487,35 @@ export async function getImpactArticles(limit = 3): Promise<Article[]> {
   return getFallbackImpactArticles(limit);
 }
 
+export async function getEditorialArticles(limit = 12): Promise<Article[]> {
+  const all = await getAllArticles();
+  return all
+    .filter((article) => article.is_impact && article.impact_format === "editorial")
+    .slice(0, limit);
+}
+
+export async function getLatestEditorial(): Promise<Article | null> {
+  const items = await getEditorialArticles(1);
+  return items[0] ?? null;
+}
+
+export async function getOpinionArticles(limit = 6): Promise<Article[]> {
+  const all = await getAllArticles();
+  return all
+    .filter((article) => article.is_impact && article.impact_format === "opinion")
+    .slice(0, limit);
+}
+
+export async function getColumnistArticles(limit = 6): Promise<Article[]> {
+  const all = await getAllArticles();
+  return all
+    .filter((article) => article.is_impact && article.impact_format === "columnist")
+    .slice(0, limit);
+}
+
 export async function getArticleBySlug(
   slug: string,
-  kind: "nota" | "impacto"
+  kind: "nota" | "impacto" | "impacto-editorial" | "impacto-opinion" | "impacto-columnista"
 ): Promise<Article | null> {
   if (hasSupabaseAnonEnv) {
     try {
@@ -473,7 +534,16 @@ export async function getArticleBySlug(
         if (kind === "nota" && article.is_impact) {
           return null;
         }
-        if (kind === "impacto" && !article.is_impact) {
+        if (kind === "impacto" && (!article.is_impact || article.impact_format === "editorial")) {
+          return null;
+        }
+        if (kind === "impacto-editorial" && article.impact_format !== "editorial") {
+          return null;
+        }
+        if (kind === "impacto-opinion" && article.impact_format !== "opinion") {
+          return null;
+        }
+        if (kind === "impacto-columnista" && article.impact_format !== "columnist") {
           return null;
         }
         return article;
@@ -495,7 +565,16 @@ export async function getArticleBySlug(
   if (kind === "nota" && article.is_impact) {
     return null;
   }
-  if (kind === "impacto" && !article.is_impact) {
+  if (kind === "impacto" && (!article.is_impact || article.impact_format === "editorial")) {
+    return null;
+  }
+  if (kind === "impacto-editorial" && article.impact_format !== "editorial") {
+    return null;
+  }
+  if (kind === "impacto-opinion" && article.impact_format !== "opinion") {
+    return null;
+  }
+  if (kind === "impacto-columnista" && article.impact_format !== "columnist") {
     return null;
   }
   return article;
@@ -574,14 +653,45 @@ export async function incrementArticleViews(slug: string): Promise<boolean> {
 }
 
 export async function getSitemapArticles(): Promise<
-  Array<{ slug: string; kind: "nota" | "impacto"; lastModified: string }>
+  Array<{
+    slug: string;
+    kind: "nota" | "impacto" | "impacto/editorial" | "impacto/opinion" | "impacto/columnistas";
+    lastModified: string;
+  }>
 > {
   const all = await getAllArticles();
   return all.map((article) => ({
     slug: article.slug,
-    kind: article.is_impact ? "impacto" : "nota",
+    kind:
+      article.impact_format === "editorial"
+        ? "impacto/editorial"
+        : article.impact_format === "opinion"
+          ? "impacto/opinion"
+          : article.impact_format === "columnist"
+            ? "impacto/columnistas"
+            : article.is_impact
+              ? "impacto"
+              : "nota",
     lastModified: article.published_at || article.created_at
   }));
+}
+
+export async function getArticlesByTag(tag: string, limit = 24): Promise<Article[]> {
+  const normalized = cleanPlainText(tag).toLowerCase().replace(/\s+/g, "-");
+  const all = await getAllArticles();
+  return all
+    .filter((article) =>
+      article.tags.some((item) => item === normalized || item.replace(/\s+/g, "-") === normalized)
+    )
+    .slice(0, limit);
+}
+
+export async function getArticlesByCountry(country: string, limit = 24): Promise<Article[]> {
+  const normalized = cleanPlainText(country).toLowerCase();
+  const all = await getAllArticles();
+  return all
+    .filter((article) => article.countries?.includes(normalized) || article.region.toLowerCase() === normalized)
+    .slice(0, limit);
 }
 
 export async function getRelatedArticles(article: Article, limit = 4): Promise<Article[]> {

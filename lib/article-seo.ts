@@ -87,17 +87,21 @@ export function getEditorialBlocks(article: Article): EditorialBlocks {
   const title = titleWithoutTrailingPeriod(article.title);
   const excerpt = cleanExcerpt(article.excerpt, 220) || article.title;
   const body = article.content ? cleanPlainText(article.content) : excerpt;
+  const isEditorial = article.impact_format === "editorial";
   const region = articleRegion(article);
   const topic = articleTopic(article);
   const themes = toSentenceList(article.tags);
+  const editorialSections = article.editorial_sections;
   const summary = cleanExcerpt(
-    article.content
-      ? body
-      : `${excerpt} Esta cobertura curada resume el hecho principal, identifica los actores involucrados y conserva el enlace directo a ${sourceName(article)} para ampliar la lectura.`,
+    editorialSections?.que_esta_pasando ||
+      (article.content
+        ? body
+        : `${excerpt} Esta cobertura curada resume el hecho principal, identifica los actores involucrados y conserva el enlace directo a ${sourceName(article)} para ampliar la lectura.`),
     article.is_impact ? 360 : 280
   );
   const latamAngle = cleanExcerpt(
-    article.latam_angle ||
+    editorialSections?.que_significa_para_america_latina ||
+      article.latam_angle ||
       `Para Am\u00e9rica Latina, esta noticia importa por su efecto potencial sobre ${themes}. El seguimiento editorial de LATAM World News prioriza consecuencias pr\u00e1cticas para gobiernos, empresas, cadenas de suministro y hogares de la regi\u00f3n.`,
     260
   );
@@ -107,9 +111,10 @@ export function getEditorialBlocks(article: Article): EditorialBlocks {
     `La se\u00f1al m\u00e1s relevante para LATAM est\u00e1 en c\u00f3mo este cambio puede mover ${themes}.`
   ];
   const conclusion = cleanExcerpt(
-    article.is_impact
+    editorialSections?.por_que_importa ||
+      (article.is_impact
       ? `${body} Conclusi\u00f3n editorial: el valor de esta pieza est\u00e1 en traducir una noticia internacional en escenarios concretos para Am\u00e9rica Latina.`
-      : `${excerpt} En LATAM World News esta nota se publica como cobertura curada: explica el hecho, aporta una lectura regional corta y dirige a la fuente original para la lectura completa.`,
+      : `${excerpt} En LATAM World News esta nota se publica como cobertura curada: explica el hecho, aporta una lectura regional corta y dirige a la fuente original para la lectura completa.`),
     article.is_impact ? 420 : 260
   );
   const faqItems = article.is_impact
@@ -138,12 +143,18 @@ export function getEditorialBlocks(article: Article): EditorialBlocks {
   return {
     summary,
     latamAngle,
-    keyPoints,
+    keyPoints: isEditorial && editorialSections
+      ? [
+          cleanExcerpt(editorialSections.que_esta_pasando, 180),
+          cleanExcerpt(editorialSections.claves_del_dia, 180),
+          cleanExcerpt(editorialSections.por_que_importa, 180)
+        ]
+      : keyPoints,
     conclusion,
     faqItems,
     seoTitle:
       article.seo_title ||
-      `${title}${article.is_impact ? " | An\u00e1lisis e impacto en LATAM" : " | Claves para LATAM"}`,
+      `${title}${isEditorial ? " | Editorial Impacto Latinoam\u00e9rica" : article.is_impact ? " | An\u00e1lisis e impacto en LATAM" : " | Claves para LATAM"}`,
     seoDescription:
       article.seo_description ||
       cleanExcerpt(`${excerpt} ${latamAngle}`, 170) ||

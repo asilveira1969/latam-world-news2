@@ -3,6 +3,19 @@ import { getEditorialBlocks } from "@/lib/article-seo";
 import type { Article } from "@/lib/types/article";
 import { absoluteUrl } from "@/lib/seo";
 
+function articlePath(article: Article) {
+  if (article.impact_format === "editorial") {
+    return `/impacto/editorial/${article.slug}`;
+  }
+  if (article.impact_format === "opinion") {
+    return `/impacto/opinion/${article.slug}`;
+  }
+  if (article.impact_format === "columnist") {
+    return `/impacto/columnistas/${article.slug}`;
+  }
+  return article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`;
+}
+
 export function buildOrganizationJsonLd() {
   return {
     "@context": "https://schema.org",
@@ -61,7 +74,7 @@ export function buildCollectionPageJsonLd(input: {
     hasPart: input.items.slice(0, 10).map((article) => ({
       "@type": "NewsArticle",
       headline: article.title,
-      url: absoluteUrl(article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`),
+      url: absoluteUrl(articlePath(article)),
       datePublished: article.published_at
     }))
   };
@@ -73,6 +86,16 @@ export function buildNewsArticleJsonLd(
   relatedArticles: Article[] = []
 ) {
   const editorial = getEditorialBlocks(article);
+  const articleSection =
+    article.impact_format === "editorial"
+      ? "Editorial Impacto Latinoamérica"
+      : article.impact_format === "opinion"
+        ? "Opinión"
+        : article.impact_format === "columnist"
+          ? "Columnistas"
+      : article.is_impact
+        ? "Impacto en LATAM"
+        : article.category;
   const imageUrl = article.image_url.startsWith("http")
     ? article.image_url
     : absoluteUrl(article.image_url || "/og-default.svg");
@@ -85,7 +108,7 @@ export function buildNewsArticleJsonLd(
     image: [imageUrl],
     datePublished: article.published_at,
     dateModified: article.created_at,
-    articleSection: article.is_impact ? "Impacto en LATAM" : article.category,
+    articleSection,
     keywords: article.tags,
     inLanguage: "es",
     isAccessibleForFree: true,
@@ -116,7 +139,7 @@ export function buildNewsArticleJsonLd(
     mentions: relatedArticles.slice(0, 4).map((item) => ({
       "@type": "Article",
       headline: item.title,
-      url: absoluteUrl(item.is_impact ? `/impacto/${item.slug}` : `/nota/${item.slug}`)
+      url: absoluteUrl(articlePath(item))
     }))
   };
 }

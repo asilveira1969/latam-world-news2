@@ -26,6 +26,15 @@ export type SectionKey =
   | "tecnologia"
   | "impacto";
 
+export type ImpactFormat = "analysis" | "editorial" | "opinion" | "columnist";
+
+export interface EditorialSections {
+  que_esta_pasando: string;
+  claves_del_dia: string;
+  que_significa_para_america_latina: string;
+  por_que_importa: string;
+}
+
 export interface Article {
   id: string;
   title: string;
@@ -46,6 +55,9 @@ export interface Article {
   region: RegionValue;
   category: string;
   tags: string[];
+  countries?: string[] | null;
+  impact_format?: ImpactFormat | null;
+  editorial_sections?: EditorialSections | null;
   published_at: string;
   created_at: string;
   is_featured: boolean;
@@ -57,6 +69,7 @@ export interface HomeData {
   ticker: string[];
   heroLead: Article;
   heroSecondary: Article[];
+  latestEditorial: Article | null;
   impact: Article[];
   latest: Article[];
   regionBlocks: Array<{

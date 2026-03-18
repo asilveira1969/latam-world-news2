@@ -19,7 +19,18 @@ export default function ImpactSection({ items }: ImpactSectionProps) {
       <div className="grid gap-4 md:grid-cols-3">
         {items.map((article) => (
           <article key={article.id} className="overflow-hidden rounded border border-slate-200 bg-white">
-            <Link href={`/impacto/${article.slug}`} className="block">
+            <Link
+              href={
+                article.impact_format === "editorial"
+                  ? `/impacto/editorial/${article.slug}`
+                  : article.impact_format === "opinion"
+                    ? `/impacto/opinion/${article.slug}`
+                    : article.impact_format === "columnist"
+                      ? `/impacto/columnistas/${article.slug}`
+                      : `/impacto/${article.slug}`
+              }
+              className="block"
+            >
               <div className="relative aspect-video">
                 <NewsImage
                   src={article.image_url}
