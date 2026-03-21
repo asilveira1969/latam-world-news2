@@ -2,6 +2,13 @@
 
 This project can ingest OpenClaw-generated news JSON into the existing `Supabase` `articles` table.
 
+Recommended workflow:
+
+1. OpenClaw generates a JSON batch in its own workspace.
+2. The batch is delivered to `F:\WORK\Latam World News\03_Inbox\openclaw\incoming`.
+3. Human editorial review moves approved files to `F:\WORK\Latam World News\03_Inbox\openclaw\approved`.
+4. This project processes only approved batches and archives them to `processed` or `rejected`.
+
 ## Prerequisites
 
 - OpenClaw CLI installed (`openclaw`)
@@ -35,7 +42,13 @@ openclaw agents list
 
 ## 3) Run the agent and save JSON
 
-Use `--json` and redirect output to the repo file `openclaw/ingested/latest.json`.
+Recommended delivery target:
+
+- `F:\WORK\Latam World News\03_Inbox\openclaw\incoming`
+
+Legacy/manual target still supported:
+
+- `F:\WORK\Latam World News\10-Website\site-prod\openclaw\ingested\latest.json`
 
 Example prompt (strict JSON contract for this MVP):
 
@@ -68,16 +81,34 @@ Mantén idioma original y usa resúmenes propios breves.
 Run:
 
 ```powershell
-openclaw agent --agent latam-news --message "<PEGA_AQUI_EL_PROMPT>" --json > "F:\WORK\Latam World News\10-Website\site-prod\openclaw\ingested\latest.json"
+openclaw agent --agent latam-news --message "<PEGA_AQUI_EL_PROMPT>" --json > "F:\WORK\Latam World News\03_Inbox\openclaw\incoming\batch-YYYYMMDD-HHMM.json"
 ```
 
 Notes:
 - If OpenClaw wraps JSON in another object, the importer is tolerant to `items`, `result.items`, `data.items`, or JSON string content.
 - If the file is empty/invalid, rerun the agent with a shorter prompt and fewer items (e.g. 5-10).
 
-## 4) Import into Supabase
+## 4) Review and import into Supabase
 
-From this repo:
+Human review is required before publication:
+
+```powershell
+Move-Item "F:\WORK\Latam World News\03_Inbox\openclaw\incoming\batch-YYYYMMDD-HHMM.json" "F:\WORK\Latam World News\03_Inbox\openclaw\approved\"
+```
+
+Then process only approved batches:
+
+```powershell
+npm run openclaw:process-approved
+```
+
+Validation-only pass:
+
+```powershell
+npm run openclaw:validate-approved
+```
+
+Legacy/manual import from this repo:
 
 ```powershell
 npm run ingest:openclaw
@@ -96,7 +127,9 @@ npx tsx scripts/import-openclaw.ts --file .\openclaw\ingested\latest.json
 - Generates deterministic `slug` from title + source URL hash
 - Deduplicates within the batch by `source_url`
 - Upserts into `articles` on `source_url`
-- Leaves `content=null`, `is_featured=false`, `is_impact=false`
+- Preserves `content` when OpenClaw provides a valid long-form body
+- Leaves `is_featured=false`, `is_impact=false`
+- Archives approved files to `processed` or `rejected` when using the shared inbox flow
 
 ## Troubleshooting
 

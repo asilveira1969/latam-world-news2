@@ -1,20 +1,29 @@
 # OpenClaw Ingest Artifacts
 
-Ruta canónica de entrada para ingesta manual asistida:
+Rutas operativas:
 
-- `openclaw/ingested/latest.json`
+- Flujo legado/manual: `openclaw/ingested/latest.json`
+- Flujo aprobado con revision humana: `..\..\..\03_Inbox\openclaw\approved`
 
 Comandos:
 
-- Validar lote (sin escribir en Supabase): `npm run openclaw:validate`
-- Importar a Supabase (real): `npm run ingest:openclaw`
-- Importar en modo validación/dry-run: `npm run ingest:openclaw -- --dry-run`
+- Validar lote legado sin escribir en Supabase: `npm run openclaw:validate`
+- Importar lote legado directo: `npm run ingest:openclaw`
+- Procesar solo lotes aprobados: `npm run openclaw:process-approved`
+- Validar lotes aprobados sin mover archivos: `npm run openclaw:validate-approved`
+
+Regla de operacion:
+
+- Nada se publica desde `incoming`
+- Solo los JSON en `03_Inbox/openclaw/approved` pueden procesarse
+- Los lotes importados se mueven a `processed`
+- Los lotes fallidos o invalidos se mueven a `rejected` con un `.report.json`
 
 Errores comunes:
 
-- JSON inválido o vacío en `openclaw/ingested/latest.json`
-- Falta `NEXT_PUBLIC_SUPABASE_URL` o `SUPABASE_SERVICE_ROLE_KEY` para importación real
-- El payload no contiene `items` (directo o envuelto en `result/data/content`)
+- JSON invalido o vacio en el archivo entregado
+- Falta `NEXT_PUBLIC_SUPABASE_URL` o `SUPABASE_SERVICE_ROLE_KEY` para importacion real
+- El payload no contiene `items` directo o envuelto en `result/data/content`
 
 Contrato de referencia:
 

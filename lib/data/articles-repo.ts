@@ -24,6 +24,7 @@ import {
   looksCorruptedText,
   looksLikeSystemError
 } from "@/lib/text/clean";
+import { getCountrySlug, isLatamCountryCode, toTopicSlug } from "@/lib/hubs";
 import type {
   Article,
   EditorialSections,
@@ -44,6 +45,7 @@ const INTERNAL_TAGS = new Set([
   "rss-bbc-mundo",
   "rss-dw-es"
 ]);
+const GENERIC_TOPIC_TAGS = new Set(["internacional", "mundo", "latam", "america-latina"]);
 
 export interface MundoSourceSummary {
   sourceName: string;
@@ -676,6 +678,69 @@ export async function getSitemapArticles(): Promise<
   }));
 }
 
+export async function getSitemapHubs(): Promise<
+  Array<{
+    pathname: string;
+    lastModified: string;
+    priority: number;
+  }>
+> {
+  const all = await getAllArticles();
+  const topicMap = new Map<string, number>();
+  const topicLastModified = new Map<string, number>();
+  const countryMap = new Map<string, number>();
+  const countryLastModified = new Map<string, number>();
+
+  for (const article of all) {
+    const modifiedAt = new Date(article.published_at || article.created_at).getTime();
+
+    for (const tag of article.tags) {
+      const slug = toTopicSlug(tag);
+      if (!slug || GENERIC_TOPIC_TAGS.has(slug)) {
+        continue;
+      }
+
+      topicMap.set(slug, (topicMap.get(slug) ?? 0) + 1);
+      topicLastModified.set(slug, Math.max(topicLastModified.get(slug) ?? 0, modifiedAt));
+    }
+
+    const countries = new Set(article.countries?.map((item) => getCountrySlug(item)) ?? []);
+    if (isLatamCountryCode(article.region)) {
+      countries.add(article.region.toLowerCase());
+    }
+
+    for (const country of countries) {
+      if (!country) {
+        continue;
+      }
+      countryMap.set(country, (countryMap.get(country) ?? 0) + 1);
+      countryLastModified.set(country, Math.max(countryLastModified.get(country) ?? 0, modifiedAt));
+    }
+  }
+
+  const topics = [...topicMap.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 40)
+    .map(([slug]) => ({
+      pathname: `/tema/${slug}`,
+      lastModified: new Date(topicLastModified.get(slug) ?? Date.now()).toISOString(),
+      priority: 0.64
+    }));
+
+  const countries = [...countryMap.entries()]
+    .filter(([, count]) => count >= 1)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 16)
+    .map(([slug]) => ({
+      pathname: `/pais/${slug}`,
+      lastModified: new Date(countryLastModified.get(slug) ?? Date.now()).toISOString(),
+      priority: 0.66
+    }));
+
+  return [...topics, ...countries];
+}
+
 export async function getArticlesByTag(tag: string, limit = 24): Promise<Article[]> {
   const normalized = cleanPlainText(tag).toLowerCase().replace(/\s+/g, "-");
   const all = await getAllArticles();
@@ -696,6 +761,10 @@ export async function getArticlesByCountry(country: string, limit = 24): Promise
 
 export async function getRelatedArticles(article: Article, limit = 4): Promise<Article[]> {
   const all = await getAllArticles();
+  const countries = new Set(article.countries ?? []);
+  if (isLatamCountryCode(article.region)) {
+    countries.add(article.region.toLowerCase());
+  }
 
   return all
     .filter((candidate) => candidate.slug !== article.slug)
@@ -709,6 +778,11 @@ export async function getRelatedArticles(article: Article, limit = 4): Promise<A
       }
       const sharedTags = candidate.tags.filter((tag) => article.tags.includes(tag)).length;
       score += sharedTags * 2;
+      const sharedCountries = (candidate.countries ?? []).filter((country) => countries.has(country)).length;
+      score += sharedCountries * 3;
+      if (article.is_impact !== candidate.is_impact && sharedTags > 0) {
+        score += 2;
+      }
       if (candidate.is_impact === article.is_impact) {
         score += 1;
       }

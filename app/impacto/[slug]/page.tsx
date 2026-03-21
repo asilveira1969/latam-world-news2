@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import ArticleEngagementTracker from "@/components/ArticleEngagementTracker";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import NewsImage from "@/components/NewsImage";
 import RelatedCoverage from "@/components/RelatedCoverage";
-import ArticleEngagementTracker from "@/components/ArticleEngagementTracker";
 import StructuredData from "@/components/StructuredData";
 import TrackedExternalLink from "@/components/TrackedExternalLink";
 import ViewTracker from "@/components/ViewTracker";
 import { getEditorialBlocks } from "@/lib/article-seo";
 import { getArticleBySlug, getRelatedArticles } from "@/lib/data/articles-repo";
-import { buildBreadcrumbJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
+import { buildBreadcrumbJsonLd, buildFaqJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
 import { cleanPlainText } from "@/lib/text/clean";
 
@@ -22,8 +22,8 @@ export async function generateMetadata({ params }: ImpactDetailPageProps): Promi
   const article = await getArticleBySlug(resolvedParams.slug, "impacto");
   if (!article) {
     return buildMetadata({
-      title: "An\u00e1lisis no encontrado",
-      description: "No se encontr\u00f3 el an\u00e1lisis solicitado.",
+      title: "Análisis no encontrado",
+      description: "No se encontró el análisis solicitado.",
       pathname: `/impacto/${resolvedParams.slug}`,
       noindex: true
     });
@@ -62,6 +62,7 @@ export default async function ImpactoDetailPage({ params }: ImpactDetailPageProp
     { name: article.title, pathname: `/impacto/${article.slug}` }
   ]);
   const jsonLd = buildNewsArticleJsonLd(article, `/impacto/${article.slug}`, related);
+  const faqJsonLd = buildFaqJsonLd(editorial.faqItems);
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -69,6 +70,7 @@ export default async function ImpactoDetailPage({ params }: ImpactDetailPageProp
       <ArticleEngagementTracker slug={article.slug} title={article.title} section="Impacto en LATAM" />
       <StructuredData data={breadcrumbJsonLd} />
       <StructuredData data={jsonLd} />
+      {faqJsonLd ? <StructuredData data={faqJsonLd} /> : null}
       <Breadcrumbs
         items={[
           { label: "Inicio", href: "/" },
@@ -94,10 +96,10 @@ export default async function ImpactoDetailPage({ params }: ImpactDetailPageProp
           <h2 className="text-lg font-bold">Resumen ejecutivo</h2>
           <p className="mt-3 leading-7 text-slate-800">{editorial.summary}</p>
 
-          <h2 className="mt-6 text-lg font-bold">{"Lectura para Am\u00e9rica Latina"}</h2>
+          <h2 className="mt-6 text-lg font-bold">Lectura para América Latina</h2>
           <p className="mt-3 leading-7 text-slate-800">{editorial.latamAngle}</p>
 
-          <h2 className="mt-6 text-lg font-bold">{"Desarrollo del an\u00e1lisis"}</h2>
+          <h2 className="mt-6 text-lg font-bold">Desarrollo del análisis</h2>
           <div className="mt-3 space-y-4 text-slate-800">
             {bodyParagraphs.map((paragraph, index) => (
               <p key={`${article.slug}-${index}`} className="leading-7">
@@ -106,8 +108,22 @@ export default async function ImpactoDetailPage({ params }: ImpactDetailPageProp
             ))}
           </div>
 
-          <h2 className="mt-6 text-lg font-bold">{"Conclusi\u00f3n"}</h2>
+          <h2 className="mt-6 text-lg font-bold">Conclusión</h2>
           <p className="mt-3 leading-7 text-slate-800">{editorial.conclusion}</p>
+
+          {editorial.faqItems.length > 0 ? (
+            <div className="mt-6 border-t border-slate-200 pt-6">
+              <h2 className="text-lg font-bold">Preguntas frecuentes</h2>
+              <div className="mt-4 space-y-4">
+                {editorial.faqItems.map((item) => (
+                  <section key={item.question}>
+                    <h3 className="text-sm font-semibold text-slate-900">{item.question}</h3>
+                    <p className="mt-2 leading-7 text-slate-700">{item.answer}</p>
+                  </section>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <TrackedExternalLink
             href={article.source_url}

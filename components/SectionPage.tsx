@@ -15,6 +15,9 @@ export interface SectionPageProps {
   description: string;
   articles: Article[];
   pathname: string;
+  introTitle?: string;
+  introParagraphs?: string[];
+  quickLinks?: Array<{ href: string; label: string }>;
 }
 
 function articleHref(article: Article) {
@@ -30,7 +33,15 @@ function articleHref(article: Article) {
   return article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`;
 }
 
-export default function SectionPage({ title, description, articles, pathname }: SectionPageProps) {
+export default function SectionPage({
+  title,
+  description,
+  articles,
+  pathname,
+  introTitle,
+  introParagraphs = [],
+  quickLinks = []
+}: SectionPageProps) {
   const imageUsageCount = new Map<string, number>();
 
   for (const article of articles) {
@@ -57,6 +68,34 @@ export default function SectionPage({ title, description, articles, pathname }: 
         <h1 className="text-3xl font-black text-brand">{title}</h1>
         <p className="mt-2 text-slate-600">{description}</p>
       </header>
+
+      {introTitle || introParagraphs.length > 0 || quickLinks.length > 0 ? (
+        <section className="mb-6 rounded-2xl border border-slate-200 bg-stone-50/80 p-5 sm:p-6">
+          {introTitle ? (
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-accent">
+              {introTitle}
+            </p>
+          ) : null}
+          <div className="mt-3 space-y-3 text-sm leading-7 text-slate-700">
+            {introParagraphs.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </div>
+          {quickLinks.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {quickLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-brand-accent hover:text-brand"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <AdSlot slotId={`section-${title.toLowerCase().replace(/\s+/g, "-")}`} className="mb-6" />
 

@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import ArticleEngagementTracker from "@/components/ArticleEngagementTracker";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import NewsImage from "@/components/NewsImage";
 import RelatedCoverage from "@/components/RelatedCoverage";
 import StructuredData from "@/components/StructuredData";
 import ViewTracker from "@/components/ViewTracker";
-import ArticleEngagementTracker from "@/components/ArticleEngagementTracker";
+import { getArticleKicker, getEditorialBlocks } from "@/lib/article-seo";
 import { getArticleBySlug, getRelatedArticles } from "@/lib/data/articles-repo";
-import { buildBreadcrumbJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
+import { buildBreadcrumbJsonLd, buildFaqJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
 
 type ColumnistDetailPageProps = {
@@ -21,15 +22,16 @@ export async function generateMetadata({ params }: ColumnistDetailPageProps): Pr
   if (!article) {
     return buildMetadata({
       title: "Columna no encontrada",
-      description: "No se encontró la columna solicitada.",
+      description: "No se encontro la columna solicitada.",
       pathname: `/impacto/columnistas/${resolvedParams.slug}`,
       noindex: true
     });
   }
 
+  const editorial = getEditorialBlocks(article);
   return buildMetadata({
-    title: article.seo_title || `${article.title} | Columnistas Impacto`,
-    description: article.seo_description || article.excerpt,
+    title: editorial.seoTitle,
+    description: editorial.seoDescription,
     pathname: `/impacto/columnistas/${article.slug}`,
     imageUrl: article.image_url,
     type: "article",
@@ -46,6 +48,7 @@ export default async function ColumnistDetailPage({ params }: ColumnistDetailPag
     notFound();
   }
 
+  const editorial = getEditorialBlocks(article);
   const related = await getRelatedArticles(article, 4);
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([
     { name: "Inicio", pathname: "/" },
@@ -53,6 +56,7 @@ export default async function ColumnistDetailPage({ params }: ColumnistDetailPag
     { name: "Columnistas", pathname: `/impacto/columnistas/${article.slug}` }
   ]);
   const jsonLd = buildNewsArticleJsonLd(article, `/impacto/columnistas/${article.slug}`, related);
+  const faqJsonLd = buildFaqJsonLd(editorial.faqItems);
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -60,6 +64,7 @@ export default async function ColumnistDetailPage({ params }: ColumnistDetailPag
       <ArticleEngagementTracker slug={article.slug} title={article.title} section="Impacto" />
       <StructuredData data={breadcrumbJsonLd} />
       <StructuredData data={jsonLd} />
+      {faqJsonLd ? <StructuredData data={faqJsonLd} /> : null}
 
       <Breadcrumbs
         items={[
@@ -72,9 +77,11 @@ export default async function ColumnistDetailPage({ params }: ColumnistDetailPag
 
       <article>
         <header>
-          <p className="text-xs font-black uppercase tracking-[0.24em] text-brand-accent">Columnistas</p>
+          <p className="text-xs font-black uppercase tracking-[0.24em] text-brand-accent">
+            {getArticleKicker(article)}
+          </p>
           <h1 className="mt-3 text-4xl font-black tracking-tight text-brand">{article.title}</h1>
-          <p className="mt-3 max-w-3xl text-lg leading-8 text-slate-700">{article.excerpt}</p>
+          <p className="mt-3 max-w-3xl text-lg leading-8 text-slate-700">{editorial.summary}</p>
         </header>
 
         <div className="relative mt-6 aspect-video overflow-hidden rounded-3xl border border-slate-200 bg-slate-100">
@@ -83,23 +90,37 @@ export default async function ColumnistDetailPage({ params }: ColumnistDetailPag
 
         <section className="mt-8 space-y-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div>
-            <h2 className="text-2xl font-black text-brand">¿Qué está pasando?</h2>
+            <h2 className="text-2xl font-black text-brand">Que esta pasando</h2>
             <p className="mt-3 text-base leading-8 text-slate-800">{article.editorial_sections.que_esta_pasando}</p>
           </div>
           <div>
-            <h2 className="text-2xl font-black text-brand">Claves del día</h2>
+            <h2 className="text-2xl font-black text-brand">Claves del dia</h2>
             <p className="mt-3 text-base leading-8 text-slate-800">{article.editorial_sections.claves_del_dia}</p>
           </div>
           <div>
-            <h2 className="text-2xl font-black text-brand">¿Qué significa para América Latina?</h2>
+            <h2 className="text-2xl font-black text-brand">Que significa para America Latina</h2>
             <p className="mt-3 text-base leading-8 text-slate-800">
               {article.editorial_sections.que_significa_para_america_latina}
             </p>
           </div>
           <div>
-            <h2 className="text-2xl font-black text-brand">¿Por qué importa?</h2>
+            <h2 className="text-2xl font-black text-brand">Por que importa</h2>
             <p className="mt-3 text-base leading-8 text-slate-800">{article.editorial_sections.por_que_importa}</p>
           </div>
+
+          {editorial.faqItems.length > 0 ? (
+            <div className="border-t border-slate-200 pt-8">
+              <h2 className="text-2xl font-black text-brand">Preguntas frecuentes</h2>
+              <div className="mt-4 space-y-4">
+                {editorial.faqItems.map((item) => (
+                  <section key={item.question}>
+                    <h3 className="text-sm font-semibold text-slate-900">{item.question}</h3>
+                    <p className="mt-2 text-base leading-8 text-slate-800">{item.answer}</p>
+                  </section>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </section>
       </article>
 

@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import ArticleEngagementTracker from "@/components/ArticleEngagementTracker";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import NewsImage from "@/components/NewsImage";
 import RelatedCoverage from "@/components/RelatedCoverage";
-import ArticleEngagementTracker from "@/components/ArticleEngagementTracker";
 import StructuredData from "@/components/StructuredData";
 import TrackedExternalLink from "@/components/TrackedExternalLink";
 import ViewTracker from "@/components/ViewTracker";
 import { getEditorialBlocks } from "@/lib/article-seo";
 import { getArticleBySlug, getRelatedArticles } from "@/lib/data/articles-repo";
+import { getCountryLabel, getCountrySlug, isLatamCountryCode, toTopicSlug } from "@/lib/hubs";
 import { buildBreadcrumbJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
+import { cleanPlainText } from "@/lib/text/clean";
 
 type NotePageProps = {
   params: Promise<{ slug: string }>;
@@ -43,24 +46,25 @@ function getSectionPath(region: string): string {
 
 function getSectionLabel(region: string): string {
   if (region === "LatAm") {
-    return "Latinoam\u00e9rica";
+    return "Latinoamérica";
   }
-  if (region === "UY") {
-    return "Uruguay";
-  }
-  if (region === "AR") {
-    return "Argentina";
-  }
-  if (region === "BR") {
-    return "Brasil";
-  }
-  if (region === "MX") {
-    return "M\u00e9xico";
-  }
-  if (region === "CL") {
-    return "Chile";
+  if (isLatamCountryCode(region)) {
+    return getCountryLabel(region.toLowerCase());
   }
   return region;
+}
+
+function splitBody(content: string | null, fallback: string[]): string[] {
+  if (!content) {
+    return fallback;
+  }
+
+  const paragraphs = cleanPlainText(content)
+    .split(/\n+/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  return paragraphs.length > 0 ? paragraphs : fallback;
 }
 
 export async function generateMetadata({ params }: NotePageProps): Promise<Metadata> {
@@ -69,7 +73,7 @@ export async function generateMetadata({ params }: NotePageProps): Promise<Metad
   if (!article) {
     return buildMetadata({
       title: "Nota no encontrada",
-      description: "No se encontr\u00f3 la nota solicitada.",
+      description: "No se encontro la nota solicitada.",
       pathname: `/nota/${resolvedParams.slug}`,
       noindex: true
     });
@@ -95,6 +99,7 @@ export default async function NotaPage({ params }: NotePageProps) {
     notFound();
   }
 
+  const editorial = getEditorialBlocks(article);
   const related = await getRelatedArticles(article, 4);
   const sectionLabel = getSectionLabel(article.region);
   const sectionPath = getSectionPath(article.region);
@@ -109,6 +114,17 @@ export default async function NotaPage({ params }: NotePageProps) {
     { name: article.title, pathname: `/nota/${article.slug}` }
   ]);
   const jsonLd = buildNewsArticleJsonLd(article, `/nota/${article.slug}`, related);
+  const bodyParagraphs = splitBody(article.content, [editorial.summary, editorial.conclusion]);
+  const topicLinks = [...new Set(article.tags.filter(Boolean))]
+    .slice(0, 3)
+    .map((tag) => ({ href: `/tema/${toTopicSlug(tag)}`, label: `Tema: ${tag}` }));
+  const countrySeeds = [...new Set(article.countries ?? [])];
+  if (isLatamCountryCode(article.region)) {
+    countrySeeds.unshift(getCountrySlug(article.region));
+  }
+  const countryLinks = [...new Set(countrySeeds)]
+    .slice(0, 3)
+    .map((country) => ({ href: `/pais/${country}`, label: `Pais: ${getCountryLabel(country)}` }));
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -121,10 +137,11 @@ export default async function NotaPage({ params }: NotePageProps) {
       <article>
         <header>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-            {`${article.region} \u00b7 ${article.category}`}
+            {`${sectionLabel} · ${article.category}`}
           </p>
           <h1 className="mt-2 text-2xl font-black text-brand sm:text-3xl">{article.title}</h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 max-w-3xl text-base leading-7 text-slate-700">{editorial.summary}</p>
+          <p className="mt-3 text-sm text-slate-600">
             Publicado: {new Date(article.published_at).toLocaleString("es-ES")}
           </p>
         </header>
@@ -133,7 +150,71 @@ export default async function NotaPage({ params }: NotePageProps) {
           <NewsImage src={article.image_url} alt={article.title} sizes="100vw" className="object-cover" />
         </div>
 
-        <section className="mt-6 border-y border-slate-200 px-4 py-4 sm:mt-8 sm:px-6 sm:py-4">
+        <section className="mt-6 grid gap-4 rounded-2xl border border-slate-200 bg-stone-50/80 p-5 sm:grid-cols-[1.2fr_0.8fr] sm:p-6">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-accent">
+              Lectura para LATAM
+            </p>
+            <p className="mt-3 text-sm leading-7 text-slate-700">{editorial.latamAngle}</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-accent">
+              Claves para seguir
+            </p>
+            <ul className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
+              {editorial.keyPoints.map((point) => (
+                <li key={point} className="flex gap-2">
+                  <span className="mt-1 text-brand-accent">-</span>
+                  <span>{point}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {(topicLinks.length > 0 || countryLinks.length > 0) ? (
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Navegacion relacionada
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {topicLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-brand-accent hover:text-brand"
+                >
+                  {link.label}
+                </Link>
+              ))}
+              {countryLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-brand-accent hover:text-brand"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+          <h2 className="text-lg font-bold text-brand">Contexto y desarrollo</h2>
+          <div className="mt-4 space-y-4 text-slate-800">
+            {bodyParagraphs.map((paragraph, index) => (
+              <p key={`${article.slug}-${index}`} className="leading-7">
+                {paragraph}
+              </p>
+            ))}
+          </div>
+
+          <div className="mt-6 border-t border-slate-200 pt-6">
+            <h2 className="text-lg font-bold text-brand">Conclusion editorial</h2>
+            <p className="mt-3 leading-7 text-slate-800">{editorial.conclusion}</p>
+          </div>
+
           <TrackedExternalLink
             href={article.source_url}
             target="_blank"
@@ -144,14 +225,14 @@ export default async function NotaPage({ params }: NotePageProps) {
               source_name: article.source_name,
               placement: "article_detail"
             }}
-            className="inline-block text-sm font-semibold text-brand-accent underline decoration-brand-accent/60 underline-offset-4 transition hover:decoration-brand-accent"
+            className="mt-5 inline-block text-sm font-semibold text-brand-accent underline decoration-brand-accent/60 underline-offset-4 transition hover:decoration-brand-accent"
           >
             Leer fuente original: {article.source_name}
           </TrackedExternalLink>
         </section>
       </article>
 
-      <RelatedCoverage items={related} />
+      <RelatedCoverage items={related} quickLinks={[...topicLinks, ...countryLinks]} />
     </main>
   );
 }

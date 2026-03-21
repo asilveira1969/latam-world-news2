@@ -22,6 +22,7 @@ type OpenClawNewsItem = {
   source_url?: unknown;
   source_name?: unknown;
   excerpt?: unknown;
+  content?: unknown;
   published_at?: unknown;
   region?: unknown;
   category?: unknown;
@@ -73,6 +74,11 @@ export type OpenClawImportReport = {
   fallback_published_at_used: number;
   errors_preview: string[];
   imported: boolean;
+};
+
+export type OpenClawImportResult = {
+  code: number;
+  report: OpenClawImportReport;
 };
 
 const DEFAULT_INPUT_PATH = path.join(process.cwd(), "openclaw", "ingested", "latest.json");
@@ -255,9 +261,19 @@ function buildExcerpt(title: string, sourceName: string, excerpt: unknown): stri
   return `${title} (${sourceName}).`.slice(0, 280);
 }
 
+function buildContent(content: unknown): string | null {
+  const candidate = asCleanString(content);
+  if (!candidate) {
+    return null;
+  }
+
+  const normalized = cleanPlainText(candidate);
+  return normalized.length > 40 ? normalized : null;
+}
+
 function shouldRejectRow(row: ArticleRow): string | null {
   const sourceName = row.source_name.trim().toLowerCase();
-  const combined = `${row.title}\n${row.excerpt}\n${row.category}\n${row.source_name}`;
+  const combined = `${row.title}\n${row.excerpt}\n${row.content ?? ""}\n${row.category}\n${row.source_name}`;
 
   if (BLOCKED_SOURCE_NAMES.has(sourceName)) {
     return "Blocked source_name";
@@ -368,7 +384,7 @@ function mapItemToArticle(item: OpenClawNewsItem): {
     title,
     slug: buildSlug(title, sourceUrl),
     excerpt: buildExcerpt(title, sourceName, item.excerpt),
-    content: null,
+    content: buildContent(item.content),
     image_url: imageUrl && isValidUrl(imageUrl) ? imageUrl : IMAGE_FALLBACK,
     source_name: sourceName,
     source_url: sourceUrl,
@@ -453,15 +469,16 @@ function printReport(report: OpenClawImportReport, reportJson: boolean) {
   }
 }
 
-export async function runOpenClawImportCli(
-  argv: string[],
-  options?: { forceDryRun?: boolean }
-): Promise<number> {
-  const parsed = parseArgs(argv);
-  const dryRun = options?.forceDryRun ? true : parsed.dryRun;
+export async function runOpenClawImport(options: {
+  file: string;
+  dryRun?: boolean;
+  reportJson?: boolean;
+  skipPrint?: boolean;
+}): Promise<OpenClawImportResult> {
+  const dryRun = options.dryRun ?? false;
   const mode = dryRun ? "validate" : "import";
 
-  const payload = await readJsonFileWithBom(parsed.file);
+  const payload = await readJsonFileWithBom(options.file);
   const items = extractItemsFromUnknown(payload);
 
   if (!Array.isArray(items)) {
@@ -514,7 +531,7 @@ export async function runOpenClawImportCli(
 
   const report = buildReport({
     mode,
-    file: parsed.file,
+    file: options.file,
     rawItems: items.length,
     validItems: rows.length,
     rejectedItems: errors.length,
@@ -523,8 +540,27 @@ export async function runOpenClawImportCli(
     imported
   });
 
-  printReport(report, parsed.reportJson);
-  return rows.length > 0 ? 0 : 2;
+  if (!options.skipPrint) {
+    printReport(report, options.reportJson ?? false);
+  }
+
+  return {
+    code: rows.length > 0 ? 0 : 2,
+    report
+  };
+}
+
+export async function runOpenClawImportCli(
+  argv: string[],
+  options?: { forceDryRun?: boolean }
+): Promise<number> {
+  const parsed = parseArgs(argv);
+  const result = await runOpenClawImport({
+    file: parsed.file,
+    dryRun: options?.forceDryRun ? true : parsed.dryRun,
+    reportJson: parsed.reportJson
+  });
+  return result.code;
 }
 
 const isMain = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;

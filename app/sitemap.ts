@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getSitemapArticles } from "@/lib/data/articles-repo";
+import { getSitemapArticles, getSitemapHubs } from "@/lib/data/articles-repo";
 import { absoluteUrl } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -25,6 +25,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const articles = await getSitemapArticles();
+  const hubs = await getSitemapHubs();
 
   const staticEntries: MetadataRoute.Sitemap = staticRoutes.map((route) => ({
     url: absoluteUrl(route),
@@ -40,5 +41,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: article.kind === "impacto" ? 0.85 : 0.72
   }));
 
-  return [...staticEntries, ...articleEntries];
+  const hubEntries: MetadataRoute.Sitemap = hubs.map((hub) => ({
+    url: absoluteUrl(hub.pathname),
+    lastModified: hub.lastModified ? new Date(hub.lastModified) : undefined,
+    changeFrequency: "daily",
+    priority: hub.priority
+  }));
+
+  return [...staticEntries, ...hubEntries, ...articleEntries];
 }

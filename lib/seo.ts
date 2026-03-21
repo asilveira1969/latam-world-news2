@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SITE_NAME } from "@/lib/constants/nav";
+import { cleanExcerpt, cleanPlainText } from "@/lib/text/clean";
 
 function normalizeSiteUrl(rawUrl: string): string {
   const withProtocol = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
@@ -41,8 +42,20 @@ type MetadataInput = {
   keywords?: string[];
 };
 
+function normalizeTitle(title: string): string {
+  return cleanExcerpt(cleanPlainText(title), 68);
+}
+
+function normalizeDescription(description: string): string {
+  return cleanExcerpt(cleanPlainText(description), 165);
+}
+
 export function buildMetadata(input: MetadataInput): Metadata {
-  const fullTitle = input.title.includes(SITE_NAME) ? input.title : `${input.title} | ${SITE_NAME}`;
+  const normalizedTitle = normalizeTitle(input.title);
+  const fullTitle = normalizedTitle.includes(SITE_NAME)
+    ? normalizedTitle
+    : normalizeTitle(`${normalizedTitle} | ${SITE_NAME}`);
+  const description = normalizeDescription(input.description);
   const canonical = absoluteUrl(input.pathname);
   const ogImage = input.imageUrl ?? absoluteUrl("/og-default.svg");
   const robots = input.noindex
@@ -63,14 +76,14 @@ export function buildMetadata(input: MetadataInput): Metadata {
     metadataBase: new URL(baseSiteUrl),
     applicationName: SITE_NAME,
     title: fullTitle,
-    description: input.description,
+    description,
     category: "news",
     keywords: input.keywords,
     alternates: { canonical },
     robots,
     openGraph: {
       title: fullTitle,
-      description: input.description,
+      description,
       url: canonical,
       type: input.type ?? "website",
       siteName: SITE_NAME,
@@ -82,7 +95,7 @@ export function buildMetadata(input: MetadataInput): Metadata {
     twitter: {
       card: "summary_large_image",
       title: fullTitle,
-      description: input.description,
+      description,
       images: [ogImage]
     }
   };

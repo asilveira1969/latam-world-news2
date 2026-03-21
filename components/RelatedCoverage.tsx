@@ -16,12 +16,14 @@ function articleHref(article: Article) {
 
 export default function RelatedCoverage({
   items,
-  title = "Cobertura relacionada"
+  title = "Cobertura relacionada",
+  quickLinks = []
 }: {
   items: Article[];
   title?: string;
+  quickLinks?: Array<{ href: string; label: string }>;
 }) {
-  if (items.length === 0) {
+  if (items.length === 0 && quickLinks.length === 0) {
     return null;
   }
 
@@ -34,6 +36,19 @@ export default function RelatedCoverage({
         Lecturas recomendadas
       </p>
       <h2 className="mt-2 text-xl font-black tracking-tight text-brand">{title}</h2>
+      {quickLinks.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {quickLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-brand-accent hover:text-brand"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      ) : null}
       <ul className="mt-5 space-y-0">
         {items.map((article) => (
           <li key={article.id} className="border-t border-slate-200 py-4 first:border-t-0 first:pt-0 last:pb-0">

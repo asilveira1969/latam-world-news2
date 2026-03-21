@@ -82,16 +82,22 @@
 
 ## Artefactos de entrada/salida
 
-- Entrada OpenClaw: `openclaw/ingested/latest.json`
+- Entrada OpenClaw aprobada: `F:\WORK\Latam World News\03_Inbox\openclaw\approved`
+- Cola de revision humana: `F:\WORK\Latam World News\03_Inbox\openclaw\incoming`
+- Archivado post-proceso: `F:\WORK\Latam World News\03_Inbox\openclaw\processed`
+- Rechazados: `F:\WORK\Latam World News\03_Inbox\openclaw\rejected`
+- Buffer legado/manual: `openclaw/ingested/latest.json`
 - Contrato: `openclaw/schema/news-batch.schema.json`
 - Validacion: `scripts/validate-openclaw.ts`
-- Importacion: `scripts/import-openclaw.ts`
+- Importacion legacy: `scripts/import-openclaw.ts`
+- Procesamiento de aprobados: `scripts/process-openclaw-approved.ts`
 
 ## Fuente de verdad y fallback
 
 - Fuente principal: tabla `public.articles` en Supabase
 - Fallback local: `lib/mock/articles.ts`
-- Buffer manual: `openclaw/ingested/latest.json`
+- Buffer manual legado: `openclaw/ingested/latest.json`
+- Handoff editorial actual: `03_Inbox/openclaw/*`
 
 ## Operacion diaria de Mundo
 

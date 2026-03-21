@@ -10,10 +10,19 @@ import {
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Mundo",
-  description: "Cobertura de politica internacional, diplomacia y seguridad global.",
-  pathname: "/mundo"
+  title: "Noticias del mundo: geopolitica, diplomacia y agenda global",
+  description:
+    "Cobertura internacional del mundo sobre geopolitica, diplomacia, conflictos, comercio y seguridad global con contexto para America Latina.",
+  pathname: "/mundo",
+  keywords: [
+    "noticias del mundo",
+    "geopolitica",
+    "diplomacia internacional",
+    "seguridad global",
+    "agenda internacional"
+  ]
 });
+
 export const revalidate = 300;
 
 export default async function MundoPage() {

@@ -13,7 +13,9 @@
     "seed": "tsx scripts/seed-articles.ts",
     "ingest:rss": "tsx scripts/ingest-rss.ts",
     "openclaw:validate": "tsx scripts/validate-openclaw.ts",
-    "ingest:openclaw": "tsx scripts/import-openclaw.ts"
+    "ingest:openclaw": "tsx scripts/import-openclaw.ts",
+    "openclaw:process-approved": "tsx scripts/process-openclaw-approved.ts",
+    "openclaw:validate-approved": "tsx scripts/process-openclaw-approved.ts --dry-run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

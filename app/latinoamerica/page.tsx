@@ -9,9 +9,17 @@ import {
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Latinoam\u00e9rica",
-  description: "Noticias y contexto regional para Am\u00e9rica Latina.",
-  pathname: "/latinoamerica"
+  title: "Noticias de Latinoamerica: politica, economia y region",
+  description:
+    "Cobertura de Latinoamerica con noticias de politica, economia, empresas y region, explicadas con contexto editorial y foco practico.",
+  pathname: "/latinoamerica",
+  keywords: [
+    "noticias de Latinoamerica",
+    "America Latina hoy",
+    "politica regional",
+    "economia latinoamericana",
+    "noticias de la region"
+  ]
 });
 
 export const revalidate = 300;
@@ -21,7 +29,7 @@ const COUNTRY_LABELS: Record<CountryTabCode, string> = {
   UY: "Uruguay",
   AR: "Argentina",
   BR: "Brasil",
-  MX: "M\u00e9xico",
+  MX: "México",
   CL: "Chile"
 };
 
@@ -61,7 +69,7 @@ export default async function LatinoamericaPage({
   const latestForLayout = fallbackLatest.length > 0 ? fallbackLatest : regionFilter ? [] : home.latest;
   const emptyStateMessage =
     regionFilter && fallbackLatest.length === 0
-      ? `No hay suficientes art\u00edculos recientes para ${COUNTRY_LABELS[regionFilter as CountryTabCode]}.`
+      ? `No hay suficientes articulos recientes para ${COUNTRY_LABELS[regionFilter as CountryTabCode]}.`
       : undefined;
 
   return (
