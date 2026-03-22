@@ -153,10 +153,10 @@ const impactArticles: Article[] = Array.from({ length: 5 }).map((_, idx) => {
     views: 2200 - idx * 130
   };
 });
-const manualArticles: Article[] = manualArticlesData as Article[];
+export const manualFallbackArticles: Article[] = sortByPublishedDesc(manualArticlesData as Article[]);
 
 export const mockArticles: Article[] = sortByPublishedDesc([
-  ...manualArticles,
+  ...manualFallbackArticles,
   ...impactArticles,
   ...generated
 ]);

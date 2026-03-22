@@ -1,5 +1,5 @@
 import { fallbackTickerHeadlines } from "@/lib/mock/ticker";
-import { mockArticles } from "@/lib/mock/articles";
+import { manualFallbackArticles, mockArticles } from "@/lib/mock/articles";
 import {
   dedupeBySourceUrl,
   pickHero,
@@ -61,7 +61,9 @@ function getFallbackImpactArticles(limit: number): Article[] {
 }
 
 function mergeWithManualArticles(articles: Article[]): Article[] {
-  return dedupeBySourceUrl(sortByPublishedDesc([...articles, ...mockArticles])).filter(isDisplayableArticle);
+  return dedupeBySourceUrl(sortByPublishedDesc([...articles, ...manualFallbackArticles])).filter(
+    isDisplayableArticle
+  );
 }
 
 function isLatamCountry(value: string): boolean {
