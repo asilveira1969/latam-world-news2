@@ -452,10 +452,10 @@ export async function getHomeData(input?: {
     heroSecondary: hero.secondary,
     latestEditorial: editorialArticles[0] ?? null,
     impact: fallbackImpact.slice(0, 3),
-    latest: all.slice(0, 30),
+    latest: pool.slice(0, 30),
     regionBlocks,
-    trendingTags: topTagsLastHours(all, 24, 10),
-    mostRead: [...all].sort((a, b) => b.views - a.views).slice(0, 8)
+    trendingTags: topTagsLastHours(pool, 24, 10),
+    mostRead: [...pool].sort((a, b) => b.views - a.views).slice(0, 8)
   };
 }
 
