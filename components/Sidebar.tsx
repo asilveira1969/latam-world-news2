@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Article } from "@/lib/types/article";
 import AdSlot from "@/components/AdSlot";
+import { formatPublicTagLabel } from "@/lib/sources";
 
 export interface SidebarProps {
   trendingTags: string[];
@@ -16,15 +17,18 @@ export default function Sidebar({ trendingTags, mostRead }: SidebarProps) {
         <section className="rounded border border-slate-200 bg-white p-4">
           <h3 className="mb-3 text-lg font-black text-brand">Tendencias</h3>
           <div className="flex flex-wrap gap-2">
-            {trendingTags.map((tag) => (
-              <Link
-                key={tag}
-                href={`/buscar?q=${encodeURIComponent(tag)}`}
-                className="rounded bg-brand-soft px-2 py-1 text-xs font-semibold text-brand"
-              >
-                #{tag}
-              </Link>
-            ))}
+            {trendingTags.map((tag) => {
+              const label = formatPublicTagLabel(tag);
+              return (
+                <Link
+                  key={tag}
+                  href={`/buscar?q=${encodeURIComponent(tag)}`}
+                  className="rounded bg-brand-soft px-2 py-1 text-xs font-semibold text-brand"
+                >
+                  #{label}
+                </Link>
+              );
+            })}
           </div>
         </section>
 

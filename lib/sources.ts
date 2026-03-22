@@ -31,6 +31,41 @@ export function formatSourceDisplayName(name: string): string {
   return name;
 }
 
+export function formatPublicTagLabel(tag: string): string {
+  const normalized = tag.trim().toLowerCase();
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized.startsWith("rss-")) {
+    const sourceTag = normalized
+      .replace(/^rss-/, "")
+      .replace(/-ultimas$/, "")
+      .replace(/-es$/, "");
+
+    if (sourceTag === "elpais") {
+      return "elpais";
+    }
+    if (sourceTag === "bbc-mundo") {
+      return "bbc mundo";
+    }
+    if (sourceTag === "france24") {
+      return "france24";
+    }
+    if (sourceTag === "rt") {
+      return "rt";
+    }
+    if (sourceTag === "dw") {
+      return "dw";
+    }
+
+    return sourceTag.replace(/-/g, " ");
+  }
+
+  return normalized.replace(/-/g, " ");
+}
+
 export const SOURCES: SourceRegistryEntry[] = [
   {
     id: "newsdata-uy",
