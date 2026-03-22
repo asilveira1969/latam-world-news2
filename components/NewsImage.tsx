@@ -1,13 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import {
-  LOCAL_NEWS_IMAGE_FALLBACK,
-  isFallbackImage,
-  isValidHttpUrl,
-  resolveCardImage
-} from "@/lib/images";
+import { LOCAL_NEWS_IMAGE_FALLBACK, isFallbackImage, resolveCardImage } from "@/lib/images";
 
 type NewsImageProps = {
   src: string | null | undefined;
@@ -39,32 +33,15 @@ export default function NewsImage({
       : "";
   const mergedClassName = [className, fallbackClassName].filter(Boolean).join(" ");
 
-  if (isValidHttpUrl(currentSrc)) {
-    return (
-      <img
-        src={currentSrc}
-        alt={alt}
-        className={mergedClassName}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-        sizes={sizes}
-        loading={priority ? "eager" : "lazy"}
-        onError={() => {
-          if (currentSrc !== LOCAL_NEWS_IMAGE_FALLBACK) {
-            setCurrentSrc(LOCAL_NEWS_IMAGE_FALLBACK);
-          }
-        }}
-      />
-    );
-  }
-
   return (
-    <Image
+    <img
+      key={currentSrc}
       src={currentSrc}
       alt={alt}
-      fill
-      sizes={sizes}
-      priority={priority}
       className={mergedClassName}
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+      sizes={sizes}
+      loading={priority ? "eager" : "lazy"}
       onError={() => {
         if (currentSrc !== LOCAL_NEWS_IMAGE_FALLBACK) {
           setCurrentSrc(LOCAL_NEWS_IMAGE_FALLBACK);
