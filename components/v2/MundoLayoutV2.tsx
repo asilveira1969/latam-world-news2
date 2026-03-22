@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Hero from "@/components/Hero";
 import LatestFeed from "@/components/LatestFeed";
 import type { MundoSourceSummary } from "@/lib/data/articles-repo";
@@ -11,6 +12,19 @@ export interface MundoLayoutV2Props {
   sourceSummaries: MundoSourceSummary[];
 }
 
+function articleHref(article: Article) {
+  if (article.impact_format === "editorial") {
+    return `/impacto/editorial/${article.slug}`;
+  }
+  if (article.impact_format === "opinion") {
+    return `/impacto/opinion/${article.slug}`;
+  }
+  if (article.impact_format === "columnist") {
+    return `/impacto/columnistas/${article.slug}`;
+  }
+  return article.is_impact ? `/impacto/${article.slug}` : `/nota/${article.slug}`;
+}
+
 export default function MundoLayoutV2({
   heroLead,
   heroSecondary,
@@ -22,21 +36,12 @@ export default function MundoLayoutV2({
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
       <div className="space-y-10">
-        <section aria-label="Cobertura destacada del mundo" className="space-y-3">
-          <div>
-            <h1 className="text-3xl font-black text-brand">Mundo</h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Cobertura internacional en español con seguimiento editorial y foco en lo que mueve a América Latina.
-            </p>
-          </div>
-          <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} formatMeta={staticMeta} />
-        </section>
-
         <section aria-label="Fuentes activas" className="space-y-3">
           <div>
             <h2 className="text-2xl font-black text-brand">Fuentes activas</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Monitoreo de medios internacionales en español con prioridad en actualidad, geopolítica y economía.
+              Monitoreo de medios internacionales en español con prioridad en actualidad,
+              geopolítica y economía.
             </p>
           </div>
           {sourceSummaries.length > 0 ? (
@@ -57,7 +62,12 @@ export default function MundoLayoutV2({
                   <ul className="mt-3 space-y-2">
                     {source.latest.map((article) => (
                       <li key={article.id} className="text-sm text-slate-700">
-                        {article.title}
+                        <Link
+                          href={articleHref(article)}
+                          className="transition-colors hover:text-brand hover:underline"
+                        >
+                          {article.title}
+                        </Link>
                       </li>
                     ))}
                   </ul>
@@ -71,7 +81,25 @@ export default function MundoLayoutV2({
           )}
         </section>
 
-        <section aria-label="Últimas noticias del mundo">
+        <section aria-label="Cobertura destacada del mundo" className="space-y-3">
+          <div>
+            <h1 className="text-3xl font-black text-brand">Mundo</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Cobertura internacional en español con seguimiento editorial y foco en lo que mueve
+              a América Latina.
+            </p>
+          </div>
+          <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} formatMeta={staticMeta} />
+        </section>
+
+        <section aria-label="Últimas noticias del mundo" className="space-y-3">
+          <div>
+            <h2 className="text-2xl font-black text-brand">Mundo: cobertura internacional en español</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Selección principal de artículos recientes con foco en actualidad, contexto y
+              seguimiento editorial.
+            </p>
+          </div>
           <LatestFeed items={latest} formatMeta={staticMeta} />
         </section>
       </div>
