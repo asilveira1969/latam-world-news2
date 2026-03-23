@@ -9,7 +9,7 @@ import StructuredData from "@/components/StructuredData";
 import ViewTracker from "@/components/ViewTracker";
 import { getArticleKicker, getEditorialBlocks } from "@/lib/article-seo";
 import { getArticleBySlug, getRelatedArticles } from "@/lib/data/articles-repo";
-import { getCountryLabel, toTopicSlug } from "@/lib/hubs";
+import { getCountryLabel, normalizeCountry, toTopicSlug } from "@/lib/hubs";
 import { buildBreadcrumbJsonLd, buildFaqJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
 
@@ -62,10 +62,14 @@ export default async function EditorialDetailPage({ params }: EditorialDetailPag
   const faqJsonLd = buildFaqJsonLd(editorial.faqItems);
   const quickLinks = [
     ...article.tags.slice(0, 3).map((tag) => ({ href: `/tema/${toTopicSlug(tag)}`, label: `Tema: ${tag}` })),
-    ...(article.countries ?? []).slice(0, 2).map((country) => ({
-      href: `/pais/${country}`,
-      label: `Pais: ${getCountryLabel(country)}`
-    }))
+    ...(article.countries ?? [])
+      .map((country) => normalizeCountry(country))
+      .filter((country): country is string => Boolean(country))
+      .slice(0, 2)
+      .map((country) => ({
+        href: `/pais/${country}`,
+        label: `Pais: ${getCountryLabel(country)}`
+      }))
   ];
 
   return (

@@ -1,4 +1,4 @@
-import { getCountryLabel, getCountrySlug, isLatamCountryCode } from "@/lib/hubs";
+import { getCountryLabel, normalizeCountry, isLatamCountryCode } from "@/lib/hubs";
 import { cleanPlainText } from "@/lib/text/clean";
 import type { Article } from "@/lib/types/article";
 
@@ -127,10 +127,17 @@ function scoreCountryCandidates(article: Article): CountryMatch[] {
   const normalizedExcerpt = normalizeForMatch(article.excerpt);
   const normalizedBody = normalizeForMatch(article.content ?? "");
   const normalizedSource = normalizeForMatch(article.source_name);
-  const seededCountries = new Set((article.countries ?? []).map((country) => getCountrySlug(country)));
+  const seededCountries = new Set(
+    [article.country, ...(article.countries ?? [])]
+      .map((country) => normalizeCountry(country))
+      .filter((country): country is string => Boolean(country))
+  );
 
   if (isLatamCountryCode(article.region)) {
-    seededCountries.add(getCountrySlug(getCountryLabel(article.region)));
+    const regionCountry = normalizeCountry(article.region);
+    if (regionCountry) {
+      seededCountries.add(regionCountry);
+    }
   }
 
   return COUNTRY_DEFINITIONS.map((country) => {
@@ -151,7 +158,7 @@ function scoreCountryCandidates(article: Article): CountryMatch[] {
     .sort((a, b) => b.score - a.score);
 }
 
-function detectPrimaryCountry(article: Article): { slug: string; label: string } | null {
+function detectPrimaryCountryFromHeuristics(article: Article): { slug: string; label: string } | null {
   const matches = scoreCountryCandidates(article);
   const top = matches[0];
   const second = matches[1];
@@ -169,6 +176,37 @@ function detectPrimaryCountry(article: Article): { slug: string; label: string }
   }
 
   return { slug: top.slug, label: top.label };
+}
+
+function resolvePrimaryCountry(article: Article): { slug: string; label: string } | null {
+  const canonicalCountry =
+    normalizeCountry(article.country) ??
+    (article.countries ?? [])
+      .map((country) => normalizeCountry(country))
+      .find((country): country is string => Boolean(country)) ??
+    normalizeCountry(article.region);
+
+  if (canonicalCountry) {
+    return {
+      slug: canonicalCountry,
+      label: getCountryLabel(canonicalCountry)
+    };
+  }
+
+  const detectedCountry = detectPrimaryCountryFromHeuristics(article);
+  if (!detectedCountry) {
+    return null;
+  }
+
+  const normalizedDetectedCountry = normalizeCountry(detectedCountry.slug);
+  if (!normalizedDetectedCountry) {
+    return null;
+  }
+
+  return {
+    slug: normalizedDetectedCountry,
+    label: getCountryLabel(normalizedDetectedCountry)
+  };
 }
 
 function categoryFromRaw(value: string): string {
@@ -213,13 +251,13 @@ function detectCategory(article: Article): string {
 }
 
 export function getArticleDisplayMeta(article: Article): ArticleDisplayMeta {
-  const primaryCountry = detectPrimaryCountry(article);
+  const primaryCountry = resolvePrimaryCountry(article);
   const categoryLabel = detectCategory(article);
   const sectionLabel = primaryCountry?.label ?? "Internacional";
   const href = primaryCountry ? `/pais/${primaryCountry.slug}` : "/mundo";
 
   return {
-    label: `${sectionLabel} · ${categoryLabel}`,
+    label: `${sectionLabel} | ${categoryLabel}`,
     href,
     countrySlug: primaryCountry?.slug ?? null,
     countryLabel: primaryCountry?.label ?? null,

@@ -25,7 +25,12 @@ import {
   looksCorruptedText,
   looksLikeSystemError
 } from "@/lib/text/clean";
-import { getCountrySlug, isLatamCountryCode, toTopicSlug } from "@/lib/hubs";
+import {
+  getCountryRegionCode,
+  normalizeCountry,
+  isLatamCountryCode,
+  toTopicSlug
+} from "@/lib/hubs";
 import type {
   Article,
   EditorialSections,
@@ -103,18 +108,31 @@ function sanitizeArticleTags(value: unknown): string[] {
     .filter((tag) => !INTERNAL_TAGS.has(tag));
 }
 
+function sanitizeCountryList(value: unknown): string[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const countries = value
+    .map((item) => normalizeCountry(String(item)))
+    .filter((country): country is string => Boolean(country));
+
+  return countries.length > 0 ? [...new Set(countries)] : null;
+}
+
 function mapRecordToArticle(record: Record<string, unknown>): Article {
   const rawTitle = String(record.title ?? "");
   const title = cleanPlainText(rawTitle) || "Actualizacion internacional";
   const rawExcerpt = String(record.summary ?? record.excerpt ?? "");
   const excerpt = cleanExcerpt(rawExcerpt, 280) || `${title}.`;
   const rawContent = (record.content as string | null) ?? null;
-  const country = String(record.country ?? "").toLowerCase();
+  const country = normalizeCountry(String(record.country ?? ""));
   const regionInput = String(record.region ?? "").trim();
+  const regionFromCountry = getCountryRegionCode(country);
   const derivedRegion =
     (regionInput as Article["region"]) ||
-    (country && isLatamCountry(country)
-      ? (country.toUpperCase() as Article["region"])
+    (regionFromCountry && isLatamCountry(regionFromCountry.toLowerCase())
+      ? (regionFromCountry as Article["region"])
       : "Mundo");
   const sourceNameInput = String(record.source ?? record.source_name ?? "Fuente externa");
   const sourceUrlInput = String(record.url ?? record.source_url ?? "#");
@@ -140,11 +158,10 @@ function mapRecordToArticle(record: Record<string, unknown>): Article {
     source_name: formatSourceDisplayName(cleanPlainText(sourceNameInput) || "Fuente externa"),
     source_url: sourceUrlInput || "#",
     region: derivedRegion,
+    country,
     category: cleanPlainText(String(record.category ?? "Geopolitica")) || "Geopolitica",
     tags: sanitizeArticleTags(record.tags),
-    countries: Array.isArray(record.countries)
-      ? (record.countries as string[]).map((item) => cleanPlainText(String(item)).toLowerCase())
-      : null,
+    countries: sanitizeCountryList(record.countries),
     impact_format:
       record.impact_format === "editorial" ||
       record.impact_format === "analysis" ||
@@ -707,9 +724,22 @@ export async function getSitemapHubs(): Promise<
       topicLastModified.set(slug, Math.max(topicLastModified.get(slug) ?? 0, modifiedAt));
     }
 
-    const countries = new Set(article.countries?.map((item) => getCountrySlug(item)) ?? []);
+    const countries = new Set<string>();
+    const primaryCountry = normalizeCountry(article.country);
+    if (primaryCountry) {
+      countries.add(primaryCountry);
+    }
+    for (const country of article.countries ?? []) {
+      const normalizedCountry = normalizeCountry(country);
+      if (normalizedCountry) {
+        countries.add(normalizedCountry);
+      }
+    }
     if (isLatamCountryCode(article.region)) {
-      countries.add(article.region.toLowerCase());
+      const regionCountry = normalizeCountry(article.region);
+      if (regionCountry) {
+        countries.add(regionCountry);
+      }
     }
 
     for (const country of countries) {
@@ -755,11 +785,23 @@ export async function getArticlesByTag(tag: string, limit = 24): Promise<Article
 }
 
 export async function getArticlesByCountry(country: string, limit = 24): Promise<Article[]> {
-  const normalized = cleanPlainText(country).toLowerCase();
+  const normalized = normalizeCountry(country);
+  if (!normalized) {
+    return [];
+  }
+
   const all = await getAllArticles();
   return all
     .filter((article) => {
-      if (article.countries?.includes(normalized) || article.region.toLowerCase() === normalized) {
+      if (normalizeCountry(article.country) === normalized) {
+        return true;
+      }
+
+      if ((article.countries ?? []).some((item) => normalizeCountry(item) === normalized)) {
+        return true;
+      }
+
+      if (normalizeCountry(article.region) === normalized) {
         return true;
       }
 
@@ -771,9 +813,22 @@ export async function getArticlesByCountry(country: string, limit = 24): Promise
 
 export async function getRelatedArticles(article: Article, limit = 4): Promise<Article[]> {
   const all = await getAllArticles();
-  const countries = new Set(article.countries ?? []);
+  const countries = new Set<string>();
+  const primaryCountry = normalizeCountry(article.country);
+  if (primaryCountry) {
+    countries.add(primaryCountry);
+  }
+  for (const country of article.countries ?? []) {
+    const normalizedCountry = normalizeCountry(country);
+    if (normalizedCountry) {
+      countries.add(normalizedCountry);
+    }
+  }
   if (isLatamCountryCode(article.region)) {
-    countries.add(article.region.toLowerCase());
+    const regionCountry = normalizeCountry(article.region);
+    if (regionCountry) {
+      countries.add(regionCountry);
+    }
   }
 
   return all
@@ -788,7 +843,24 @@ export async function getRelatedArticles(article: Article, limit = 4): Promise<A
       }
       const sharedTags = candidate.tags.filter((tag) => article.tags.includes(tag)).length;
       score += sharedTags * 2;
-      const sharedCountries = (candidate.countries ?? []).filter((country) => countries.has(country)).length;
+      const candidateCountries = new Set<string>();
+      const candidatePrimaryCountry = normalizeCountry(candidate.country);
+      if (candidatePrimaryCountry) {
+        candidateCountries.add(candidatePrimaryCountry);
+      }
+      for (const country of candidate.countries ?? []) {
+        const normalizedCountry = normalizeCountry(country);
+        if (normalizedCountry) {
+          candidateCountries.add(normalizedCountry);
+        }
+      }
+      if (isLatamCountryCode(candidate.region)) {
+        const regionCountry = normalizeCountry(candidate.region);
+        if (regionCountry) {
+          candidateCountries.add(regionCountry);
+        }
+      }
+      const sharedCountries = [...candidateCountries].filter((country) => countries.has(country)).length;
       score += sharedCountries * 3;
       if (article.is_impact !== candidate.is_impact && sharedTags > 0) {
         score += 2;

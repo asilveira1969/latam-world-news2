@@ -11,7 +11,7 @@ import ViewTracker from "@/components/ViewTracker";
 import { getEditorialBlocks } from "@/lib/article-seo";
 import { getArticleBySlug, getRelatedArticles } from "@/lib/data/articles-repo";
 import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
-import { getCountryLabel, getCountrySlug, isLatamCountryCode, toTopicSlug } from "@/lib/hubs";
+import { getCountryLabel, normalizeCountry, toTopicSlug } from "@/lib/hubs";
 import { buildBreadcrumbJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
 import { cleanPlainText } from "@/lib/text/clean";
@@ -110,13 +110,11 @@ export default async function NotaPage({ params }: NotePageProps) {
   const topicLinks = [...new Set(article.tags.filter(Boolean))]
     .slice(0, 3)
     .map((tag) => ({ href: `/tema/${toTopicSlug(tag)}`, label: `Tema: ${tag}` }));
-  const countrySeeds = [...new Set(article.countries ?? [])];
-  if (displayMeta.countrySlug) {
-    countrySeeds.unshift(displayMeta.countrySlug);
-  } else if (isLatamCountryCode(article.region)) {
-    countrySeeds.unshift(getCountrySlug(article.region));
-  }
+  const countrySeeds = [article.country, ...(article.countries ?? []), displayMeta.countrySlug]
+    .map((country) => normalizeCountry(country))
+    .filter((country): country is string => Boolean(country));
   const countryLinks = [...new Set(countrySeeds)]
+    .filter((country) => country !== displayMeta.countrySlug)
     .slice(0, 3)
     .map((country) => ({ href: `/pais/${country}`, label: `Pais: ${getCountryLabel(country)}` }));
 
@@ -130,7 +128,20 @@ export default async function NotaPage({ params }: NotePageProps) {
 
       <article>
         <header>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">{displayMeta.label}</p>
+          {displayMeta.countrySlug && displayMeta.countryLabel ? (
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
+              <Link href={`/pais/${displayMeta.countrySlug}`} className="hover:underline">
+                {displayMeta.countryLabel}
+              </Link>
+              {displayMeta.categoryLabel !== "Internacional" ? (
+                <span className="text-slate-500"> {" | "} {displayMeta.categoryLabel}</span>
+              ) : null}
+            </p>
+          ) : (
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
+              {displayMeta.label}
+            </p>
+          )}
           <h1 className="mt-2 text-2xl font-black text-brand sm:text-3xl">{article.title}</h1>
           <p className="mt-2 max-w-3xl text-base leading-7 text-slate-700">{editorial.summary}</p>
           <p className="mt-3 text-sm text-slate-600">

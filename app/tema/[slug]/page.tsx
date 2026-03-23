@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import SectionPage from "@/components/SectionPage";
 import { getArticlesByTag } from "@/lib/data/articles-repo";
-import { getTopicLabel } from "@/lib/hubs";
+import { getCountryLabel, normalizeCountry, getTopicLabel } from "@/lib/hubs";
 import { buildMetadata } from "@/lib/seo";
 
 type TopicPageProps = {
@@ -23,10 +23,12 @@ export default async function TopicPage({ params }: TopicPageProps) {
   const label = getTopicLabel(resolvedParams.slug);
   const articles = await getArticlesByTag(label, 24);
   const countryLinks = [...new Set(articles.flatMap((article) => article.countries ?? []))]
+    .map((country) => normalizeCountry(country))
+    .filter((country): country is string => Boolean(country))
     .slice(0, 4)
     .map((country) => ({
       href: `/pais/${country}`,
-      label: `Pais: ${country.toUpperCase()}`
+      label: `Pais: ${getCountryLabel(country)}`
     }));
   const articleCountLabel = articles.length === 1 ? "1 pieza relacionada" : `${articles.length} piezas relacionadas`;
 

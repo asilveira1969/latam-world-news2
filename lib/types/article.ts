@@ -53,6 +53,7 @@ export interface Article {
   source_name: string;
   source_url: string;
   region: RegionValue;
+  country?: string | null;
   category: string;
   tags: string[];
   countries?: string[] | null;

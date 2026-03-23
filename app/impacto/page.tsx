@@ -12,6 +12,7 @@ import {
   getLatestEditorial,
   getOpinionArticles
 } from "@/lib/data/articles-repo";
+import { getCountryLabel, normalizeCountry } from "@/lib/hubs";
 import { buildCollectionPageJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
 
@@ -96,15 +97,19 @@ export default async function ImpactoPage() {
                     #{tag}
                   </Link>
                 ))}
-                {(latestEditorial.countries ?? []).slice(0, 3).map((country) => (
-                  <Link
-                    key={country}
-                    href={`/pais/${encodeURIComponent(country)}`}
-                    className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700"
-                  >
-                    {country.toUpperCase()}
-                  </Link>
-                ))}
+                {(latestEditorial.countries ?? [])
+                  .map((country) => normalizeCountry(country))
+                  .filter((country): country is string => Boolean(country))
+                  .slice(0, 3)
+                  .map((country) => (
+                    <Link
+                      key={country}
+                      href={`/pais/${country}`}
+                      className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700"
+                    >
+                      {getCountryLabel(country)}
+                    </Link>
+                  ))}
               </div>
 
               {latestEditorial.editorial_sections ? (
