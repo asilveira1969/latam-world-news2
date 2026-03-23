@@ -21,7 +21,7 @@ export default function Header() {
         <SearchForm
           action="/buscar"
           method="get"
-          className="hidden items-center gap-2 md:flex md:flex-1 lg:mx-6 lg:w-[34rem] lg:flex-none"
+          className="hidden items-center gap-2 md:flex md:flex-1 lg:mx-6 lg:w-[27rem] lg:flex-none"
         >
           <input
             type="search"
