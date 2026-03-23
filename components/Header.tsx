@@ -10,7 +10,7 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 lg:flex-nowrap lg:justify-between">
         <Link href="/" className="shrink-0 leading-tight">
           <p className="text-xl font-black tracking-tight text-brand">{SITE_NAME}</p>
           <p className="text-[11px] uppercase tracking-[0.08em] text-slate-500 sm:block">
@@ -18,22 +18,26 @@ export default function Header() {
           </p>
         </Link>
 
-        <SearchForm action="/buscar" method="get" className="hidden flex-1 items-center gap-2 md:flex lg:max-w-md">
+        <SearchForm
+          action="/buscar"
+          method="get"
+          className="hidden items-center gap-2 md:flex md:flex-1 lg:mx-6 lg:max-w-lg lg:flex-none"
+        >
           <input
             type="search"
             name="q"
-            placeholder="Buscar pais"
+            placeholder="Buscar noticias del país..."
             className="w-full rounded-full border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand"
           />
           <button
             type="submit"
             className="whitespace-nowrap rounded-full border border-brand bg-brand px-3 py-2 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-brand/90"
           >
-            Buscar pais
+            Buscar país
           </button>
         </SearchForm>
 
-        <nav className="hidden items-center justify-center gap-2 lg:flex" aria-label="Principal">
+        <nav className="hidden shrink-0 items-center justify-center gap-2 lg:flex" aria-label="Principal">
           {PRIMARY_NAV.map((item) => (
             <Link
               key={item.href}
@@ -74,14 +78,14 @@ export default function Header() {
             <input
               type="search"
               name="q"
-              placeholder="Buscar pais"
+              placeholder="Buscar noticias del país..."
               className="w-full rounded-full border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand"
             />
             <button
               type="submit"
               className="rounded-full bg-brand px-3 py-2 text-sm font-semibold text-white"
             >
-              Buscar pais
+              Buscar país
             </button>
           </SearchForm>
         </div>
