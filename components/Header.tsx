@@ -18,7 +18,22 @@ export default function Header() {
           </p>
         </Link>
 
-        <nav className="hidden flex-1 items-center justify-center gap-2 lg:flex" aria-label="Principal">
+        <SearchForm action="/buscar" method="get" className="hidden flex-1 items-center gap-2 md:flex lg:max-w-md">
+          <input
+            type="search"
+            name="q"
+            placeholder="Buscar pais"
+            className="w-full rounded-full border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand"
+          />
+          <button
+            type="submit"
+            className="whitespace-nowrap rounded-full border border-brand bg-brand px-3 py-2 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-brand/90"
+          >
+            Buscar pais
+          </button>
+        </SearchForm>
+
+        <nav className="hidden items-center justify-center gap-2 lg:flex" aria-label="Principal">
           {PRIMARY_NAV.map((item) => (
             <Link
               key={item.href}
@@ -29,21 +44,6 @@ export default function Header() {
             </Link>
           ))}
         </nav>
-
-        <SearchForm action="/buscar" method="get" className="hidden items-center gap-2 md:flex">
-          <input
-            type="search"
-            name="q"
-            placeholder="Buscar noticias..."
-            className="w-48 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand"
-          />
-          <button
-            type="submit"
-            className="rounded-full border border-brand bg-brand px-3 py-2 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-brand/90"
-          >
-            Buscar
-          </button>
-        </SearchForm>
 
         <button
           type="button"
@@ -74,14 +74,14 @@ export default function Header() {
             <input
               type="search"
               name="q"
-              placeholder="Buscar noticias..."
+              placeholder="Buscar pais"
               className="w-full rounded-full border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand"
             />
             <button
               type="submit"
               className="rounded-full bg-brand px-3 py-2 text-sm font-semibold text-white"
             >
-              Ir
+              Buscar pais
             </button>
           </SearchForm>
         </div>
