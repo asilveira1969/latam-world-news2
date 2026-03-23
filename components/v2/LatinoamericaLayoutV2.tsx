@@ -20,16 +20,6 @@ const COUNTRY_LABELS: Record<CountryTabCode, string> = {
   CL: "Chile"
 };
 
-function latamMetaLabel(article: Article): string {
-  if (article.region in COUNTRY_LABELS) {
-    return COUNTRY_LABELS[article.region as CountryTabCode];
-  }
-  if (article.region === "LatAm") {
-    return "Latinoam\u00e9rica";
-  }
-  return article.region;
-}
-
 export default function LatinoamericaLayoutV2({
   heroLead,
   heroSecondary,
@@ -50,7 +40,7 @@ export default function LatinoamericaLayoutV2({
             <h1 className="text-3xl font-black text-brand">{sectionTitle}</h1>
             <p className="mt-1 text-sm text-slate-600">{sectionCopy}</p>
           </div>
-          <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} formatMeta={latamMetaLabel} />
+          <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} />
         </section>
 
         <section aria-label="Explorador de paises de Latinoamerica" className="space-y-3">
@@ -69,7 +59,7 @@ export default function LatinoamericaLayoutV2({
               {emptyStateMessage}
             </p>
           ) : null}
-          <LatestFeed items={latest} formatMeta={latamMetaLabel} />
+          <LatestFeed items={latest} />
         </section>
       </div>
     </main>

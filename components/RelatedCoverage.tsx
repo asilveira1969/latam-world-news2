@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import type { Article } from "@/lib/types/article";
 
 function articleHref(article: Article) {
@@ -53,7 +54,7 @@ export default function RelatedCoverage({
         {items.map((article) => (
           <li key={article.id} className="border-t border-slate-200 py-4 first:border-t-0 first:pt-0 last:pb-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-accent">
-              {article.region} {"\u00b7"} {article.category}
+              {getArticleDisplayMeta(article).label}
             </p>
             <Link
               href={articleHref(article)}

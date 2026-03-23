@@ -28,20 +28,14 @@ export const revalidate = 300;
 
 export default async function HomePage() {
   const home = await getHomeData();
-  const staticMeta = () => "Mundo \u00b7 Internacional";
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-8">
-          <Hero
-            lead={home.heroLead}
-            secondary={home.heroSecondary}
-            editorial={home.latestEditorial}
-            formatMeta={staticMeta}
-          />
+          <Hero lead={home.heroLead} secondary={home.heroSecondary} editorial={home.latestEditorial} />
           <AdSlot slotId="top-banner" className="mb-2" format="horizontal" />
-          <LatestFeed items={home.latest} formatMeta={staticMeta} />
+          <LatestFeed items={home.latest} />
           <RegionBlocks regions={home.regionBlocks} />
           <ImpactSection items={home.impact} />
           <LiveStream sources={LIVE_STREAM_SOURCES} />

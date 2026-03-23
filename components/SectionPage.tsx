@@ -4,6 +4,7 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import NewsImage from "@/components/NewsImage";
 import StructuredData from "@/components/StructuredData";
 import TrackedExternalLink from "@/components/TrackedExternalLink";
+import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { buildBreadcrumbJsonLd, buildCollectionPageJsonLd } from "@/lib/jsonld";
 import { hasUsableRemoteImage, isImageLikelyFromSource } from "@/lib/images";
 import { formatSourceDisplayName } from "@/lib/sources";
@@ -108,13 +109,14 @@ export default function SectionPage({
             hasUsableRemoteImage(article.image_url) && imageMatchesSource && !imageRepeated;
 
           if (!showImageCard) {
+            const displayMeta = getArticleDisplayMeta(article);
             return (
               <article
                 key={article.id}
                 className="rounded border border-slate-200 bg-white p-4 transition-colors hover:border-slate-300 xl:col-span-3"
               >
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-                  {`${article.region} · ${article.category}`}
+                  {displayMeta.label}
                 </p>
                 <Link href={href}>
                   <h2 className="mt-1 text-lg font-bold leading-snug">{article.title}</h2>
@@ -154,7 +156,7 @@ export default function SectionPage({
               </Link>
               <div className="p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-                  {`${article.region} · ${article.category}`}
+                  {getArticleDisplayMeta(article).label}
                 </p>
                 <Link href={href}>
                   <h2 className="mt-1 text-lg font-bold">{article.title}</h2>

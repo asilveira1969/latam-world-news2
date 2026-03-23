@@ -31,8 +31,6 @@ export default function MundoLayoutV2({
   latest,
   sourceSummaries
 }: MundoLayoutV2Props) {
-  const staticMeta = () => "Mundo · Internacional";
-
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
       <div className="space-y-10">
@@ -89,7 +87,7 @@ export default function MundoLayoutV2({
               a América Latina.
             </p>
           </div>
-          <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} formatMeta={staticMeta} />
+          <Hero lead={heroLead} secondary={heroSecondary.slice(0, 2)} />
         </section>
 
         <section aria-label="Últimas noticias del mundo" className="space-y-3">
@@ -100,7 +98,7 @@ export default function MundoLayoutV2({
               seguimiento editorial.
             </p>
           </div>
-          <LatestFeed items={latest} formatMeta={staticMeta} />
+          <LatestFeed items={latest} />
         </section>
       </div>
     </main>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import NewsImage from "@/components/NewsImage";
 import { formatEditorialDate } from "@/lib/dates";
+import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import type { Article } from "@/lib/types/article";
 
 export interface HeroProps {
@@ -33,7 +34,7 @@ function ArticleCard({
   formatMeta?: (article: Article) => string;
 }) {
   const href = articleHref(article);
-  const meta = formatMeta ? formatMeta(article) : `${article.region} · ${article.category}`;
+  const meta = formatMeta ? formatMeta(article) : getArticleDisplayMeta(article).label;
 
   return (
     <article className="group overflow-hidden rounded border border-slate-200 bg-white">

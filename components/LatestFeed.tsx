@@ -4,6 +4,7 @@ import AdSlot from "@/components/AdSlot";
 import NewsImage from "@/components/NewsImage";
 import TrackedExternalLink from "@/components/TrackedExternalLink";
 import { formatEditorialDate } from "@/lib/dates";
+import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { formatSourceDisplayName } from "@/lib/sources";
 
 export interface LatestFeedProps {
@@ -26,8 +27,8 @@ function articleHref(article: Article) {
 
 export default function LatestFeed({ items, formatMeta }: LatestFeedProps) {
   return (
-    <section aria-label="Últimas noticias internacionales">
-      <h2 className="mb-3 text-2xl font-black text-brand">Últimas</h2>
+    <section aria-label="Ultimas noticias internacionales">
+      <h2 className="mb-3 text-2xl font-black text-brand">Ultimas</h2>
       <div className="space-y-4">
         {items.slice(0, 30).map((article, index) => (
           <div key={article.id}>
@@ -43,7 +44,7 @@ export default function LatestFeed({ items, formatMeta }: LatestFeedProps) {
               </Link>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-                  {formatMeta ? formatMeta(article) : `${article.region} · ${article.category}`}
+                  {formatMeta ? formatMeta(article) : getArticleDisplayMeta(article).label}
                 </p>
                 <Link href={articleHref(article)}>
                   <h3 className="mt-1 text-lg font-bold">{article.title}</h3>

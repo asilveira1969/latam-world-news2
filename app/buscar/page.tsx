@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import SearchForm from "@/components/SearchForm";
 import { searchArticles } from "@/lib/data/articles-repo";
+import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
@@ -56,7 +57,7 @@ export default async function BuscarPage({ searchParams }: SearchPageProps) {
         {results.map((article) => (
           <article key={article.id} className="rounded border border-slate-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-              {article.region} · {article.category}
+              {getArticleDisplayMeta(article).label}
             </p>
             <Link
               href={articleHref(article.slug, article.is_impact, article.impact_format)}
