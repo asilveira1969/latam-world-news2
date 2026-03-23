@@ -21,13 +21,13 @@ export default function Header() {
         <SearchForm
           action="/buscar"
           method="get"
-          className="hidden items-center gap-2 md:flex md:flex-1 lg:mx-6 lg:max-w-xl lg:flex-none"
+          className="hidden items-center gap-2 md:flex md:flex-1 lg:mx-6 lg:w-[34rem] lg:flex-none"
         >
           <input
             type="search"
             name="q"
             placeholder="Buscar noticias del país..."
-            className="w-full rounded-full border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand"
+            className="w-full rounded-full border border-slate-300 bg-white px-3 py-2 text-[13px] outline-none transition focus:border-brand"
           />
           <button
             type="submit"
