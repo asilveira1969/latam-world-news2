@@ -38,6 +38,19 @@ export function formatPublicTagLabel(tag: string): string {
     return "";
   }
 
+  const countryTagMap: Record<string, string> = {
+    ar: "argentina",
+    br: "brasil",
+    cl: "chile",
+    mx: "mexico",
+    uy: "uruguay",
+    py: "paraguay"
+  };
+
+  if (normalized in countryTagMap) {
+    return countryTagMap[normalized];
+  }
+
   if (normalized.startsWith("rss-")) {
     const sourceTag = normalized
       .replace(/^rss-/, "")
