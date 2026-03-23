@@ -17,6 +17,7 @@ import {
   hasSupabaseServiceEnv
 } from "@/lib/supabase/server";
 import { hasUsableRemoteImage, resolveCardImage } from "@/lib/images";
+import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { formatSourceDisplayName } from "@/lib/sources";
 import {
   cleanExcerpt,
@@ -757,7 +758,14 @@ export async function getArticlesByCountry(country: string, limit = 24): Promise
   const normalized = cleanPlainText(country).toLowerCase();
   const all = await getAllArticles();
   return all
-    .filter((article) => article.countries?.includes(normalized) || article.region.toLowerCase() === normalized)
+    .filter((article) => {
+      if (article.countries?.includes(normalized) || article.region.toLowerCase() === normalized) {
+        return true;
+      }
+
+      const displayMeta = getArticleDisplayMeta(article);
+      return displayMeta.countrySlug === normalized;
+    })
     .slice(0, limit);
 }
 

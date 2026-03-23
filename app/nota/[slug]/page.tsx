@@ -10,6 +10,7 @@ import TrackedExternalLink from "@/components/TrackedExternalLink";
 import ViewTracker from "@/components/ViewTracker";
 import { getEditorialBlocks } from "@/lib/article-seo";
 import { getArticleBySlug, getRelatedArticles } from "@/lib/data/articles-repo";
+import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { getCountryLabel, getCountrySlug, isLatamCountryCode, toTopicSlug } from "@/lib/hubs";
 import { buildBreadcrumbJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
@@ -41,17 +42,7 @@ function getSectionPath(region: string): string {
   if (region === "Medio Oriente") {
     return "/medio-oriente";
   }
-  return "/latinoamerica";
-}
-
-function getSectionLabel(region: string): string {
-  if (region === "LatAm") {
-    return "Latinoamérica";
-  }
-  if (isLatamCountryCode(region)) {
-    return getCountryLabel(region.toLowerCase());
-  }
-  return region;
+  return "/mundo";
 }
 
 function splitBody(content: string | null, fallback: string[]): string[] {
@@ -101,8 +92,9 @@ export default async function NotaPage({ params }: NotePageProps) {
 
   const editorial = getEditorialBlocks(article);
   const related = await getRelatedArticles(article, 4);
-  const sectionLabel = getSectionLabel(article.region);
-  const sectionPath = getSectionPath(article.region);
+  const displayMeta = getArticleDisplayMeta(article);
+  const sectionLabel = displayMeta.sectionLabel;
+  const sectionPath = displayMeta.isInternationalFallback ? getSectionPath(article.region) : displayMeta.href;
   const breadcrumbItems = [
     { label: "Inicio", href: "/" },
     { label: sectionLabel, href: sectionPath },
@@ -119,7 +111,9 @@ export default async function NotaPage({ params }: NotePageProps) {
     .slice(0, 3)
     .map((tag) => ({ href: `/tema/${toTopicSlug(tag)}`, label: `Tema: ${tag}` }));
   const countrySeeds = [...new Set(article.countries ?? [])];
-  if (isLatamCountryCode(article.region)) {
+  if (displayMeta.countrySlug) {
+    countrySeeds.unshift(displayMeta.countrySlug);
+  } else if (isLatamCountryCode(article.region)) {
     countrySeeds.unshift(getCountrySlug(article.region));
   }
   const countryLinks = [...new Set(countrySeeds)]
@@ -136,9 +130,7 @@ export default async function NotaPage({ params }: NotePageProps) {
 
       <article>
         <header>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-            {`${sectionLabel} · ${article.category}`}
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">{displayMeta.label}</p>
           <h1 className="mt-2 text-2xl font-black text-brand sm:text-3xl">{article.title}</h1>
           <p className="mt-2 max-w-3xl text-base leading-7 text-slate-700">{editorial.summary}</p>
           <p className="mt-3 text-sm text-slate-600">
@@ -172,7 +164,7 @@ export default async function NotaPage({ params }: NotePageProps) {
           </div>
         </section>
 
-        {(topicLinks.length > 0 || countryLinks.length > 0) ? (
+        {topicLinks.length > 0 || countryLinks.length > 0 ? (
           <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
               Navegacion relacionada
