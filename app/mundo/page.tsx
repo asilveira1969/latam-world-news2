@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { unstable_cache } from "next/cache";
 import MundoLayoutV2 from "@/components/v2/MundoLayoutV2";
 import {
   getHomeData,
@@ -23,11 +24,36 @@ export const metadata: Metadata = buildMetadata({
   ]
 });
 
-export const revalidate = 300;
+export const revalidate = 3600;
+export const dynamic = "force-static";
+
+const getCachedMundoRssArticles = unstable_cache(
+  async () => getMundoRssArticles(24),
+  ["mundo-rss-articles"],
+  { revalidate }
+);
+
+const getCachedMundoSourceSummaries = unstable_cache(
+  async () => getMundoRssSourceSummaries(3),
+  ["mundo-source-summaries"],
+  { revalidate }
+);
+
+const getCachedMundoHomeData = unstable_cache(
+  async () => getHomeData({ region: "Mundo" }),
+  ["mundo-home-data"],
+  { revalidate }
+);
+
+const getCachedMundoArticlesFallback = unstable_cache(
+  async () => getMundoArticles(24),
+  ["mundo-articles-fallback"],
+  { revalidate }
+);
 
 export default async function MundoPage() {
-  const articles = await getMundoRssArticles(50);
-  const sourceSummaries = await getMundoRssSourceSummaries(3);
+  const articles = await getCachedMundoRssArticles();
+  const sourceSummaries = await getCachedMundoSourceSummaries();
 
   if (articles.length >= 3) {
     return (
@@ -40,9 +66,9 @@ export default async function MundoPage() {
     );
   }
 
-  const home = await getHomeData({ region: "Mundo" });
+  const home = await getCachedMundoHomeData();
   const fallbackLatest = sortMundoArticlesForDisplay(
-    articles.length > 0 ? articles : await getMundoArticles(50)
+    articles.length > 0 ? articles : await getCachedMundoArticlesFallback()
   );
   const heroLead = fallbackLatest[0] ?? home.heroLead;
   const heroSecondary = fallbackLatest.slice(1, 3);

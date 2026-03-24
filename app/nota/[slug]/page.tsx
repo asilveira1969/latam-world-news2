@@ -14,8 +14,6 @@ import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { getCountryLabel, normalizeCountry, toTopicSlug } from "@/lib/hubs";
 import { buildBreadcrumbJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
-import { cleanPlainText } from "@/lib/text/clean";
-
 type NotePageProps = {
   params: Promise<{ slug: string }>;
 };
@@ -43,19 +41,6 @@ function getSectionPath(region: string): string {
     return "/medio-oriente";
   }
   return "/mundo";
-}
-
-function splitBody(content: string | null, fallback: string[]): string[] {
-  if (!content) {
-    return fallback;
-  }
-
-  const paragraphs = cleanPlainText(content)
-    .split(/\n+/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
-
-  return paragraphs.length > 0 ? paragraphs : fallback;
 }
 
 export async function generateMetadata({ params }: NotePageProps): Promise<Metadata> {
@@ -91,6 +76,8 @@ export default async function NotaPage({ params }: NotePageProps) {
   }
 
   const editorial = getEditorialBlocks(article);
+  const persistedSummary = article.latamworldnews_summary?.trim() || editorial.latamWorldNewsSummary;
+  const persistedCurated = article.curated_news?.trim() || editorial.curatedNews;
   const related = await getRelatedArticles(article, 4);
   const displayMeta = getArticleDisplayMeta(article);
   const sectionLabel = displayMeta.sectionLabel;
@@ -106,7 +93,6 @@ export default async function NotaPage({ params }: NotePageProps) {
     { name: article.title, pathname: `/nota/${article.slug}` }
   ]);
   const jsonLd = buildNewsArticleJsonLd(article, `/nota/${article.slug}`, related);
-  const bodyParagraphs = splitBody(article.content, [editorial.summary, editorial.conclusion]);
   const topicLinks = [...new Set(article.tags.filter(Boolean))]
     .slice(0, 3)
     .map((tag) => ({ href: `/tema/${toTopicSlug(tag)}`, label: `Tema: ${tag}` }));
@@ -143,7 +129,6 @@ export default async function NotaPage({ params }: NotePageProps) {
             </p>
           )}
           <h1 className="mt-2 text-2xl font-black text-brand sm:text-3xl">{article.title}</h1>
-          <p className="mt-2 max-w-3xl text-base leading-7 text-slate-700">{editorial.summary}</p>
           <p className="mt-3 text-sm text-slate-600">
             Publicado: {new Date(article.published_at).toLocaleString("es-ES")}
           </p>
@@ -153,25 +138,10 @@ export default async function NotaPage({ params }: NotePageProps) {
           <NewsImage src={article.image_url} alt={article.title} sizes="100vw" className="object-cover" />
         </div>
 
-        <section className="mt-6 grid gap-4 rounded-2xl border border-slate-200 bg-stone-50/80 p-5 sm:grid-cols-[1.2fr_0.8fr] sm:p-6">
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-stone-50/80 p-5 sm:p-6">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-accent">
-              Lectura para LATAM
-            </p>
-            <p className="mt-3 text-sm leading-7 text-slate-700">{editorial.latamAngle}</p>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-accent">
-              Claves para seguir
-            </p>
-            <ul className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
-              {editorial.keyPoints.map((point) => (
-                <li key={point} className="flex gap-2">
-                  <span className="mt-1 text-brand-accent">-</span>
-                  <span>{point}</span>
-                </li>
-              ))}
-            </ul>
+            <h2 className="text-lg font-bold text-brand">Resumen LatamWorldNews</h2>
+            <p className="mt-3 text-sm leading-7 text-slate-700">{persistedSummary}</p>
           </div>
         </section>
 
@@ -204,19 +174,8 @@ export default async function NotaPage({ params }: NotePageProps) {
         ) : null}
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-          <h2 className="text-lg font-bold text-brand">Contexto y desarrollo</h2>
-          <div className="mt-4 space-y-4 text-slate-800">
-            {bodyParagraphs.map((paragraph, index) => (
-              <p key={`${article.slug}-${index}`} className="leading-7">
-                {paragraph}
-              </p>
-            ))}
-          </div>
-
-          <div className="mt-6 border-t border-slate-200 pt-6">
-            <h2 className="text-lg font-bold text-brand">Conclusion editorial</h2>
-            <p className="mt-3 leading-7 text-slate-800">{editorial.conclusion}</p>
-          </div>
+          <h2 className="text-lg font-bold text-brand">Noticia curada por LatamWorldNews</h2>
+          <p className="mt-3 leading-7 text-slate-800">{persistedCurated}</p>
 
           <TrackedExternalLink
             href={article.source_url}

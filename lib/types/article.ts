@@ -41,6 +41,11 @@ export interface Article {
   slug: string;
   excerpt: string;
   content: string | null;
+  latamworldnews_summary?: string | null;
+  curated_news?: string | null;
+  editorial_status?: "pending" | "ready" | "failed" | null;
+  editorial_generated_at?: string | null;
+  editorial_model?: string | null;
   seo_title?: string | null;
   seo_description?: string | null;
   editorial_context?: string | null;

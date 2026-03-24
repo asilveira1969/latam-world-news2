@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { fallbackTickerHeadlines } from "@/lib/mock/ticker";
 import { manualFallbackArticles, mockArticles } from "@/lib/mock/articles";
 import {
@@ -143,6 +144,22 @@ function mapRecordToArticle(record: Record<string, unknown>): Article {
     slug: String(record.slug ?? ""),
     excerpt,
     content: rawContent ? cleanPlainText(rawContent) : null,
+    latamworldnews_summary: record.latamworldnews_summary
+      ? cleanExcerpt(String(record.latamworldnews_summary), 320)
+      : null,
+    curated_news: record.curated_news
+      ? cleanExcerpt(String(record.curated_news), 700)
+      : null,
+    editorial_status:
+      record.editorial_status === "pending" ||
+      record.editorial_status === "ready" ||
+      record.editorial_status === "failed"
+        ? (record.editorial_status as Article["editorial_status"])
+        : null,
+    editorial_generated_at: record.editorial_generated_at
+      ? String(record.editorial_generated_at)
+      : null,
+    editorial_model: record.editorial_model ? cleanPlainText(String(record.editorial_model)) : null,
     seo_title: record.seo_title ? cleanPlainText(String(record.seo_title)) : null,
     seo_description: record.seo_description
       ? cleanExcerpt(String(record.seo_description), 180)
@@ -222,7 +239,7 @@ async function fetchAllArticlesFromSource(): Promise<Article[]> {
       .from("articles")
       .select("*")
       .order("published_at", { ascending: false })
-      .limit(500);
+      .limit(50);
 
     if (error) {
       console.error("Supabase read failed, using mock data:", error.message);
@@ -338,7 +355,7 @@ export async function getAllArticles(): Promise<Article[]> {
 }
 
 export async function getMundoArticles(
-  limit = 50,
+  limit = 24,
   region?: Article["region"],
   onlyNewsdata = false
 ): Promise<Article[]> {
@@ -356,8 +373,8 @@ export async function getMundoArticles(
     : base.slice(0, limit);
 }
 
-export async function getMundoRssArticles(limit = 50): Promise<Article[]> {
-  const filtered = await fetchMundoRssArticlesFromSupabase(Math.max(limit, 120));
+export async function getMundoRssArticles(limit = 24): Promise<Article[]> {
+  const filtered = await fetchMundoRssArticlesFromSupabase(Math.max(limit, 30));
   if (filtered.length >= 3) {
     return sortMundoFeedForDisplay(filtered).slice(0, limit);
   }
@@ -372,7 +389,7 @@ export async function getMundoRssArticles(limit = 50): Promise<Article[]> {
 }
 
 export async function getMundoRssSourceSummaries(limitPerSource = 3): Promise<MundoSourceSummary[]> {
-  const filtered = await fetchMundoRssArticlesFromSupabase(120);
+  const filtered = await fetchMundoRssArticlesFromSupabase(30);
   if (filtered.length === 0) {
     return [];
   }
@@ -394,7 +411,7 @@ export async function getMundoRssSourceSummaries(limitPerSource = 3): Promise<Mu
 }
 
 export async function getLatinoamericaArticles(
-  limit = 50,
+  limit = 24,
   region?: Article["region"]
 ): Promise<Article[]> {
   const latamCountry =
@@ -539,40 +556,24 @@ export async function getArticleBySlug(
   slug: string,
   kind: "nota" | "impacto" | "impacto-editorial" | "impacto-opinion" | "impacto-columnista"
 ): Promise<Article | null> {
-  if (hasSupabaseAnonEnv) {
-    try {
-      const supabase = getSupabaseServerClient();
-      const { data, error } = await supabase
-        .from("articles")
-        .select("*")
-        .eq("slug", slug)
-        .maybeSingle();
-
-      if (!error && data) {
-        const article = mapRecordToArticle(data as Record<string, unknown>);
-        if (!isDisplayableArticle(article)) {
-          return null;
-        }
-        if (kind === "nota" && article.is_impact) {
-          return null;
-        }
-        if (kind === "impacto" && (!article.is_impact || article.impact_format === "editorial")) {
-          return null;
-        }
-        if (kind === "impacto-editorial" && article.impact_format !== "editorial") {
-          return null;
-        }
-        if (kind === "impacto-opinion" && article.impact_format !== "opinion") {
-          return null;
-        }
-        if (kind === "impacto-columnista" && article.impact_format !== "columnist") {
-          return null;
-        }
-        return article;
-      }
-    } catch (error) {
-      console.error("Supabase slug lookup failed, falling back to in-memory scan:", error);
+  const cachedArticle = await getCachedArticleBySlug(slug);
+  if (cachedArticle) {
+    if (kind === "nota" && cachedArticle.is_impact) {
+      return null;
     }
+    if (kind === "impacto" && (!cachedArticle.is_impact || cachedArticle.impact_format === "editorial")) {
+      return null;
+    }
+    if (kind === "impacto-editorial" && cachedArticle.impact_format !== "editorial") {
+      return null;
+    }
+    if (kind === "impacto-opinion" && cachedArticle.impact_format !== "opinion") {
+      return null;
+    }
+    if (kind === "impacto-columnista" && cachedArticle.impact_format !== "columnist") {
+      return null;
+    }
+    return cachedArticle;
   }
 
   const all = await getAllArticles();
@@ -601,6 +602,36 @@ export async function getArticleBySlug(
   }
   return article;
 }
+
+const getCachedArticleBySlug = (slug: string) =>
+  unstable_cache(
+    async (): Promise<Article | null> => {
+      if (!hasSupabaseAnonEnv) {
+        return null;
+      }
+
+      try {
+        const supabase = getSupabaseServerClient();
+        const { data, error } = await supabase
+          .from("articles")
+          .select("*")
+          .eq("slug", slug)
+          .maybeSingle();
+
+        if (error || !data) {
+          return null;
+        }
+
+        const article = mapRecordToArticle(data as Record<string, unknown>);
+        return isDisplayableArticle(article) ? article : null;
+      } catch (error) {
+        console.error("Supabase slug lookup failed, falling back to in-memory scan:", error);
+        return null;
+      }
+    },
+    ["article-by-slug", slug],
+    { revalidate: 3600 }
+  )();
 
 export async function getTrendingTags(hours = 24, limit = 10): Promise<string[]> {
   const all = await getAllArticles();
@@ -681,7 +712,7 @@ export async function getSitemapArticles(): Promise<
     lastModified: string;
   }>
 > {
-  const all = await getAllArticles();
+  const all = await getSitemapEligibleArticles();
   return all.map((article) => ({
     slug: article.slug,
     kind:
@@ -705,7 +736,7 @@ export async function getSitemapHubs(): Promise<
     priority: number;
   }>
 > {
-  const all = await getAllArticles();
+  const all = await getSitemapEligibleArticles();
   const topicMap = new Map<string, number>();
   const topicLastModified = new Map<string, number>();
   const countryMap = new Map<string, number>();
@@ -772,6 +803,33 @@ export async function getSitemapHubs(): Promise<
     }));
 
   return [...topics, ...countries];
+}
+
+async function getSitemapEligibleArticles(): Promise<Article[]> {
+  if (!hasSupabaseAnonEnv) {
+    return getAllArticles();
+  }
+
+  try {
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("articles")
+      .select("id, title, slug, excerpt, content, image_url, source_name, source_url, region, country, category, tags, countries, impact_format, published_at, created_at, is_featured, is_impact, views")
+      .order("published_at", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error("Supabase sitemap read failed, falling back to full article loader:", error.message);
+      return getAllArticles();
+    }
+
+    return (data ?? [])
+      .map((record: Record<string, unknown>) => mapRecordToArticle(record))
+      .filter(isDisplayableArticle);
+  } catch (error) {
+    console.error("Supabase sitemap read failed, falling back to full article loader:", error);
+    return getAllArticles();
+  }
 }
 
 export async function getArticlesByTag(tag: string, limit = 24): Promise<Article[]> {

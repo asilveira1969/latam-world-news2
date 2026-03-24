@@ -22,11 +22,26 @@ export type FaqItem = {
 export type EditorialBlocks = {
   summary: string;
   latamAngle: string;
+  bodyParagraphs: string[];
   keyPoints: string[];
   conclusion: string;
+  latamWorldNewsSummary: string;
+  curatedNews: string;
   faqItems: FaqItem[];
   seoTitle: string;
   seoDescription: string;
+};
+
+export type EditorialDuplicationPair = {
+  left: string;
+  right: string;
+  similarity: number;
+};
+
+export type EditorialDuplicationReport = {
+  hasIssues: boolean;
+  repeatedSentences: string[];
+  flaggedPairs: EditorialDuplicationPair[];
 };
 
 function titleWithoutTrailingPeriod(title: string): string {
@@ -159,6 +174,349 @@ function sourceName(article: Article): string {
   return cleanPlainText(article.source_name || "la fuente original");
 }
 
+function sentenceCase(input: string): string {
+  const trimmed = cleanPlainText(input).replace(/[.!?]+$/g, "").trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+}
+
+function normalizeForComparison(input: string): string {
+  return cleanPlainText(input)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenize(input: string): string[] {
+  return normalizeForComparison(input)
+    .split(" ")
+    .filter((token) => token.length > 2);
+}
+
+function sentenceFragments(input: string): string[] {
+  return cleanPlainText(input)
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 30);
+}
+
+function wordCount(input: string): number {
+  return cleanPlainText(input)
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+function trimToWordRange(input: string, minWords: number, maxWords: number): string {
+  const cleaned = cleanPlainText(input);
+  if (!cleaned) {
+    return "";
+  }
+
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) {
+    return cleaned;
+  }
+
+  return `${words.slice(0, maxWords).join(" ").replace(/[,:;]+$/g, "")}.`;
+}
+
+function padToMinWords(base: string, additions: string[], minWords: number, maxWords: number): string {
+  let current = trimToWordRange(base, minWords, maxWords);
+  if (wordCount(current) >= minWords) {
+    return current;
+  }
+
+  for (const addition of additions) {
+    if (!addition) {
+      continue;
+    }
+    const candidate = trimToWordRange(`${current} ${addition}`.trim(), minWords, maxWords);
+    current = candidate;
+    if (wordCount(current) >= minWords) {
+      break;
+    }
+  }
+
+  return current;
+}
+
+function distinctAdditions(base: string, additions: string[]): string[] {
+  const selected: string[] = [];
+  const currentBase = cleanPlainText(base);
+
+  for (const addition of additions) {
+    const cleaned = cleanPlainText(addition);
+    if (!cleaned) {
+      continue;
+    }
+    if (isNearDuplicate(currentBase, cleaned)) {
+      continue;
+    }
+    if (selected.some((item) => isNearDuplicate(item, cleaned))) {
+      continue;
+    }
+    selected.push(cleaned);
+  }
+
+  return selected;
+}
+
+function overlapSimilarity(left: string, right: string): number {
+  const leftTokens = new Set(tokenize(left));
+  const rightTokens = new Set(tokenize(right));
+  if (leftTokens.size === 0 || rightTokens.size === 0) {
+    return 0;
+  }
+
+  let intersection = 0;
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) {
+      intersection += 1;
+    }
+  }
+
+  return intersection / Math.min(leftTokens.size, rightTokens.size);
+}
+
+function directionalOverlap(source: string, target: string): number {
+  const sourceTokens = new Set(tokenize(source));
+  const targetTokens = new Set(tokenize(target));
+  if (sourceTokens.size === 0 || targetTokens.size === 0) {
+    return 0;
+  }
+
+  let repeated = 0;
+  for (const token of targetTokens) {
+    if (sourceTokens.has(token)) {
+      repeated += 1;
+    }
+  }
+
+  return repeated / targetTokens.size;
+}
+
+function isNearDuplicate(left: string, right: string): boolean {
+  const leftNormalized = normalizeForComparison(left);
+  const rightNormalized = normalizeForComparison(right);
+  if (!leftNormalized || !rightNormalized) {
+    return false;
+  }
+  if (leftNormalized === rightNormalized) {
+    return true;
+  }
+  if (
+    Math.min(leftNormalized.length, rightNormalized.length) >= 80 &&
+    (leftNormalized.includes(rightNormalized) || rightNormalized.includes(leftNormalized))
+  ) {
+    return true;
+  }
+
+  return overlapSimilarity(left, right) >= 0.72;
+}
+
+function uniqueParagraphs(paragraphs: string[]): string[] {
+  const unique: string[] = [];
+
+  for (const paragraph of paragraphs) {
+    const cleaned = cleanPlainText(paragraph);
+    if (!cleaned) {
+      continue;
+    }
+    if (unique.some((item) => isNearDuplicate(item, cleaned))) {
+      continue;
+    }
+    unique.push(cleaned);
+  }
+
+  return unique;
+}
+
+function buildSummary(article: Article, excerpt: string, body: string, source: string): string {
+  if (article.editorial_sections?.que_esta_pasando) {
+    return cleanExcerpt(article.editorial_sections.que_esta_pasando, article.is_impact ? 360 : 240);
+  }
+  if (article.editorial_context) {
+    return cleanExcerpt(article.editorial_context, article.is_impact ? 360 : 240);
+  }
+  if (article.content) {
+    return cleanExcerpt(body, article.is_impact ? 360 : 240);
+  }
+
+  return cleanExcerpt(
+    `Cobertura curada sobre ${titleWithoutTrailingPeriod(article.title)} con foco en el hecho central, los actores involucrados y el seguimiento abierto desde ${source}.`,
+    article.is_impact ? 360 : 240
+  );
+}
+
+function buildLatamAngle(article: Article, themes: string, region: string, topic: string): string {
+  if (article.editorial_sections?.que_significa_para_america_latina) {
+    return cleanExcerpt(article.editorial_sections.que_significa_para_america_latina, 260);
+  }
+  if (article.latam_angle) {
+    return cleanExcerpt(article.latam_angle, 260);
+  }
+
+  const variants = [
+    `Desde una mirada latinoamericana, conviene seguir el impacto potencial sobre ${themes}, porque suele trasladarse a decisiones publicas y privadas en la region.`,
+    `Para lectores de America Latina, el foco esta en como este episodio puede mover ${themes} y alterar expectativas de corto plazo.`,
+    `La lectura regional pasa por medir si este movimiento en ${topic} cambia precios, comercio o riesgo politico para America Latina.`,
+    `Aunque el hecho ocurra en ${region}, la pregunta relevante para LATAM es si abre presion sobre ${themes}.`
+  ];
+  const index = (article.slug.length + region.length + topic.length) % variants.length;
+  return cleanExcerpt(variants[index], 260);
+}
+
+function buildKeyPoints(article: Article, topic: string, region: string, themes: string, source: string): string[] {
+  if (article.impact_format === "editorial" && article.editorial_sections) {
+    return [
+      cleanExcerpt(article.editorial_sections.que_esta_pasando, 180),
+      cleanExcerpt(article.editorial_sections.claves_del_dia, 180),
+      cleanExcerpt(article.editorial_sections.por_que_importa, 180)
+    ];
+  }
+
+  const options = [
+    [
+      `Tema a vigilar: ${sentenceCase(topic)} con efecto potencial sobre ${themes}.`,
+      `Contexto base: ${region} concentra el hecho y ${source} aporta la referencia original.`,
+      "Siguiente senal: cambios en decisiones oficiales, precios o ritmo del conflicto."
+    ],
+    [
+      `Lo central: el desarrollo encaja en ${topic} y puede reordenar expectativas regionales.`,
+      `Fuente para ampliar: ${source}, enlazada para contraste y detalle adicional.`,
+      `Clave LATAM: observar si se mueve ${themes} en los proximos dias.`
+    ],
+    [
+      `Frente abierto: ${sentenceCase(region)} ofrece una senal util para seguir ${topic}.`,
+      `Punto de verificacion: la nota remite a ${source} como referencia principal.`,
+      `Impacto probable: cambios sobre ${themes} antes que efectos abstractos.`
+    ]
+  ];
+  const index = (article.slug.length + source.length) % options.length;
+  return options[index];
+}
+
+function buildBodyParagraphs(article: Article, summary: string, latamAngle: string, conclusionSeed?: string | null): string[] {
+  const summaryFallback = cleanPlainText(summary);
+  const conclusionFallback = cleanPlainText(conclusionSeed || "");
+
+  if (article.content) {
+    const rawParagraphs = cleanPlainText(article.content)
+      .split(/\n+/)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean);
+
+    return uniqueParagraphs(
+      rawParagraphs.filter(
+        (paragraph) =>
+          !isNearDuplicate(paragraph, summaryFallback) && !isNearDuplicate(paragraph, conclusionFallback)
+      )
+    );
+  }
+
+  const editorialSections = article.editorial_sections;
+  const fallbackParagraphs = [
+    editorialSections?.claves_del_dia ?? "",
+    article.editorial_context ?? "",
+    article.latam_angle ?? "",
+    latamAngle
+  ];
+
+  return uniqueParagraphs(
+    fallbackParagraphs.filter(
+      (paragraph) =>
+        paragraph &&
+        !isNearDuplicate(paragraph, summaryFallback) &&
+        !isNearDuplicate(paragraph, conclusionFallback)
+    )
+  ).slice(0, 1);
+}
+
+function buildConclusion(article: Article, topic: string, themes: string, region: string, source: string): string {
+  if (article.editorial_sections?.por_que_importa) {
+    return cleanExcerpt(article.editorial_sections.por_que_importa, article.is_impact ? 420 : 240);
+  }
+
+  const variants = article.is_impact
+    ? [
+        `La conclusion editorial apunta a una idea concreta: ${sentenceCase(topic)} deja de ser un asunto externo cuando empieza a mover ${themes} en America Latina.`,
+        `El valor de esta pieza esta en traducir ${topic} a decisiones concretas para la region, con foco en ${themes}.`,
+        `La lectura final para LATAM no pasa por repetir el titular, sino por seguir como ${topic} puede alterar ${themes}.`
+      ]
+    : [
+        `Para LATAM, el seguimiento util pasa por medir si esta noticia escala, se estabiliza o empieza a modificar ${themes}.`,
+        `La utilidad editorial de esta cobertura esta en conectar el hecho de ${region} con efectos posibles sobre ${themes}.`,
+        `Como cierre, la referencia a ${source} permite seguir el hecho original mientras la lectura regional se concentra en ${themes}.`
+      ];
+  const index = (article.slug.length + topic.length + themes.length) % variants.length;
+  return cleanExcerpt(variants[index], article.is_impact ? 420 : 240);
+}
+
+function buildLatamWorldNewsSummary(article: Article, topic: string, source: string): string {
+  const sections = article.editorial_sections;
+  const constructedCandidates = [
+    `LatamWorldNews resume ${titleWithoutTrailingPeriod(article.title)} como un hecho de ${topic} con actores identificables y una consecuencia inmediata que merece seguimiento.`,
+    `Resumen editorial de ${titleWithoutTrailingPeriod(article.title)}: el eje esta en ${topic}, en los protagonistas del caso y en su relevancia informativa inmediata.`,
+    `LatamWorldNews sintetiza este caso de ${topic} destacando el hecho central, los actores involucrados y la razon por la que sigue abierto.`
+  ];
+  const firstConstructed = constructedCandidates[(article.slug.length + topic.length) % constructedCandidates.length];
+  const additions = distinctAdditions(firstConstructed, [
+    sections?.por_que_importa ?? "",
+    sections?.que_esta_pasando ?? "",
+    article.editorial_context ?? "",
+    `La referencia principal proviene de ${source}.`,
+    `El eje del caso se ubica en ${topic}.`
+  ]);
+
+  return padToMinWords(trimToWordRange(firstConstructed, 20, 40), additions, 20, 40);
+}
+
+function buildCuratedNews(article: Article, summary: string, topic: string, region: string, themes: string, source: string): string {
+  const sections = article.editorial_sections;
+  const candidates = [
+    [sections?.claves_del_dia ?? "", sections?.que_significa_para_america_latina ?? "", sections?.por_que_importa ?? ""],
+    [
+      article.editorial_context ?? "",
+      article.latam_angle ?? "",
+      `La fuente original es ${source}, y el seguimiento editorial se centra en como el desarrollo de ${topic} puede mover ${themes} desde ${region}.`
+    ],
+    [
+      `La cobertura curada ordena el hecho desde tres frentes: contexto, actores y seguimiento abierto.`,
+      `El desarrollo principal se conecta con ${topic} y deja una senal util para lectores que siguen ${region}.`,
+      `La lectura editorial apunta a vigilar si esto altera ${themes} y obliga a nuevas decisiones en los proximos dias.`
+    ]
+  ];
+
+  for (const option of candidates) {
+    const draft = trimToWordRange(option.filter(Boolean).join(" "), 60, 100);
+    const padded = padToMinWords(draft, [
+      `La referencia original en ${source} permite ampliar el contexto.`,
+      `El foco regional esta en como puede cambiar ${themes}.`
+    ], 60, 100);
+    if (wordCount(padded) >= 60 && directionalOverlap(summary, padded) <= 0.3 && !isNearDuplicate(summary, padded)) {
+      return padded;
+    }
+  }
+
+  const fallbackBase = `La noticia curada organiza el caso desde un angulo breve: identifica a los actores principales, ordena el contexto mas util y deja planteado el seguimiento inmediato. La referencia original en ${source} ayuda a ampliar detalles, mientras la lectura editorial concentra la atencion en ${topic}, en su evolucion dentro de ${region} y en cualquier efecto sobre ${themes}.`;
+  const fallback = trimToWordRange(fallbackBase, 60, 100);
+
+  return padToMinWords(
+    fallback,
+    distinctAdditions(fallback, [
+      `El seguimiento posterior conviene hacerlo sobre decisiones oficiales, cambios de contexto y nuevas reacciones de los actores involucrados.`,
+      `Para LatamWorldNews, la utilidad de esta pieza esta en separar el dato principal del ruido y dejar una lectura clara para el lector.`,
+      `El foco editorial tambien queda puesto en si el desarrollo altera ${themes}.`
+    ]),
+    60,
+    100
+  );
+}
+
 function articleLabel(article: Article): string {
   if (article.impact_format === "editorial") {
     return "Editorial Impacto Latinoamerica";
@@ -257,38 +615,18 @@ export function getEditorialBlocks(article: Article): EditorialBlocks {
   const title = titleWithoutTrailingPeriod(article.title);
   const excerpt = cleanExcerpt(article.excerpt, 220) || article.title;
   const body = article.content ? cleanPlainText(article.content) : excerpt;
-  const isEditorial = article.impact_format === "editorial";
   const region = articleRegion(article);
   const regionForSeo = articleRegionForSeo(article);
   const regionForTitle = articleRegionForTitle(article);
   const topic = articleTopic(article);
   const themes = toSentenceList(article.tags);
-  const editorialSections = article.editorial_sections;
-  const summary = cleanExcerpt(
-    editorialSections?.que_esta_pasando ||
-      (article.content
-        ? body
-        : `${excerpt} Esta cobertura curada resume el hecho principal, identifica los actores involucrados y conserva el enlace directo a ${sourceName(article)} para ampliar la lectura.`),
-    article.is_impact ? 360 : 280
-  );
-  const latamAngle = cleanExcerpt(
-    editorialSections?.que_significa_para_america_latina ||
-      article.latam_angle ||
-      `Para America Latina, esta noticia importa por su efecto potencial sobre ${themes}. El seguimiento editorial de LATAM World News prioriza consecuencias practicas para gobiernos, empresas, cadenas de suministro y hogares de la region.`,
-    260
-  );
-  const keyPoints = [
-    `El hecho principal se encuadra en ${topic} y afecta la lectura regional de ${region}.`,
-    `La fuente original citada es ${sourceName(article)}, enlazada para verificacion y contexto adicional.`,
-    `La senal mas relevante para LATAM esta en como este cambio puede mover ${themes}.`
-  ];
-  const conclusion = cleanExcerpt(
-    editorialSections?.por_que_importa ||
-      (article.is_impact
-        ? `${body} Conclusion editorial: el valor de esta pieza esta en traducir una noticia internacional en escenarios concretos para America Latina.`
-        : `${excerpt} En LATAM World News esta nota se publica como cobertura curada: explica el hecho, aporta una lectura regional corta y dirige a la fuente original para la lectura completa.`),
-    article.is_impact ? 420 : 260
-  );
+  const source = sourceName(article);
+  const summary = buildSummary(article, excerpt, body, source);
+  const latamAngle = buildLatamAngle(article, themes, region, topic);
+  const conclusion = buildConclusion(article, topic, themes, region, source);
+  const bodyParagraphs = buildBodyParagraphs(article, summary, latamAngle, conclusion);
+  const latamWorldNewsSummary = buildLatamWorldNewsSummary(article, topic, source);
+  const curatedNews = buildCuratedNews(article, latamWorldNewsSummary, topic, region, themes, source);
   const faqItems = article.is_impact
     ? [
         {
@@ -315,15 +653,11 @@ export function getEditorialBlocks(article: Article): EditorialBlocks {
   return {
     summary,
     latamAngle,
-    keyPoints:
-      isEditorial && editorialSections
-        ? [
-            cleanExcerpt(editorialSections.que_esta_pasando, 180),
-            cleanExcerpt(editorialSections.claves_del_dia, 180),
-            cleanExcerpt(editorialSections.por_que_importa, 180)
-          ]
-        : keyPoints,
+    bodyParagraphs,
+    keyPoints: buildKeyPoints(article, topic, region, themes, source),
     conclusion,
+    latamWorldNewsSummary,
+    curatedNews,
     faqItems,
     seoTitle: article.seo_title || buildAutoSeoTitle(article, title, topic, regionForTitle),
     seoDescription:
@@ -335,6 +669,63 @@ export function getEditorialBlocks(article: Article): EditorialBlocks {
         topic,
         region: regionForSeo
       })
+  };
+}
+
+export function auditEditorialDuplication(
+  article: Article,
+  editorialInput?: EditorialBlocks
+): EditorialDuplicationReport {
+  const editorial = editorialInput ?? getEditorialBlocks(article);
+  const primarySummary = article.is_impact ? editorial.summary : editorial.latamWorldNewsSummary;
+  const primaryCurated = article.is_impact ? editorial.conclusion : editorial.curatedNews;
+  const bodyFirstParagraph = article.is_impact ? editorial.bodyParagraphs[0] ?? "" : "";
+  const repeatedSentences = Array.from(
+    new Set(
+      [article.excerpt, primarySummary, bodyFirstParagraph, primaryCurated]
+        .flatMap((section) => sentenceFragments(section))
+        .filter((sentence, index, all) =>
+          all.some((candidate, candidateIndex) => candidateIndex !== index && isNearDuplicate(sentence, candidate))
+        )
+    )
+  );
+
+  const pairs: EditorialDuplicationPair[] = [];
+  const sections = [
+    { key: "excerpt", value: article.excerpt },
+    { key: "summary", value: primarySummary },
+    { key: "body", value: bodyFirstParagraph },
+    { key: "conclusion", value: primaryCurated }
+  ].filter((section) => cleanPlainText(section.value).length > 0);
+
+  for (let index = 0; index < sections.length; index += 1) {
+    for (let inner = index + 1; inner < sections.length; inner += 1) {
+      const similarity = overlapSimilarity(sections[index].value, sections[inner].value);
+      if (similarity >= 0.72 || isNearDuplicate(sections[index].value, sections[inner].value)) {
+        pairs.push({
+          left: sections[index].key,
+          right: sections[inner].key,
+          similarity: Number(similarity.toFixed(2))
+        });
+      }
+    }
+  }
+
+  if (!article.is_impact) {
+    const summaryOverlap = directionalOverlap(editorial.latamWorldNewsSummary, editorial.curatedNews);
+    if (summaryOverlap > 0.3) {
+      pairs.push({
+        left: "summary",
+        right: "conclusion",
+        similarity: Number(summaryOverlap.toFixed(2))
+      });
+    }
+  }
+
+  return {
+    hasIssues: repeatedSentences.length > 0 || pairs.length > 0,
+    repeatedSentences,
+    flaggedPairs: pairs
   };
 }
 

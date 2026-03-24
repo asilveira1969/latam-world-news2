@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { unstable_cache } from "next/cache";
 import LatinoamericaLayoutV2 from "@/components/v2/LatinoamericaLayoutV2";
 import type { CountryTabCode } from "@/components/v2/v2-placeholders";
 import {
@@ -7,6 +8,7 @@ import {
   parseCountryRegionFilter
 } from "@/lib/data/articles-repo";
 import { buildMetadata } from "@/lib/seo";
+import type { Article } from "@/lib/types/article";
 
 export const metadata: Metadata = buildMetadata({
   title: "Noticias de Latinoamerica: politica, economia y region",
@@ -22,7 +24,20 @@ export const metadata: Metadata = buildMetadata({
   ]
 });
 
-export const revalidate = 300;
+export const revalidate = 3600;
+
+const getCachedLatamArticles = (regionFilter?: Article["region"]) =>
+  unstable_cache(
+    async () => getLatinoamericaArticles(24, regionFilter),
+    ["latam-articles", regionFilter ?? "all"],
+    { revalidate }
+  )();
+
+const getCachedLatamHomeData = unstable_cache(
+  async () => getHomeData(),
+  ["latam-home-data"],
+  { revalidate }
+);
 
 const LATAM_REGIONS = new Set(["LatAm", "UY", "AR", "BR", "MX", "CL"]);
 const COUNTRY_LABELS: Record<CountryTabCode, string> = {
@@ -41,7 +56,7 @@ export default async function LatinoamericaPage({
   const resolvedParams = (await searchParams) ?? {};
   const regionFilter = parseCountryRegionFilter(resolvedParams.region);
   const activeCountry = regionFilter as CountryTabCode | undefined;
-  const articles = await getLatinoamericaArticles(50, regionFilter);
+  const articles = await getCachedLatamArticles(regionFilter);
 
   if (articles.length >= 3) {
     return (
@@ -54,7 +69,7 @@ export default async function LatinoamericaPage({
     );
   }
 
-  const home = await getHomeData();
+  const home = await getCachedLatamHomeData();
   const fallbackLatest =
     articles.length > 0
       ? articles

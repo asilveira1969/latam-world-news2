@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { unstable_cache } from "next/cache";
 import AdSlot from "@/components/AdSlot";
 import Hero from "@/components/Hero";
 import ImpactSection from "@/components/ImpactSection";
@@ -24,10 +25,17 @@ export const metadata: Metadata = buildMetadata({
   ]
 });
 
-export const revalidate = 300;
+export const revalidate = 3600;
+export const dynamic = "force-static";
+
+const getCachedHomeData = unstable_cache(
+  async () => getHomeData(),
+  ["home-page-data"],
+  { revalidate }
+);
 
 export default async function HomePage() {
-  const home = await getHomeData();
+  const home = await getCachedHomeData();
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
