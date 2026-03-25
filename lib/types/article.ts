@@ -35,6 +35,48 @@ export interface EditorialSections {
   por_que_importa: string;
 }
 
+export type ImpactoDraftStatus = "pending_review" | "emailed" | "approved" | "published" | "failed";
+
+export interface ImpactoDraftSourceArticle {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  source_name: string;
+  source_url: string;
+  region: RegionValue;
+  category: string;
+  tags: string[];
+  published_at: string;
+  country?: string | null;
+}
+
+export interface ImpactoEditorialDraft {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  editorial_context?: string | null;
+  editorial_sections: EditorialSections;
+  tags: string[];
+  countries?: string[] | null;
+  source_articles: ImpactoDraftSourceArticle[];
+  source_count: number;
+  status: ImpactoDraftStatus;
+  review_email?: string | null;
+  email_sent_at?: string | null;
+  email_provider?: string | null;
+  email_message_id?: string | null;
+  model?: string | null;
+  generated_at: string;
+  approved_at?: string | null;
+  published_article_slug?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Article {
   id: string;
   title: string;
