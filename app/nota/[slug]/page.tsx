@@ -15,6 +15,7 @@ import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { getCountryLabel, normalizeCountry, toTopicSlug } from "@/lib/hubs";
 import { buildBreadcrumbJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
+import { formatPublicTagLabel } from "@/lib/sources";
 type NotePageProps = {
   params: Promise<{ slug: string }>;
 };
@@ -96,8 +97,13 @@ export default async function NotaPage({ params }: NotePageProps) {
   ]);
   const jsonLd = buildNewsArticleJsonLd(article, `/nota/${article.slug}`, related);
   const topicLinks = [...new Set(article.tags.filter(Boolean))]
+    .map((tag) => ({
+      rawTag: tag,
+      publicLabel: formatPublicTagLabel(tag)
+    }))
+    .filter((tag) => tag.publicLabel && !tag.rawTag.trim().toLowerCase().startsWith("rss-"))
     .slice(0, 3)
-    .map((tag) => ({ href: `/tema/${toTopicSlug(tag)}`, label: `Tema: ${tag}` }));
+    .map((tag) => ({ href: `/tema/${toTopicSlug(tag.publicLabel)}`, label: `Tema: ${tag.publicLabel}` }));
   const countrySeeds = [article.country, ...(article.countries ?? []), displayMeta.countrySlug]
     .map((country) => normalizeCountry(country))
     .filter((country): country is string => Boolean(country));
