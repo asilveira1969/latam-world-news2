@@ -10,6 +10,7 @@ import TrackedExternalLink from "@/components/TrackedExternalLink";
 import ViewTracker from "@/components/ViewTracker";
 import { getEditorialBlocks } from "@/lib/article-seo";
 import { getArticleBySlug, getRelatedArticles } from "@/lib/data/articles-repo";
+import { hasEnoughEditorialSourceMaterial } from "@/lib/editorial-agent-enrichment";
 import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { getCountryLabel, normalizeCountry, toTopicSlug } from "@/lib/hubs";
 import { buildBreadcrumbJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
@@ -76,8 +77,9 @@ export default async function NotaPage({ params }: NotePageProps) {
   }
 
   const editorial = getEditorialBlocks(article);
-  const persistedSummary = article.latamworldnews_summary?.trim() || editorial.latamWorldNewsSummary;
-  const persistedCurated = article.curated_news?.trim() || editorial.curatedNews;
+  const canShowEditorialBlocks = hasEnoughEditorialSourceMaterial(article);
+  const persistedSummary = canShowEditorialBlocks ? article.latamworldnews_summary?.trim() ?? "" : "";
+  const persistedCurated = canShowEditorialBlocks ? article.curated_news?.trim() ?? "" : "";
   const related = await getRelatedArticles(article, 4);
   const displayMeta = getArticleDisplayMeta(article);
   const sectionLabel = displayMeta.sectionLabel;
@@ -138,12 +140,14 @@ export default async function NotaPage({ params }: NotePageProps) {
           <NewsImage src={article.image_url} alt={article.title} sizes="100vw" className="object-cover" />
         </div>
 
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-stone-50/80 p-5 sm:p-6">
-          <div>
-            <h2 className="text-lg font-bold text-brand">Resumen LatamWorldNews</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-700">{persistedSummary}</p>
-          </div>
-        </section>
+        {persistedSummary ? (
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-stone-50/80 p-5 sm:p-6">
+            <div>
+              <h2 className="text-lg font-bold text-brand">Resumen LatamWorldNews</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{persistedSummary}</p>
+            </div>
+          </section>
+        ) : null}
 
         {topicLinks.length > 0 || countryLinks.length > 0 ? (
           <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
@@ -174,8 +178,20 @@ export default async function NotaPage({ params }: NotePageProps) {
         ) : null}
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-          <h2 className="text-lg font-bold text-brand">Noticia curada por LatamWorldNews</h2>
-          <p className="mt-3 leading-7 text-slate-800">{persistedCurated}</p>
+          {persistedCurated ? (
+            <>
+              <h2 className="text-lg font-bold text-brand">Noticia curada por LatamWorldNews</h2>
+              <p className="mt-3 leading-7 text-slate-800">{persistedCurated}</p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-lg font-bold text-brand">Fuente original</h2>
+              <p className="mt-3 leading-7 text-slate-800">
+                Esta nota conserva el enlace directo a la fuente original porque el material recibido no trae suficiente
+                contexto para una curaduria editorial propia sin caer en texto generico.
+              </p>
+            </>
+          )}
 
           <TrackedExternalLink
             href={article.source_url}

@@ -81,6 +81,38 @@ function isLatamRegion(value: string): boolean {
   return LATAM_REGION_VALUES.includes(value as (typeof LATAM_REGION_VALUES)[number]);
 }
 
+function isExcludedElPaisArticle(article: Pick<Article, "source_name" | "source_url">): boolean {
+  const sourceName = article.source_name.trim().toLowerCase();
+  const sourceUrl = article.source_url.trim();
+
+  if (!sourceUrl) {
+    return false;
+  }
+
+  const isElPais =
+    sourceName === "el pais" ||
+    sourceName === "el pais espana" ||
+    sourceName === "el paÃ­s espaÃ±a";
+
+  if (!isElPais) {
+    return false;
+  }
+
+  try {
+    const pathname = new URL(sourceUrl).pathname
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    return pathname.includes("/escaparate/") || pathname.includes("/opinion/");
+  } catch {
+    const normalizedUrl = sourceUrl
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    return normalizedUrl.includes("/escaparate/") || normalizedUrl.includes("/opinion/");
+  }
+}
+
 function isDisplayableArticle(article: Article): boolean {
   const combined = `${article.title}\n${article.excerpt}\n${article.source_name}`;
   if (looksLikeSystemError(combined)) {
@@ -93,6 +125,9 @@ function isDisplayableArticle(article: Article): boolean {
     return false;
   }
   if (article.title.trim().length < 8) {
+    return false;
+  }
+  if (isExcludedElPaisArticle(article)) {
     return false;
   }
   return true;

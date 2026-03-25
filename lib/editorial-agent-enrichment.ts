@@ -38,11 +38,26 @@ type EnrichmentInput = Pick<
 >;
 
 const DEFAULT_MODEL = process.env.OPENAI_EDITORIAL_MODEL || "gpt-5-mini";
+const MIN_EXCERPT_WORDS = 18;
+const MIN_CONTENT_WORDS = 80;
+const MIN_COMBINED_WORDS = 30;
 
 function wordCount(input: string): number {
   return cleanPlainText(input)
     .split(/\s+/)
     .filter(Boolean).length;
+}
+
+export function hasEnoughEditorialSourceMaterial(article: Pick<Article, "excerpt" | "content">): boolean {
+  const excerptWords = wordCount(article.excerpt ?? "");
+  const contentWords = wordCount(article.content ?? "");
+  const combinedWords = wordCount(`${article.excerpt ?? ""} ${article.content ?? ""}`);
+
+  if (contentWords >= MIN_CONTENT_WORDS) {
+    return true;
+  }
+
+  return excerptWords >= MIN_EXCERPT_WORDS && combinedWords >= MIN_COMBINED_WORDS;
 }
 
 function normalizeForComparison(input: string): string[] {
@@ -159,6 +174,10 @@ function buildPrompt(article: EnrichmentInput): string {
 }
 
 export async function generateEditorialWithAgent(article: EnrichmentInput): Promise<EditorialAgentResult> {
+  if (!hasEnoughEditorialSourceMaterial(article)) {
+    throw new Error("Insufficient source material for editorial enrichment.");
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is missing.");

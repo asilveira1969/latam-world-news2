@@ -108,6 +108,38 @@ function normalizeCategoryText(value: string): string {
     .toLowerCase();
 }
 
+function shouldExcludeRssItem(
+  item: ParsedRssItem,
+  sourceConfig: Pick<MundoRssSource, "name" | "region" | "tag">
+): boolean {
+  const sourceUrl = item.link?.trim();
+
+  if (!sourceUrl) {
+    return false;
+  }
+
+  if (sourceConfig.tag === "rss-elpais") {
+    try {
+      const pathname = new URL(sourceUrl).pathname
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+
+      if (pathname.includes("/escaparate/") || pathname.includes("/opinion/")) {
+        return true;
+      }
+    } catch {
+      const normalizedUrl = sourceUrl
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      return normalizedUrl.includes("/escaparate/") || normalizedUrl.includes("/opinion/");
+    }
+  }
+
+  return false;
+}
+
 function resolveRssCategory(item: ParsedRssItem): string {
   const feedCategory = (item.categories ?? [])
     .map((category) => cleanPlainText(category))
@@ -170,7 +202,7 @@ export function normalizeRssItems(
 ): NormalizedArticleInput[] {
   const now = new Date().toISOString();
 
-  return items.map((item, index) => {
+  return items.filter((item) => !shouldExcludeRssItem(item, sourceConfig)).map((item, index) => {
     const cleanedTitle = cleanPlainText(item.title || "");
     const safeTitle =
       cleanedTitle && !looksCorruptedText(cleanedTitle)
