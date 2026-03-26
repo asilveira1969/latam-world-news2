@@ -21,11 +21,21 @@ function parseLimit(argv: string[]): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function parseOffset(argv: string[]): number {
+  const raw = argv.find((arg) => arg.startsWith("--offset="));
+  if (!raw) {
+    return 0;
+  }
+
+  const parsed = Number(raw.split("=")[1]);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 function hasFlag(argv: string[], flag: string): boolean {
   return argv.includes(flag);
 }
 
-async function fetchAllRows(limit: number | null) {
+async function fetchAllRows(limit: number | null, offsetStart: number) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
@@ -34,10 +44,11 @@ async function fetchAllRows(limit: number | null) {
 
   const supabase = createClient(url, key, { auth: { persistSession: false } });
   const rows: Record<string, unknown>[] = [];
-  let offset = 0;
+  let offset = offsetStart;
+  let remaining = limit;
 
   while (true) {
-    const upperBound = limit ? Math.min(offset + BATCH_SIZE - 1, limit - 1) : offset + BATCH_SIZE - 1;
+    const upperBound = remaining ? Math.min(offset + BATCH_SIZE - 1, offset + remaining - 1) : offset + BATCH_SIZE - 1;
     const { data, error } = await supabase
       .from("articles")
       .select("*")
@@ -55,7 +66,11 @@ async function fetchAllRows(limit: number | null) {
 
     rows.push(...batch);
 
-    if (batch.length < BATCH_SIZE || (limit && rows.length >= limit)) {
+    if (remaining !== null) {
+      remaining -= batch.length;
+    }
+
+    if (batch.length < BATCH_SIZE || (remaining !== null && remaining <= 0)) {
       break;
     }
 
@@ -68,8 +83,9 @@ async function fetchAllRows(limit: number | null) {
 async function main() {
   const argv = process.argv.slice(2);
   const limit = parseLimit(argv);
+  const offset = parseOffset(argv);
   const dryRun = hasFlag(argv, "--dry-run");
-  const { supabase, rows } = await fetchAllRows(limit);
+  const { supabase, rows } = await fetchAllRows(limit, offset);
 
   let updated = 0;
   let unchanged = 0;
@@ -163,6 +179,7 @@ async function main() {
     JSON.stringify(
       {
         processed: rows.length,
+        offset,
         updated,
         unchanged,
         failed,
