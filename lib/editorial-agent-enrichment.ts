@@ -1,10 +1,12 @@
 import { cleanPlainText } from "@/lib/text/clean";
+import { fetchSourceArticleContent } from "@/lib/source-content";
 import type { Article } from "@/lib/types/article";
 
 export type EditorialAgentResult = {
   latamworldnews_summary: string;
   curated_news: string;
   model: string;
+  source_content?: string | null;
 };
 
 type ResponsesApiSuccess = {
@@ -174,7 +176,18 @@ function buildPrompt(article: EnrichmentInput): string {
 }
 
 export async function generateEditorialWithAgent(article: EnrichmentInput): Promise<EditorialAgentResult> {
-  if (!hasEnoughEditorialSourceMaterial(article)) {
+  let sourceContent = article.content ?? null;
+
+  if (!hasEnoughEditorialSourceMaterial({ excerpt: article.excerpt, content: sourceContent })) {
+    sourceContent = await fetchSourceArticleContent(article.source_url);
+  }
+
+  const enrichedArticle = {
+    ...article,
+    content: sourceContent
+  };
+
+  if (!hasEnoughEditorialSourceMaterial(enrichedArticle)) {
     throw new Error("Insufficient source material for editorial enrichment.");
   }
 
@@ -215,7 +228,7 @@ export async function generateEditorialWithAgent(article: EnrichmentInput): Prom
         },
         {
           role: "user",
-          content: buildPrompt(article)
+          content: buildPrompt(enrichedArticle)
         }
       ]
     })
@@ -243,12 +256,13 @@ export async function generateEditorialWithAgent(article: EnrichmentInput): Prom
   }
 
   const validated = validateEditorialAgentResult({
-    article,
+    article: enrichedArticle,
     result: parsed
   });
 
   return {
     ...validated,
-    model: payload.model || DEFAULT_MODEL
+    model: payload.model || DEFAULT_MODEL,
+    source_content: sourceContent
   };
 }

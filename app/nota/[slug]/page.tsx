@@ -10,7 +10,6 @@ import TrackedExternalLink from "@/components/TrackedExternalLink";
 import ViewTracker from "@/components/ViewTracker";
 import { getEditorialBlocks } from "@/lib/article-seo";
 import { getArticleBySlug, getRelatedArticles } from "@/lib/data/articles-repo";
-import { hasEnoughEditorialSourceMaterial } from "@/lib/editorial-agent-enrichment";
 import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { getCountryLabel, normalizeCountry, toTopicSlug } from "@/lib/hubs";
 import { buildBreadcrumbJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
@@ -78,9 +77,8 @@ export default async function NotaPage({ params }: NotePageProps) {
   }
 
   const editorial = getEditorialBlocks(article);
-  const canShowEditorialBlocks = hasEnoughEditorialSourceMaterial(article);
-  const persistedSummary = canShowEditorialBlocks ? article.latamworldnews_summary?.trim() ?? "" : "";
-  const persistedCurated = canShowEditorialBlocks ? article.curated_news?.trim() ?? "" : "";
+  const persistedSummary = article.latamworldnews_summary?.trim() ?? "";
+  const persistedCurated = article.curated_news?.trim() ?? "";
   const related = await getRelatedArticles(article, 4);
   const displayMeta = getArticleDisplayMeta(article);
   const sectionLabel = displayMeta.sectionLabel;

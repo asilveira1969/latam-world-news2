@@ -5,6 +5,7 @@ export interface ParsedRssItem {
   link: string;
   pubDate: string;
   excerpt: string;
+  content?: string;
   imageUrl?: string;
   categories?: string[];
 }
@@ -89,8 +90,9 @@ export function parseRss(xml: string): ParsedRssItem[] {
         pubDate: pickText(value.pubDate) || new Date().toISOString(),
         excerpt:
           pickText(value.description) ||
-          pickText(value["content:encoded"]) ||
+          pickText(value.summary) ||
           "Actualizacion internacional.",
+        content: pickText(value["content:encoded"]) || pickText(value.description) || "",
         imageUrl:
           pickText(enclosure?.["@_url"]) ||
           pickText(mediaContent?.["@_url"]) ||
@@ -124,6 +126,7 @@ export function parseRss(xml: string): ParsedRssItem[] {
         link: pickText(atomLink),
         pubDate: pickText(value.updated) || pickText(value.published) || new Date().toISOString(),
         excerpt: pickText(value.summary) || "Actualizacion internacional.",
+        content: pickText(value.content) || pickText(value.summary) || "",
         categories: pickAtomCategoryTerms(value.category)
       };
     });

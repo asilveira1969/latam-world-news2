@@ -211,12 +211,13 @@ export function normalizeRssItems(
     const slugBase = slugify(safeTitle || `nota-${index + 1}`);
     const sourceUrl = item.link || `https://example.com/${slugBase}-${index + 1}`;
     const cleanedExcerpt = cleanExcerpt(item.excerpt || "", 180);
+    const cleanedContent = cleanPlainText(item.content || "");
     const category = resolveRssCategory(item);
     return {
       title: safeTitle,
       slug: makeDeterministicSlug(safeTitle, sourceUrl),
       excerpt: truncateExcerpt(cleanedExcerpt || "Actualizacion internacional.", 180),
-      content: null,
+      content: cleanedContent.length > 40 ? cleanedContent : null,
       image_url: item.imageUrl && isValidHttpUrl(item.imageUrl) ? item.imageUrl : "",
       source_name: sourceConfig.name,
       source_url: sourceUrl,

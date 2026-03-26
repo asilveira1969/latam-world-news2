@@ -39,6 +39,7 @@ export async function GET(request: Request) {
       const { error: updateError } = await supabase
         .from("articles")
         .update({
+          content: result.source_content ?? row.content,
           latamworldnews_summary: result.latamworldnews_summary,
           curated_news: result.curated_news,
           editorial_status: "ready",

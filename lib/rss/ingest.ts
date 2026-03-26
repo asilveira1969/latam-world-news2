@@ -5,6 +5,8 @@ import { normalizeRssItems } from "@/lib/rss/normalize";
 import { extractOgImage } from "@/lib/rss/extract-og-image";
 import { isValidHttpUrl } from "@/lib/images";
 import { getEnabledMundoRssSources } from "@/lib/sources";
+import { fetchSourceArticleContent } from "@/lib/source-content";
+import { hasEnoughEditorialSourceMaterial } from "@/lib/editorial-agent-enrichment";
 
 type RssIngestSourceResult = {
   sourceId: string;
@@ -106,6 +108,13 @@ export async function runMundoRssIngestion(): Promise<RssIngestSummary> {
           article.image_url = ogImage && isValidHttpUrl(ogImage)
             ? ogImage
             : "https://picsum.photos/seed/rss-fallback/1200/675";
+        }
+
+        if (!hasEnoughEditorialSourceMaterial(article)) {
+          const sourceContent = await fetchSourceArticleContent(article.source_url);
+          if (sourceContent) {
+            article.content = sourceContent;
+          }
         }
       }
 
