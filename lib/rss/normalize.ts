@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Article } from "@/lib/types/article";
+import { deriveIngestionTaxonomy } from "@/lib/article-taxonomy";
 import { isValidHttpUrl } from "@/lib/images";
 import type { ParsedRssItem } from "@/lib/rss/parse-rss";
 import { truncateExcerpt } from "@/lib/ranking";
@@ -213,17 +214,29 @@ export function normalizeRssItems(
     const cleanedExcerpt = cleanExcerpt(item.excerpt || "", 180);
     const cleanedContent = cleanPlainText(item.content || "");
     const category = resolveRssCategory(item);
+    const taxonomy = deriveIngestionTaxonomy({
+      title: safeTitle,
+      excerpt: cleanedExcerpt || "Actualizacion internacional.",
+      content: cleanedContent || null,
+      source_name: sourceConfig.name,
+      region: sourceConfig.region,
+      category,
+      tags: ["internacional", "rss", "mundo-rss", sourceConfig.tag]
+    });
     return {
       title: safeTitle,
       slug: makeDeterministicSlug(safeTitle, sourceUrl),
       excerpt: truncateExcerpt(cleanedExcerpt || "Actualizacion internacional.", 180),
       content: cleanedContent.length > 40 ? cleanedContent : null,
+      topic_slug: taxonomy.topic_slug,
+      section_slug: taxonomy.section_slug,
       image_url: item.imageUrl && isValidHttpUrl(item.imageUrl) ? item.imageUrl : "",
       source_name: sourceConfig.name,
       source_url: sourceUrl,
       region: sourceConfig.region,
+      country: taxonomy.country,
       category,
-      tags: ["internacional", "rss", "mundo-rss", sourceConfig.tag],
+      tags: taxonomy.tags,
       published_at: new Date(item.pubDate || now).toISOString(),
       is_featured: false,
       is_impact: false,

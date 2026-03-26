@@ -89,12 +89,58 @@ function toTitleCaseWords(value: string): string {
     .join(" ");
 }
 
+const GENERIC_TOPIC_SLUGS = new Set(["internacional", "mundo", "latam", "america-latina"]);
+
+export function normalizeTopicSlug(input: string | null | undefined): string | null {
+  if (!input) {
+    return null;
+  }
+
+  const normalized = cleanPlainText(String(input))
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+  return normalized || null;
+}
+
 export function toTopicSlug(value: string): string {
-  return cleanPlainText(value).toLowerCase().replace(/\s+/g, "-");
+  return normalizeTopicSlug(value) ?? "";
 }
 
 export function getTopicLabel(slug: string): string {
   return decodeURIComponent(slug).replace(/-/g, " ");
+}
+
+export function isGenericTopicSlug(slug: string | null | undefined): boolean {
+  return slug ? GENERIC_TOPIC_SLUGS.has(slug) : false;
+}
+
+export function getPrimaryTopicSlug(input: {
+  topic?: string | null;
+  tags?: string[] | null;
+  category?: string | null;
+}): string | null {
+  const explicitTopic = normalizeTopicSlug(input.topic);
+  if (explicitTopic && !isGenericTopicSlug(explicitTopic)) {
+    return explicitTopic;
+  }
+
+  for (const tag of input.tags ?? []) {
+    const normalizedTag = normalizeTopicSlug(tag);
+    if (normalizedTag && !isGenericTopicSlug(normalizedTag)) {
+      return normalizedTag;
+    }
+  }
+
+  const categoryTopic = normalizeTopicSlug(input.category);
+  if (categoryTopic && !isGenericTopicSlug(categoryTopic)) {
+    return categoryTopic;
+  }
+
+  return null;
 }
 
 export function normalizeCountry(input: string | null | undefined): string | null {

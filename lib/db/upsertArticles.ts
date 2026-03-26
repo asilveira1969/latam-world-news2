@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
 import type { NormalizedArticle, UpsertArticlesResult } from "@/lib/types";
+import {
+  createEmptyTaxonomyQualitySummary,
+  finalizeArticleTaxonomy,
+  logTaxonomyQualitySummary,
+  summarizeTaxonomyQuality
+} from "@/lib/article-taxonomy";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 
 const MAX_EXCERPT_LENGTH = 280;
@@ -62,17 +68,19 @@ function mapNormalizedArticleToRow(article: NormalizedArticle) {
     published_at: publishedAt,
     source: article.source_name,
     source_type: "api",
-    country: article.region.toLowerCase(),
+    country: article.country,
     language: article.language,
     raw: article.raw,
     source_url: article.source_url,
     source_name: article.source_name,
     excerpt,
-    content: null as string | null,
+    content: article.content,
     slug: makeDeterministicSlug(article.title, article.source_url),
     region: article.region,
-    category: "Geopolitica",
-    tags: ["aggregator", "newsdata", article.region.toLowerCase()]
+    category: article.category,
+    tags: article.tags,
+    topic_slug: article.topic_slug,
+    section_slug: article.section_slug
   };
 }
 
@@ -109,12 +117,29 @@ async function getExistingSourceUrls(sourceUrls: string[]): Promise<Set<string>>
 export async function upsertArticles(articles: NormalizedArticle[]): Promise<UpsertArticlesResult> {
   const { unique, duplicates } = dedupeBySourceUrl(articles);
   if (unique.length === 0) {
-    return { inserted: 0, updated: 0, skipped: duplicates };
+    return { inserted: 0, updated: 0, skipped: duplicates, taxonomy: createEmptyTaxonomyQualitySummary() };
   }
 
-  const sourceUrls = unique.map((article) => article.source_url);
+  const validatedArticles = unique.map((article) =>
+    finalizeArticleTaxonomy(
+      {
+        ...article,
+        excerpt: article.summary ?? article.title
+      },
+      "api"
+    )
+  );
+  const taxonomy = summarizeTaxonomyQuality(validatedArticles);
+  const sourceLabel = validatedArticles[0]?.source_name ?? "api-batch";
+  logTaxonomyQualitySummary({
+    sourceType: "api",
+    sourceName: sourceLabel,
+    taxonomy
+  });
+
+  const sourceUrls = validatedArticles.map((article) => article.source_url);
   const existingSourceUrls = await getExistingSourceUrls(sourceUrls);
-  const rows = unique.map(mapNormalizedArticleToRow);
+  const rows = validatedArticles.map(mapNormalizedArticleToRow);
 
   const supabase = getSupabaseServiceClient();
   const { error } = await supabase.from("articles").upsert(rows, {
@@ -138,6 +163,7 @@ export async function upsertArticles(articles: NormalizedArticle[]): Promise<Ups
   return {
     inserted,
     updated,
-    skipped: duplicates
+    skipped: duplicates,
+    taxonomy
   };
 }

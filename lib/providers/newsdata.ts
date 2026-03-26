@@ -82,8 +82,11 @@ export async function fetchNewsdataArticles(
         source_url: item.link ?? item.url,
         published_at: item.pubDate ?? item.published_at ?? item.publishedAt,
         summary: item.description ?? item.content ?? item.snippet,
+        content: item.content ?? item.description ?? item.snippet,
         image_url: item.image_url ?? item.imageUrl,
         source_name: item.source_name ?? item.source_id ?? "NewsData",
+        category: item.category,
+        tags: item.keywords ?? item.category ?? item.ai_tag,
         region: source.region,
         language: source.language,
         raw: item

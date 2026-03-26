@@ -20,6 +20,7 @@ import {
 import { hasUsableRemoteImage, resolveCardImage } from "@/lib/images";
 import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { formatSourceDisplayName } from "@/lib/sources";
+import { deriveSectionSlug } from "@/lib/article-taxonomy";
 import {
   cleanExcerpt,
   cleanPlainText,
@@ -28,6 +29,7 @@ import {
 } from "@/lib/text/clean";
 import {
   getCountryRegionCode,
+  getPrimaryTopicSlug,
   normalizeCountry,
   isLatamCountryCode,
   toTopicSlug
@@ -53,6 +55,9 @@ const INTERNAL_TAGS = new Set([
   "rss-dw-es"
 ]);
 const GENERIC_TOPIC_TAGS = new Set(["internacional", "mundo", "latam", "america-latina"]);
+const ARTICLE_SELECT_FIELDS = "*";
+const SITEMAP_ARTICLE_SELECT_FIELDS =
+  "id, title, slug, excerpt, summary, content, latamworldnews_summary, curated_news, topic_slug, section_slug, image_url, source_name, source_url, region, country, category, tags, countries, impact_format, published_at, created_at, is_featured, is_impact, views";
 
 export interface MundoSourceSummary {
   sourceName: string;
@@ -156,7 +161,7 @@ function sanitizeCountryList(value: unknown): string[] | null {
   return countries.length > 0 ? [...new Set(countries)] : null;
 }
 
-function mapRecordToArticle(record: Record<string, unknown>): Article {
+export function mapRecordToArticle(record: Record<string, unknown>): Article {
   const rawTitle = String(record.title ?? "");
   const title = cleanPlainText(rawTitle) || "Actualizacion internacional";
   const rawExcerpt = String(record.summary ?? record.excerpt ?? "");
@@ -172,6 +177,15 @@ function mapRecordToArticle(record: Record<string, unknown>): Article {
       : "Mundo");
   const sourceNameInput = String(record.source ?? record.source_name ?? "Fuente externa");
   const sourceUrlInput = String(record.url ?? record.source_url ?? "#");
+  const tags = sanitizeArticleTags(record.tags);
+  const category = cleanPlainText(String(record.category ?? "Geopolitica")) || "Geopolitica";
+  const topicSlug =
+    getPrimaryTopicSlug({
+      topic: String(record.topic_slug ?? ""),
+      tags,
+      category
+    }) ?? null;
+  const sectionSlugInput = cleanPlainText(String(record.section_slug ?? ""));
 
   return {
     id: String(record.id ?? crypto.randomUUID()),
@@ -179,6 +193,20 @@ function mapRecordToArticle(record: Record<string, unknown>): Article {
     slug: String(record.slug ?? ""),
     excerpt,
     content: rawContent ? cleanPlainText(rawContent) : null,
+    topic_slug: topicSlug,
+    section_slug: sectionSlugInput || deriveSectionSlug({
+      is_impact: Boolean(record.is_impact),
+      impact_format:
+        record.impact_format === "editorial" ||
+        record.impact_format === "analysis" ||
+        record.impact_format === "opinion" ||
+        record.impact_format === "columnist"
+          ? (record.impact_format as Article["impact_format"])
+          : Boolean(record.is_impact)
+            ? "analysis"
+            : null,
+      region: derivedRegion
+    }),
     latamworldnews_summary: record.latamworldnews_summary
       ? cleanExcerpt(String(record.latamworldnews_summary), 320)
       : null,
@@ -211,8 +239,8 @@ function mapRecordToArticle(record: Record<string, unknown>): Article {
     source_url: sourceUrlInput || "#",
     region: derivedRegion,
     country,
-    category: cleanPlainText(String(record.category ?? "Geopolitica")) || "Geopolitica",
-    tags: sanitizeArticleTags(record.tags),
+    category,
+    tags,
     countries: sanitizeCountryList(record.countries),
     impact_format:
       record.impact_format === "editorial" ||
@@ -263,31 +291,58 @@ function filterBySection(articles: Article[], section: SectionKey): Article[] {
   return articles.filter((article) => !article.is_impact && article.region === regionValue);
 }
 
+async function fetchAllArticleRecords(selectFields = ARTICLE_SELECT_FIELDS): Promise<Record<string, unknown>[]> {
+  if (!hasSupabaseAnonEnv) {
+    return [];
+  }
+
+  const batchSize = 200;
+  const records: Record<string, unknown>[] = [];
+  let from = 0;
+
+  while (true) {
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("articles")
+      .select(selectFields)
+      .order("published_at", { ascending: false })
+      .range(from, from + batchSize - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const batch = (data ?? []) as unknown as Record<string, unknown>[];
+    if (batch.length === 0) {
+      break;
+    }
+
+    records.push(...batch);
+
+    if (batch.length < batchSize) {
+      break;
+    }
+
+    from += batchSize;
+  }
+
+  return records;
+}
+
 async function fetchAllArticlesFromSource(): Promise<Article[]> {
   if (!hasSupabaseAnonEnv) {
     return mockArticles;
   }
 
   try {
-    const supabase = getSupabaseServerClient();
-    const { data, error } = await supabase
-      .from("articles")
-      .select("*")
-      .order("published_at", { ascending: false })
-      .limit(50);
-
-    if (error) {
-      console.error("Supabase read failed, using mock data:", error.message);
-      return mockArticles;
-    }
-
-    const mapped = (data ?? []).map((record: Record<string, unknown>) =>
+    const data = await fetchAllArticleRecords();
+    const mapped = data.map((record: Record<string, unknown>) =>
       mapRecordToArticle(record)
     );
     if (mapped.length === 0) {
       return mockArticles;
     }
-      return mergeWithManualArticles(mapped);
+    return mergeWithManualArticles(mapped);
   } catch (error) {
     console.error("Supabase read failed, using mock data:", error);
     return mockArticles;
@@ -690,8 +745,13 @@ export async function searchArticles(query: string, limit = 30): Promise<Article
       const haystack = [
         article.title,
         article.excerpt,
+        article.latamworldnews_summary ?? "",
+        article.curated_news ?? "",
         article.category,
         article.region,
+        article.country ?? "",
+        article.topic_slug ?? "",
+        article.section_slug ?? "",
         article.tags.join(" ")
       ]
         .join(" ")
@@ -780,7 +840,9 @@ export async function getSitemapHubs(): Promise<
   for (const article of all) {
     const modifiedAt = new Date(article.published_at || article.created_at).getTime();
 
-    for (const tag of article.tags) {
+    const topicSeeds = article.topic_slug ? [article.topic_slug, ...article.tags] : article.tags;
+
+    for (const tag of topicSeeds) {
       const slug = toTopicSlug(tag);
       if (!slug || GENERIC_TOPIC_TAGS.has(slug)) {
         continue;
@@ -846,19 +908,8 @@ async function getSitemapEligibleArticles(): Promise<Article[]> {
   }
 
   try {
-    const supabase = getSupabaseServerClient();
-    const { data, error } = await supabase
-      .from("articles")
-      .select("id, title, slug, excerpt, content, image_url, source_name, source_url, region, country, category, tags, countries, impact_format, published_at, created_at, is_featured, is_impact, views")
-      .order("published_at", { ascending: false })
-      .limit(50);
-
-    if (error) {
-      console.error("Supabase sitemap read failed, falling back to full article loader:", error.message);
-      return getAllArticles();
-    }
-
-    return (data ?? [])
+    const data = await fetchAllArticleRecords(SITEMAP_ARTICLE_SELECT_FIELDS);
+    return data
       .map((record: Record<string, unknown>) => mapRecordToArticle(record))
       .filter(isDisplayableArticle);
   } catch (error) {
@@ -872,6 +923,7 @@ export async function getArticlesByTag(tag: string, limit = 24): Promise<Article
   const all = await getAllArticles();
   return all
     .filter((article) =>
+      article.topic_slug === normalized ||
       article.tags.some((item) => item === normalized || item.replace(/\s+/g, "-") === normalized)
     )
     .slice(0, limit);
@@ -936,6 +988,9 @@ export async function getRelatedArticles(article: Article, limit = 4): Promise<A
       }
       const sharedTags = candidate.tags.filter((tag) => article.tags.includes(tag)).length;
       score += sharedTags * 2;
+      if (candidate.topic_slug && article.topic_slug && candidate.topic_slug === article.topic_slug) {
+        score += 3;
+      }
       const candidateCountries = new Set<string>();
       const candidatePrimaryCountry = normalizeCountry(candidate.country);
       if (candidatePrimaryCountry) {

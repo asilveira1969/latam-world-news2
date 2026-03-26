@@ -2,6 +2,7 @@ import { getEnabledSources } from "@/lib/sources";
 import type { IngestRunSummary } from "@/lib/types";
 import { fetchNewsdataArticles } from "@/lib/providers/newsdata";
 import { upsertArticles } from "@/lib/db/upsertArticles";
+import { createEmptyTaxonomyQualitySummary } from "@/lib/article-taxonomy";
 
 export async function runIngestion(): Promise<IngestRunSummary> {
   const summary: IngestRunSummary = {
@@ -11,6 +12,7 @@ export async function runIngestion(): Promise<IngestRunSummary> {
     inserted: 0,
     updated: 0,
     skipped: 0,
+    taxonomy: createEmptyTaxonomyQualitySummary(),
     errors: [],
     sourceResults: []
   };
@@ -36,6 +38,7 @@ export async function runIngestion(): Promise<IngestRunSummary> {
         inserted: result.inserted,
         updated: result.updated,
         skipped: result.skipped,
+        taxonomy: result.taxonomy,
         duration_ms: Date.now() - startedAt,
         status: "ok",
         error: null
@@ -44,6 +47,11 @@ export async function runIngestion(): Promise<IngestRunSummary> {
       summary.inserted += result.inserted;
       summary.updated += result.updated;
       summary.skipped += result.skipped;
+      summary.taxonomy.articles_without_country += result.taxonomy.articles_without_country;
+      summary.taxonomy.articles_without_topic += result.taxonomy.articles_without_topic;
+      summary.taxonomy.articles_without_section += result.taxonomy.articles_without_section;
+      summary.taxonomy.articles_with_fallback_taxonomy += result.taxonomy.articles_with_fallback_taxonomy;
+      summary.taxonomy.taxonomy_inconsistent += result.taxonomy.taxonomy_inconsistent;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unknown ingestion error.";
@@ -56,6 +64,7 @@ export async function runIngestion(): Promise<IngestRunSummary> {
         inserted: 0,
         updated: 0,
         skipped: 0,
+        taxonomy: createEmptyTaxonomyQualitySummary(),
         duration_ms: Date.now() - startedAt,
         status: "failed",
         error: message

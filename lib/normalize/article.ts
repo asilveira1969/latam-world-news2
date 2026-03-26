@@ -1,5 +1,7 @@
 import type { IngestLanguage, IngestRegion, NormalizedArticle } from "@/lib/types";
+import { deriveIngestionTaxonomy } from "@/lib/article-taxonomy";
 import { formatSourceDisplayName } from "@/lib/sources";
+import { cleanPlainText } from "@/lib/text/clean";
 
 function firstNonEmptyString(values: unknown[]): string | null {
   for (const value of values) {
@@ -11,6 +13,17 @@ function firstNonEmptyString(values: unknown[]): string | null {
     }
   }
   return null;
+}
+
+function toStringList(value: unknown): string[] {
+  if (!value) {
+    return [];
+  }
+
+  const values = Array.isArray(value) ? value : [value];
+  return values
+    .map((item) => cleanPlainText(String(item)).toLowerCase())
+    .filter(Boolean);
 }
 
 function isValidHttpUrl(value: string): boolean {
@@ -38,8 +51,11 @@ export function normalizeArticle(input: {
   source_url: unknown;
   published_at: unknown;
   summary: unknown;
+  content: unknown;
   image_url: unknown;
   source_name: unknown;
+  category?: unknown;
+  tags?: unknown;
   region: IngestRegion;
   language: IngestLanguage;
   raw: Record<string, unknown>;
@@ -48,21 +64,41 @@ export function normalizeArticle(input: {
   const sourceUrl = firstNonEmptyString([input.source_url]);
   const sourceName = formatSourceDisplayName(firstNonEmptyString([input.source_name]) ?? "NewsData");
   const summary = firstNonEmptyString([input.summary]);
+  const content = firstNonEmptyString([input.content]);
   const imageUrl = firstNonEmptyString([input.image_url]);
   const publishedAt = toIsoOrNull(input.published_at);
+  const category = firstNonEmptyString(Array.isArray(input.category) ? input.category : [input.category]) ?? "Geopolitica";
+  const tags = toStringList(input.tags);
 
   if (!title || !sourceUrl || !isValidHttpUrl(sourceUrl)) {
     return null;
   }
+
+  const taxonomy = deriveIngestionTaxonomy({
+    title,
+    excerpt: summary ?? title,
+    content,
+    source_name: sourceName,
+    region: input.region,
+    category,
+    tags,
+    country: input.region
+  });
 
   return {
     title,
     source_url: sourceUrl,
     published_at: publishedAt,
     summary,
+    content: content ?? null,
     image_url: imageUrl && isValidHttpUrl(imageUrl) ? imageUrl : null,
     source_name: sourceName,
     region: input.region,
+    country: taxonomy.country,
+    category,
+    tags: taxonomy.tags,
+    topic_slug: taxonomy.topic_slug,
+    section_slug: taxonomy.section_slug,
     language: input.language,
     raw: input.raw
   };

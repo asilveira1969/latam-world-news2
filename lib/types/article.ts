@@ -83,6 +83,8 @@ export interface Article {
   slug: string;
   excerpt: string;
   content: string | null;
+  topic_slug?: string | null;
+  section_slug?: string | null;
   latamworldnews_summary?: string | null;
   curated_news?: string | null;
   editorial_status?: "pending" | "ready" | "failed" | null;

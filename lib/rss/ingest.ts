@@ -7,12 +7,19 @@ import { isValidHttpUrl } from "@/lib/images";
 import { getEnabledMundoRssSources } from "@/lib/sources";
 import { fetchSourceArticleContent } from "@/lib/source-content";
 import { hasEnoughEditorialSourceMaterial } from "@/lib/editorial-agent-enrichment";
+import {
+  createEmptyTaxonomyQualitySummary,
+  finalizeArticleTaxonomy,
+  logTaxonomyQualitySummary,
+  summarizeTaxonomyQuality
+} from "@/lib/article-taxonomy";
 
 type RssIngestSourceResult = {
   sourceId: string;
   sourceName: string;
   fetched: number;
   upserted: number;
+  taxonomy: ReturnType<typeof createEmptyTaxonomyQualitySummary>;
   status: "ok" | "failed";
   error: string | null;
 };
@@ -23,6 +30,7 @@ export type RssIngestSummary = {
   failedSources: number;
   fetched: number;
   upserted: number;
+  taxonomy: ReturnType<typeof createEmptyTaxonomyQualitySummary>;
   errors: Array<{
     sourceId: string;
     message: string;
@@ -31,7 +39,7 @@ export type RssIngestSummary = {
 };
 
 function mapRssArticleToRow(
-  article: ReturnType<typeof normalizeRssItems>[number],
+  article: ReturnType<typeof normalizeRssItems>[number] & { raw?: Record<string, unknown> },
   language: "es"
 ) {
   return {
@@ -42,9 +50,10 @@ function mapRssArticleToRow(
     published_at: article.published_at,
     source: article.source_name,
     source_type: "rss",
-    country: null as string | null,
+    country: article.country ?? null,
     language,
     raw: {
+      ...(article.raw ?? {}),
       imported_via: "lib/rss/ingest.ts",
       rss: true
     },
@@ -56,6 +65,8 @@ function mapRssArticleToRow(
     region: article.region,
     category: article.category,
     tags: article.tags,
+    topic_slug: article.topic_slug ?? null,
+    section_slug: article.section_slug ?? null,
     is_featured: article.is_featured,
     is_impact: article.is_impact,
     views: article.views
@@ -84,6 +95,7 @@ export async function runMundoRssIngestion(): Promise<RssIngestSummary> {
     failedSources: 0,
     fetched: 0,
     upserted: 0,
+    taxonomy: createEmptyTaxonomyQualitySummary(),
     errors: [],
     sourceResults: []
   };
@@ -118,7 +130,25 @@ export async function runMundoRssIngestion(): Promise<RssIngestSummary> {
         }
       }
 
-      const rows = uniqueArticles.map((article) => mapRssArticleToRow(article, source.language));
+      const validatedArticles = uniqueArticles.map((article) =>
+        finalizeArticleTaxonomy(
+          {
+            ...article,
+            country: article.country ?? null,
+            topic_slug: article.topic_slug ?? null,
+            section_slug: article.section_slug ?? null
+          },
+          "rss"
+        )
+      );
+      const taxonomy = summarizeTaxonomyQuality(validatedArticles);
+      logTaxonomyQualitySummary({
+        sourceType: "rss",
+        sourceName: source.name,
+        taxonomy
+      });
+
+      const rows = validatedArticles.map((article) => mapRssArticleToRow(article, source.language));
       const { error } = await supabase.from("articles").upsert(rows, {
         onConflict: "source_url"
       });
@@ -129,11 +159,17 @@ export async function runMundoRssIngestion(): Promise<RssIngestSummary> {
 
       summary.okSources += 1;
       summary.upserted += uniqueArticles.length;
+      summary.taxonomy.articles_without_country += taxonomy.articles_without_country;
+      summary.taxonomy.articles_without_topic += taxonomy.articles_without_topic;
+      summary.taxonomy.articles_without_section += taxonomy.articles_without_section;
+      summary.taxonomy.articles_with_fallback_taxonomy += taxonomy.articles_with_fallback_taxonomy;
+      summary.taxonomy.taxonomy_inconsistent += taxonomy.taxonomy_inconsistent;
       summary.sourceResults.push({
         sourceId: source.id,
         sourceName: source.name,
         fetched: uniqueArticles.length,
         upserted: uniqueArticles.length,
+        taxonomy,
         status: "ok",
         error: null
       });
@@ -149,6 +185,7 @@ export async function runMundoRssIngestion(): Promise<RssIngestSummary> {
         sourceName: source.name,
         fetched: 0,
         upserted: 0,
+        taxonomy: createEmptyTaxonomyQualitySummary(),
         status: "failed",
         error: message
       });

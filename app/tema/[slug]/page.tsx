@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import SectionPage from "@/components/SectionPage";
 import { getArticlesByTag } from "@/lib/data/articles-repo";
 import { getCountryLabel, normalizeCountry, getTopicLabel } from "@/lib/hubs";
@@ -7,6 +8,8 @@ import { buildMetadata } from "@/lib/seo";
 type TopicPageProps = {
   params: Promise<{ slug: string }>;
 };
+
+export const revalidate = 3600;
 
 export async function generateMetadata({ params }: TopicPageProps): Promise<Metadata> {
   const resolvedParams = await params;
@@ -22,6 +25,10 @@ export default async function TopicPage({ params }: TopicPageProps) {
   const resolvedParams = await params;
   const label = getTopicLabel(resolvedParams.slug);
   const articles = await getArticlesByTag(label, 24);
+  if (articles.length === 0) {
+    notFound();
+  }
+
   const countryLinks = [...new Set(articles.flatMap((article) => article.countries ?? []))]
     .map((country) => normalizeCountry(country))
     .filter((country): country is string => Boolean(country))
