@@ -16,6 +16,8 @@ import { getCountryLabel, normalizeCountry } from "@/lib/hubs";
 import { buildCollectionPageJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
 
+export const revalidate = 300;
+
 export const metadata: Metadata = buildMetadata({
   title: "Impacto",
   description:
