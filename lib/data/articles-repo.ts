@@ -118,6 +118,17 @@ function isExcludedElPaisArticle(article: Pick<Article, "source_name" | "source_
   }
 }
 
+function hasPersistedEditorialCuration(article: Pick<Article, "latamworldnews_summary" | "curated_news" | "editorial_status">): boolean {
+  const summary = article.latamworldnews_summary?.trim() ?? "";
+  const curated = article.curated_news?.trim() ?? "";
+
+  if (article.editorial_status === "failed") {
+    return false;
+  }
+
+  return summary.length > 0 && curated.length > 0;
+}
+
 function isDisplayableArticle(article: Article): boolean {
   const combined = `${article.title}\n${article.excerpt}\n${article.source_name}`;
   if (looksLikeSystemError(combined)) {
@@ -133,6 +144,9 @@ function isDisplayableArticle(article: Article): boolean {
     return false;
   }
   if (isExcludedElPaisArticle(article)) {
+    return false;
+  }
+  if (!article.is_impact && !hasPersistedEditorialCuration(article)) {
     return false;
   }
   return true;

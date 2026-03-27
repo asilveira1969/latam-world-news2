@@ -10,12 +10,12 @@ import TrackedExternalLink from "@/components/TrackedExternalLink";
 import ViewTracker from "@/components/ViewTracker";
 import { getEditorialBlocks } from "@/lib/article-seo";
 import { getArticleBySlug, getRelatedArticles } from "@/lib/data/articles-repo";
-import { hasEnoughEditorialSourceMaterial } from "@/lib/editorial-agent-enrichment";
 import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { getCountryLabel, getPrimaryTopicSlug, getTopicLabel, normalizeCountry, toTopicSlug } from "@/lib/hubs";
 import { buildBreadcrumbJsonLd, buildNewsArticleJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
 import { formatPublicTagLabel } from "@/lib/sources";
+import { cleanPlainText } from "@/lib/text/clean";
 
 type NotePageProps = {
   params: Promise<{ slug: string }>;
@@ -75,6 +75,10 @@ function resolveNoteDescription(articleExcerpt: string, editorialDescription: st
   return editorialDescription;
 }
 
+function hasPublishedEditorialCuration(summary: string, curated: string): boolean {
+  return cleanPlainText(summary).length > 0 && cleanPlainText(curated).length > 0;
+}
+
 export async function generateMetadata({ params }: NotePageProps): Promise<Metadata> {
   const resolvedParams = await params;
   const article = await getArticleBySlug(resolvedParams.slug, "nota");
@@ -90,11 +94,19 @@ export async function generateMetadata({ params }: NotePageProps): Promise<Metad
   const editorial = getEditorialBlocks(article);
   const persistedSummary = article.latamworldnews_summary?.trim() ?? "";
   const persistedCurated = article.curated_news?.trim() ?? "";
+  if (!hasPublishedEditorialCuration(persistedSummary, persistedCurated)) {
+    return buildMetadata({
+      title: "Nota no encontrada",
+      description: "No se encontro la nota solicitada.",
+      pathname: `/nota/${resolvedParams.slug}`,
+      noindex: true
+    });
+  }
   const description = resolveNoteDescription(
     article.excerpt,
     editorial.seoDescription,
-    persistedSummary || editorial.latamWorldNewsSummary,
-    persistedCurated || editorial.curatedNews
+    persistedSummary,
+    persistedCurated
   );
 
   return buildMetadata({
@@ -116,12 +128,11 @@ export default async function NotaPage({ params }: NotePageProps) {
     notFound();
   }
 
-  const editorial = getEditorialBlocks(article);
   const persistedSummary = article.latamworldnews_summary?.trim() ?? "";
   const persistedCurated = article.curated_news?.trim() ?? "";
-  const hasEditorialMaterial = hasEnoughEditorialSourceMaterial(article);
-  const visibleSummary = persistedSummary || (hasEditorialMaterial ? editorial.latamWorldNewsSummary : "");
-  const visibleCurated = persistedCurated || (hasEditorialMaterial ? editorial.curatedNews : "");
+  if (!hasPublishedEditorialCuration(persistedSummary, persistedCurated)) {
+    notFound();
+  }
   const related = await getRelatedArticles(article, 4);
   const displayMeta = getArticleDisplayMeta(article);
   const fallbackTopic = getPrimaryTopicSlug({
@@ -176,7 +187,6 @@ export default async function NotaPage({ params }: NotePageProps) {
             </p>
           )}
           <h1 className="mt-2 text-2xl font-black text-brand sm:text-3xl">{article.title}</h1>
-          <p className="mt-3 max-w-3xl text-base leading-7 text-slate-700">{article.excerpt}</p>
           <p className="mt-3 text-sm text-slate-600">
             Publicado: {new Date(article.published_at).toLocaleString("es-ES")}
           </p>
@@ -188,9 +198,7 @@ export default async function NotaPage({ params }: NotePageProps) {
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-stone-50/80 p-5 sm:p-6">
           <h2 className="text-lg font-bold text-brand">Resumen LatamWorldNews</h2>
-          <p className="mt-3 text-sm leading-7 text-slate-700">
-            {visibleSummary || "Estamos completando el resumen editorial de esta nota para mantener la estructura curada de LatamWorldNews."}
-          </p>
+          <p className="mt-3 text-sm leading-7 text-slate-700">{persistedSummary}</p>
         </section>
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
@@ -221,14 +229,7 @@ export default async function NotaPage({ params }: NotePageProps) {
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
           <h2 className="text-lg font-bold text-brand">Noticia curada por LatamWorldNews</h2>
-          {visibleCurated ? (
-            <p className="mt-3 leading-7 text-slate-800">{visibleCurated}</p>
-          ) : (
-            <p className="mt-3 leading-7 text-slate-800">
-              Esta nota conserva el enlace directo a la fuente original porque el material recibido no trae suficiente
-              contexto para una curaduria editorial propia sin caer en texto generico.
-            </p>
-          )}
+          <p className="mt-3 leading-7 text-slate-800">{persistedCurated}</p>
 
           <TrackedExternalLink
             href={article.source_url}
