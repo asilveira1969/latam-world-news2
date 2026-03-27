@@ -9,6 +9,7 @@
     "audit:editorial-duplication": "tsx scripts/audit-editorial-duplication.ts",
     "enrich:rss-editorial": "tsx scripts/enrich-rss-editorial.ts",
     "generate:impacto-draft": "tsx scripts/generate-impacto-draft.ts",
+    "send:operations-report": "tsx scripts/send-operations-report.ts",
     "normalize:seo-articles": "tsx scripts/normalize-seo-articles.ts",
     "test:parse-rss": "tsx scripts/test-parse-rss.ts",
     "test:normalize-rss": "tsx scripts/test-normalize-rss.ts",
