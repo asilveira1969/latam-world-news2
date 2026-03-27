@@ -24,7 +24,7 @@ export const metadata: Metadata = buildMetadata({
   ]
 });
 
-export const revalidate = 3600;
+export const revalidate = 300;
 export const dynamic = "force-static";
 
 const getCachedMundoRssArticles = unstable_cache(

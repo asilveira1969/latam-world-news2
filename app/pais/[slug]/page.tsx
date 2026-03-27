@@ -9,7 +9,7 @@ type CountryPageProps = {
   params: Promise<{ slug: string }>;
 };
 
-export const revalidate = 3600;
+export const revalidate = 300;
 
 export async function generateMetadata({ params }: CountryPageProps): Promise<Metadata> {
   const resolvedParams = await params;

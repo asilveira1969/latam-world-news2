@@ -2,6 +2,8 @@ import { normalizeArticle } from "@/lib/normalize/article";
 import type { IngestSource, NormalizedArticle } from "@/lib/types";
 
 const NEWSDATA_BASE_URL = "https://newsdata.io/api/1/latest";
+const NEWSDATA_MAX_RETRIES = 3;
+const RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 type NewsdataResponse = {
   results?: Array<Record<string, unknown>>;
@@ -10,6 +12,20 @@ type NewsdataResponse = {
   message?: string;
 };
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableNewsdataError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("invalid json response") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("timeout") ||
+    [...RETRYABLE_STATUS_CODES].some((code) => normalized.includes(`http ${code}`))
+  );
+}
+
 async function fetchNewsdataPage(input: {
   apiKey: string;
   region: string;
@@ -17,41 +33,59 @@ async function fetchNewsdataPage(input: {
   params: Record<string, string | number | boolean>;
   pageToken?: string;
 }): Promise<NewsdataResponse> {
-  const url = new URL(NEWSDATA_BASE_URL);
-  url.searchParams.set("apikey", input.apiKey);
-  url.searchParams.set("country", input.region.toLowerCase());
-  url.searchParams.set("language", input.language);
+  let lastError: Error | null = null;
 
-  for (const [key, value] of Object.entries(input.params)) {
-    url.searchParams.set(key, String(value));
+  for (let attempt = 1; attempt <= NEWSDATA_MAX_RETRIES; attempt += 1) {
+    try {
+      const url = new URL(NEWSDATA_BASE_URL);
+      url.searchParams.set("apikey", input.apiKey);
+      url.searchParams.set("country", input.region.toLowerCase());
+      url.searchParams.set("language", input.language);
+
+      for (const [key, value] of Object.entries(input.params)) {
+        url.searchParams.set(key, String(value));
+      }
+
+      if (input.pageToken) {
+        url.searchParams.set("page", input.pageToken);
+      }
+
+      const response = await fetch(url.toString(), {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store"
+      });
+
+      let payload: NewsdataResponse;
+      try {
+        payload = (await response.json()) as NewsdataResponse;
+      } catch {
+        throw new Error(`NewsData invalid JSON response (${response.status}).`);
+      }
+
+      if (!response.ok) {
+        throw new Error(`NewsData request failed: ${payload.message || `HTTP ${response.status}`}`);
+      }
+
+      if (!Array.isArray(payload.results)) {
+        throw new Error("NewsData response missing results array.");
+      }
+
+      return payload;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const shouldRetry =
+        attempt < NEWSDATA_MAX_RETRIES && isRetryableNewsdataError(lastError.message);
+
+      if (!shouldRetry) {
+        break;
+      }
+
+      await sleep(800 * attempt);
+    }
   }
 
-  if (input.pageToken) {
-    url.searchParams.set("page", input.pageToken);
-  }
-
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    cache: "no-store"
-  });
-
-  let payload: NewsdataResponse;
-  try {
-    payload = (await response.json()) as NewsdataResponse;
-  } catch {
-    throw new Error(`NewsData invalid JSON response (${response.status}).`);
-  }
-
-  if (!response.ok) {
-    throw new Error(`NewsData request failed: ${payload.message || `HTTP ${response.status}`}`);
-  }
-
-  if (!Array.isArray(payload.results)) {
-    throw new Error("NewsData response missing results array.");
-  }
-
-  return payload;
+  throw lastError ?? new Error("NewsData request failed.");
 }
 
 export async function fetchNewsdataArticles(

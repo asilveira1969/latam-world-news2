@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     .eq("source_type", "rss")
     .or("editorial_status.is.null,editorial_status.eq.pending,editorial_status.eq.failed")
     .order("published_at", { ascending: false })
-    .limit(10);
+    .limit(30);
 
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
