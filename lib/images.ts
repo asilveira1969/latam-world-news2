@@ -1,4 +1,4 @@
-export const LOCAL_NEWS_IMAGE_FALLBACK = "/images/news-fallback.svg";
+export const LOCAL_NEWS_IMAGE_FALLBACK = "/opengraph-image";
 
 export function isValidHttpUrl(value: string): boolean {
   try {

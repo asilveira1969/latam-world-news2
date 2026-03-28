@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SITE_NAME } from "@/lib/constants/nav";
+import { isValidHttpUrl, resolveCardImage } from "@/lib/images";
 import { cleanExcerpt, cleanPlainText } from "@/lib/text/clean";
 
 function normalizeSiteUrl(rawUrl: string): string {
@@ -57,7 +58,10 @@ export function buildMetadata(input: MetadataInput): Metadata {
     : normalizeTitle(`${normalizedTitle} | ${SITE_NAME}`);
   const description = normalizeDescription(input.description);
   const canonical = absoluteUrl(input.pathname);
-  const ogImage = input.imageUrl ?? absoluteUrl("/og-default.svg");
+  const resolvedOgImage = resolveCardImage(input.imageUrl);
+  const ogImage = isValidHttpUrl(resolvedOgImage)
+    ? resolvedOgImage
+    : absoluteUrl(resolvedOgImage);
   const robots = input.noindex
     ? { index: false, follow: true, googleBot: { index: false, follow: true } }
     : {

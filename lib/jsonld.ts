@@ -1,5 +1,6 @@
 import { SITE_NAME } from "@/lib/constants/nav";
 import { getEditorialBlocks, type FaqItem } from "@/lib/article-seo";
+import { isValidHttpUrl, resolveCardImage } from "@/lib/images";
 import type { Article } from "@/lib/types/article";
 import { absoluteUrl } from "@/lib/seo";
 import { cleanPlainText } from "@/lib/text/clean";
@@ -133,9 +134,10 @@ export function buildNewsArticleJsonLd(
           : article.is_impact
             ? "Impacto en LATAM"
             : article.category;
-  const imageUrl = article.image_url.startsWith("http")
-    ? article.image_url
-    : absoluteUrl(article.image_url || "/og-default.svg");
+  const resolvedImageUrl = resolveCardImage(article.image_url);
+  const imageUrl = isValidHttpUrl(resolvedImageUrl)
+    ? resolvedImageUrl
+    : absoluteUrl(resolvedImageUrl);
 
   return {
     "@context": "https://schema.org",
