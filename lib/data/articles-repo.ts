@@ -129,7 +129,7 @@ function hasPersistedEditorialCuration(article: Pick<Article, "latamworldnews_su
   return summary.length > 0 && curated.length > 0;
 }
 
-function isDisplayableArticle(article: Article): boolean {
+function passesBaseDisplayChecks(article: Article): boolean {
   const combined = `${article.title}\n${article.excerpt}\n${article.source_name}`;
   if (looksLikeSystemError(combined)) {
     return false;
@@ -146,10 +146,47 @@ function isDisplayableArticle(article: Article): boolean {
   if (isExcludedElPaisArticle(article)) {
     return false;
   }
+  return true;
+}
+
+function isDisplayableArticle(article: Article): boolean {
+  if (!passesBaseDisplayChecks(article)) {
+    return false;
+  }
   if (!article.is_impact && !hasPersistedEditorialCuration(article)) {
     return false;
   }
   return true;
+}
+
+function matchesLatamRegionFilter(article: Article, region: Article["region"]): boolean {
+  if (article.region === region) {
+    return true;
+  }
+
+  const primaryCountryRegion = getCountryRegionCode(article.country);
+  if (primaryCountryRegion === region) {
+    return true;
+  }
+
+  const displayMetaRegion = getCountryRegionCode(getArticleDisplayMeta(article).countrySlug);
+  return displayMetaRegion === region;
+}
+
+function isLatamDisplayableArticle(article: Article): boolean {
+  if (!passesBaseDisplayChecks(article)) {
+    return false;
+  }
+
+  if (article.is_impact) {
+    return true;
+  }
+
+  if (article.source_type === "api" && article.section_slug === "latinoamerica") {
+    return true;
+  }
+
+  return hasPersistedEditorialCuration(article);
 }
 
 function sanitizeArticleTags(value: unknown): string[] {
@@ -207,6 +244,10 @@ export function mapRecordToArticle(record: Record<string, unknown>): Article {
     slug: String(record.slug ?? ""),
     excerpt,
     content: rawContent ? cleanPlainText(rawContent) : null,
+    source_type:
+      record.source_type === "api" || record.source_type === "rss"
+        ? (record.source_type as Article["source_type"])
+        : null,
     topic_slug: topicSlug,
     section_slug: sectionSlugInput || deriveSectionSlug({
       is_impact: Boolean(record.is_impact),
@@ -414,6 +455,8 @@ async function fetchArticlesFromSupabaseQuery(input: {
   country?: string;
   region?: Article["region"];
   onlyNewsdata?: boolean;
+  sectionSlug?: string;
+  displayFilter?: (article: Article) => boolean;
 }): Promise<Article[]> {
   if (!hasSupabaseAnonEnv) {
     return [];
@@ -435,6 +478,10 @@ async function fetchArticlesFromSupabaseQuery(input: {
       query = query.in("country", input.countries);
     }
 
+    if (input.sectionSlug) {
+      query = query.eq("section_slug", input.sectionSlug);
+    }
+
     if (input.onlyNewsdata) {
       query = query.contains("tags", ["newsdata"]);
     }
@@ -446,7 +493,7 @@ async function fetchArticlesFromSupabaseQuery(input: {
     }
 
     const mapped = (data ?? []).map((record: Record<string, unknown>) => mapRecordToArticle(record));
-    return dedupeBySourceUrl(sortByPublishedDesc(mapped)).filter(isDisplayableArticle);
+    return dedupeBySourceUrl(sortByPublishedDesc(mapped)).filter(input.displayFilter ?? isDisplayableArticle);
   } catch (error) {
     console.error("Supabase filtered read failed:", error);
     return [];
@@ -518,21 +565,15 @@ export async function getLatinoamericaArticles(
   limit = 24,
   region?: Article["region"]
 ): Promise<Article[]> {
-  const latamCountry =
-    region && isLatamRegion(region) && region !== "LatAm" ? region.toLowerCase() : undefined;
   const filtered = await fetchArticlesFromSupabaseQuery(
-    latamCountry
-      ? {
-          limit,
-          country: latamCountry
-        }
-      : {
-          limit,
-          countries: [...LATAM_COUNTRIES]
-        }
+    {
+      limit: Math.max(limit * 4, 60),
+      sectionSlug: "latinoamerica",
+      displayFilter: isLatamDisplayableArticle
+    }
   );
   if (filtered.length > 0) {
-    const scoped = region ? filtered.filter((article) => article.region === region) : filtered;
+    const scoped = region ? filtered.filter((article) => matchesLatamRegionFilter(article, region)) : filtered;
     if (scoped.length > 0) {
       return scoped.slice(0, limit);
     }
@@ -541,10 +582,10 @@ export async function getLatinoamericaArticles(
 
   const all = await getAllArticles();
   if (region && isLatamRegion(region) && region !== "LatAm") {
-    return all.filter((article) => article.region === region).slice(0, limit);
+    return all.filter((article) => matchesLatamRegionFilter(article, region)).slice(0, limit);
   }
   return all
-    .filter((article) => isLatamRegion(article.region))
+    .filter((article) => article.section_slug === "latinoamerica" || isLatamRegion(article.region))
     .slice(0, limit);
 }
 

@@ -83,6 +83,7 @@ export interface Article {
   slug: string;
   excerpt: string;
   content: string | null;
+  source_type?: "api" | "rss" | null;
   topic_slug?: string | null;
   section_slug?: string | null;
   latamworldnews_summary?: string | null;
