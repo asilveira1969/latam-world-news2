@@ -182,10 +182,6 @@ function isLatamDisplayableArticle(article: Article): boolean {
     return true;
   }
 
-  if (article.source_type === "api" && article.section_slug === "latinoamerica") {
-    return true;
-  }
-
   return hasPersistedEditorialCuration(article);
 }
 
