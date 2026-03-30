@@ -13,7 +13,7 @@ export default function Header() {
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 lg:flex-nowrap lg:justify-between">
         <Link href="/" className="shrink-0 leading-tight">
           <p className="text-xl font-black tracking-tight text-brand">{SITE_NAME}</p>
-          <p className="text-[11px] uppercase tracking-[0.08em] text-slate-500 sm:block">
+          <p className="text-[11px] uppercase tracking-[0.08em] text-brand-accent sm:block">
             {SITE_TAGLINE}
           </p>
         </Link>
