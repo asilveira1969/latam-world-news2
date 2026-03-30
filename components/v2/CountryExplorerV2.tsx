@@ -15,7 +15,7 @@ const COUNTRY_LINKS: Array<{
   { code: "AR", label: "Argentina" },
   { code: "BR", label: "Brasil" },
   { code: "CL", label: "Chile" },
-  { code: "MX", label: "M\u00e9xico" },
+  { code: "MX", label: "México" },
   { code: "UY", label: "Uruguay" }
 ];
 
@@ -113,7 +113,7 @@ function CountryLinks({
     <>
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm text-slate-600">
-          Acceso rapido a coberturas por pais dentro de Latinoamerica.
+          Acceso rápido a coberturas por país dentro de Latinoamérica.
         </p>
         <Link
           href="/latinoamerica"
@@ -168,7 +168,7 @@ export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Pr
 
   return (
     <section
-      aria-label="Acceso rapido por pais"
+      aria-label="Acceso rápido por país"
       className="space-y-4 rounded border border-slate-200 bg-white p-4"
     >
       <div className="lg:hidden">
@@ -178,7 +178,7 @@ export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Pr
               <CountryFlag code={activeCountryData.code} />
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Pa\u00eds activo
+                  País activo
                 </p>
                 <p className="truncate text-sm font-bold text-slate-900">{activeCountryData.label}</p>
               </div>
@@ -190,7 +190,7 @@ export default function CountryExplorerV2({ activeCountry }: CountryExplorerV2Pr
               aria-expanded={isMobileExpanded}
               aria-controls="latam-country-links"
             >
-              Cambiar pa\u00eds
+              Cambiar país
             </button>
           </div>
         ) : (
