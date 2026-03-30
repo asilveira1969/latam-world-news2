@@ -2,6 +2,7 @@ import Link from "next/link";
 import NewsImage from "@/components/NewsImage";
 import { formatEditorialDate } from "@/lib/dates";
 import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
+import { hasUsableRemoteImage, isImageLikelyFromSource } from "@/lib/images";
 import type { Article } from "@/lib/types/article";
 
 export interface HeroProps {
@@ -66,6 +67,38 @@ function ArticleCard({
 }
 
 export default function Hero({ lead, secondary, editorial, formatMeta }: HeroProps) {
+  const candidates = [lead, ...secondary];
+  const imageUsageCount = new Map<string, number>();
+  const seenImages = new Set<string>();
+
+  for (const article of candidates) {
+    if (!article.image_url) {
+      continue;
+    }
+    imageUsageCount.set(article.image_url, (imageUsageCount.get(article.image_url) ?? 0) + 1);
+  }
+
+  const displayArticles = candidates.filter((article) => {
+    const imageRepeated = (imageUsageCount.get(article.image_url) ?? 0) > 1;
+    const imageMatchesSource = isImageLikelyFromSource(article.image_url, article.source_url);
+    const hasDisplayImage =
+      hasUsableRemoteImage(article.image_url) && imageMatchesSource && !imageRepeated;
+
+    if (!hasDisplayImage || seenImages.has(article.image_url)) {
+      return false;
+    }
+
+    seenImages.add(article.image_url);
+    return true;
+  });
+
+  const heroLead = displayArticles[0] ?? null;
+  const heroSecondary = displayArticles.slice(1, 3);
+
+  if (!heroLead) {
+    return null;
+  }
+
   return (
     <section aria-label="Cobertura destacada">
       {editorial ? (
@@ -91,9 +124,9 @@ export default function Hero({ lead, secondary, editorial, formatMeta }: HeroPro
         </Link>
       ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
-        <ArticleCard article={lead} formatMeta={formatMeta} />
+        <ArticleCard article={heroLead} formatMeta={formatMeta} />
         <div className="grid gap-4 sm:grid-cols-2">
-          {secondary.map((article) => (
+          {heroSecondary.map((article) => (
             <ArticleCard key={article.id} article={article} compact formatMeta={formatMeta} />
           ))}
         </div>

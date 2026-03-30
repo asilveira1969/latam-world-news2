@@ -5,6 +5,7 @@ import NewsImage from "@/components/NewsImage";
 import TrackedExternalLink from "@/components/TrackedExternalLink";
 import { formatEditorialDate } from "@/lib/dates";
 import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
+import { hasUsableRemoteImage, isImageLikelyFromSource } from "@/lib/images";
 import { formatSourceDisplayName } from "@/lib/sources";
 
 export interface LatestFeedProps {
@@ -26,11 +27,35 @@ function articleHref(article: Article) {
 }
 
 export default function LatestFeed({ items, formatMeta }: LatestFeedProps) {
+  const imageUsageCount = new Map<string, number>();
+  const seenImages = new Set<string>();
+
+  for (const article of items) {
+    if (!article.image_url) {
+      continue;
+    }
+    imageUsageCount.set(article.image_url, (imageUsageCount.get(article.image_url) ?? 0) + 1);
+  }
+
+  const displayItems = items.filter((article) => {
+    const imageRepeated = (imageUsageCount.get(article.image_url) ?? 0) > 1;
+    const imageMatchesSource = isImageLikelyFromSource(article.image_url, article.source_url);
+    const hasDisplayImage =
+      hasUsableRemoteImage(article.image_url) && imageMatchesSource && !imageRepeated;
+
+    if (!hasDisplayImage || seenImages.has(article.image_url)) {
+      return false;
+    }
+
+    seenImages.add(article.image_url);
+    return true;
+  });
+
   return (
     <section aria-label="Ultimas noticias internacionales">
       <h2 className="mb-3 text-2xl font-black text-brand">Ultimas</h2>
       <div className="space-y-4">
-        {items.slice(0, 30).map((article, index) => (
+        {displayItems.slice(0, 30).map((article, index) => (
           <div key={article.id}>
             <article className="grid gap-3 overflow-hidden rounded border border-slate-200 bg-white p-3 sm:grid-cols-[220px_1fr]">
               <Link href={articleHref(article)} className="relative block aspect-video">

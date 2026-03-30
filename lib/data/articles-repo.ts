@@ -189,6 +189,10 @@ function isLatamDisplayableArticle(article: Article): boolean {
   return hasPersistedEditorialCuration(article);
 }
 
+function hasDisplayableListingImage(article: Pick<Article, "image_url">): boolean {
+  return hasUsableRemoteImage(article.image_url);
+}
+
 function isPublishedLatamApiNote(article: Pick<Article, "is_impact" | "source_type" | "section_slug">): boolean {
   return !article.is_impact && article.source_type === "api" && article.section_slug === "latinoamerica";
 }
@@ -577,19 +581,26 @@ export async function getLatinoamericaArticles(
     }
   );
   if (filtered.length > 0) {
-    const scoped = region ? filtered.filter((article) => matchesLatamRegionFilter(article, region)) : filtered;
+    const withImage = filtered.filter(hasDisplayableListingImage);
+    const scoped = region
+      ? withImage.filter((article) => matchesLatamRegionFilter(article, region))
+      : withImage;
     if (scoped.length > 0) {
       return scoped.slice(0, limit);
     }
-    return filtered.slice(0, limit);
+    return withImage.slice(0, limit);
   }
 
   const all = await getAllArticles();
   if (region && isLatamRegion(region) && region !== "LatAm") {
-    return all.filter((article) => matchesLatamRegionFilter(article, region)).slice(0, limit);
+    return all
+      .filter((article) => matchesLatamRegionFilter(article, region))
+      .filter(hasDisplayableListingImage)
+      .slice(0, limit);
   }
   return all
     .filter((article) => article.section_slug === "latinoamerica" || isLatamRegion(article.region))
+    .filter(hasDisplayableListingImage)
     .slice(0, limit);
 }
 
@@ -1015,6 +1026,7 @@ export async function getArticlesByCountry(country: string, limit = 24): Promise
       const displayMeta = getArticleDisplayMeta(article);
       return displayMeta.countrySlug === normalized;
     })
+    .filter(hasDisplayableListingImage)
     .slice(0, limit);
 }
 

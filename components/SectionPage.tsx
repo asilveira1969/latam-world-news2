@@ -44,6 +44,7 @@ export default function SectionPage({
   quickLinks = []
 }: SectionPageProps) {
   const imageUsageCount = new Map<string, number>();
+  const seenImages = new Set<string>();
 
   for (const article of articles) {
     if (!article.image_url) {
@@ -51,6 +52,20 @@ export default function SectionPage({
     }
     imageUsageCount.set(article.image_url, (imageUsageCount.get(article.image_url) ?? 0) + 1);
   }
+
+  const displayArticles = articles.filter((article) => {
+    const imageRepeated = (imageUsageCount.get(article.image_url) ?? 0) > 1;
+    const imageMatchesSource = isImageLikelyFromSource(article.image_url, article.source_url);
+    const showImageCard =
+      hasUsableRemoteImage(article.image_url) && imageMatchesSource && !imageRepeated;
+
+    if (!showImageCard || seenImages.has(article.image_url)) {
+      return false;
+    }
+
+    seenImages.add(article.image_url);
+    return true;
+  });
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
@@ -61,7 +76,7 @@ export default function SectionPage({
         ])}
       />
       <StructuredData
-        data={buildCollectionPageJsonLd({ title, description, pathname, items: articles })}
+        data={buildCollectionPageJsonLd({ title, description, pathname, items: displayArticles })}
       />
       <Breadcrumbs items={[{ label: "Inicio", href: "/" }, { label: title }]} />
 
@@ -101,47 +116,8 @@ export default function SectionPage({
       <AdSlot slotId={`section-${title.toLowerCase().replace(/\s+/g, "-")}`} className="mb-6" />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {articles.map((article) => {
+        {displayArticles.map((article) => {
           const href = articleHref(article);
-          const imageRepeated = (imageUsageCount.get(article.image_url) ?? 0) > 1;
-          const imageMatchesSource = isImageLikelyFromSource(article.image_url, article.source_url);
-          const showImageCard =
-            hasUsableRemoteImage(article.image_url) && imageMatchesSource && !imageRepeated;
-
-          if (!showImageCard) {
-            const displayMeta = getArticleDisplayMeta(article);
-            return (
-              <article
-                key={article.id}
-                className="rounded border border-slate-200 bg-white p-4 transition-colors hover:border-slate-300 xl:col-span-3"
-              >
-                <p className="text-xs font-semibold uppercase tracking-wide text-brand-accent">
-                  {displayMeta.label}
-                </p>
-                <Link href={href}>
-                  <h2 className="mt-1 text-lg font-bold leading-snug">{article.title}</h2>
-                </Link>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {cleanExcerpt(article.excerpt, 180) || "Resumen no disponible."}
-                </p>
-                <TrackedExternalLink
-                  href={article.source_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  eventParams={{
-                    article_slug: article.slug,
-                    article_title: article.title,
-                    source_name: article.source_name,
-                    placement: "section_page"
-                  }}
-                  className="mt-2 inline-block text-xs font-semibold text-slate-700 underline"
-                >
-                  Fuente: {formatSourceDisplayName(article.source_name)}
-                </TrackedExternalLink>
-              </article>
-            );
-          }
-
           return (
             <article key={article.id} className="overflow-hidden rounded border border-slate-200 bg-white">
               <Link href={href}>
