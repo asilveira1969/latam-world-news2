@@ -1,2 +1,7 @@
-export const ADSENSE_ENABLED = process.env.NEXT_PUBLIC_ADSENSE_ENABLED === "true";
-export const ADSENSE_CLIENT_ID = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID ?? "";
+const DEFAULT_ADSENSE_CLIENT_ID = "ca-pub-0896130218059462";
+
+export const ADSENSE_CLIENT_ID =
+  process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID ?? DEFAULT_ADSENSE_CLIENT_ID;
+export const ADSENSE_ENABLED =
+  process.env.NEXT_PUBLIC_ADSENSE_ENABLED !== "false" &&
+  ADSENSE_CLIENT_ID.length > 0;

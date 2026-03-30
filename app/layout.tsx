@@ -59,17 +59,15 @@ export default async function RootLayout({
             gtag('config', 'G-0Q2589WZWE');
           `}
         </Script>
-      </head>
-      <body>
         {ADSENSE_ENABLED && ADSENSE_CLIENT_ID ? (
-          <Script
-            id="adsense-script"
+          <script
             async
-            strategy="afterInteractive"
             src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
             crossOrigin="anonymous"
           />
         ) : null}
+      </head>
+      <body>
         <StructuredData data={orgJsonLd} />
         <StructuredData data={websiteJsonLd} />
         <TopbarTicker headlines={headlines} />
