@@ -79,6 +79,16 @@ function hasPublishedEditorialCuration(summary: string, curated: string): boolea
   return cleanPlainText(summary).length > 0 && cleanPlainText(curated).length > 0;
 }
 
+function canRenderPublishedNote(article: NonNullable<Awaited<ReturnType<typeof getArticleBySlug>>>) {
+  if (article.source_type === "api" && article.section_slug === "latinoamerica") {
+    return true;
+  }
+
+  const persistedSummary = article.latamworldnews_summary?.trim() ?? "";
+  const persistedCurated = article.curated_news?.trim() ?? "";
+  return hasPublishedEditorialCuration(persistedSummary, persistedCurated);
+}
+
 export async function generateMetadata({ params }: NotePageProps): Promise<Metadata> {
   const resolvedParams = await params;
   const article = await getArticleBySlug(resolvedParams.slug, "nota");
@@ -91,10 +101,7 @@ export async function generateMetadata({ params }: NotePageProps): Promise<Metad
     });
   }
 
-  const editorial = getEditorialBlocks(article);
-  const persistedSummary = article.latamworldnews_summary?.trim() ?? "";
-  const persistedCurated = article.curated_news?.trim() ?? "";
-  if (!hasPublishedEditorialCuration(persistedSummary, persistedCurated)) {
+  if (!canRenderPublishedNote(article)) {
     return buildMetadata({
       title: "Nota no encontrada",
       description: "No se encontro la nota solicitada.",
@@ -102,6 +109,10 @@ export async function generateMetadata({ params }: NotePageProps): Promise<Metad
       noindex: true
     });
   }
+
+  const editorial = getEditorialBlocks(article);
+  const persistedSummary = article.latamworldnews_summary?.trim() ?? "";
+  const persistedCurated = article.curated_news?.trim() ?? "";
   const description = resolveNoteDescription(
     article.excerpt,
     editorial.seoDescription,
@@ -128,11 +139,12 @@ export default async function NotaPage({ params }: NotePageProps) {
     notFound();
   }
 
-  const persistedSummary = article.latamworldnews_summary?.trim() ?? "";
-  const persistedCurated = article.curated_news?.trim() ?? "";
-  if (!hasPublishedEditorialCuration(persistedSummary, persistedCurated)) {
+  if (!canRenderPublishedNote(article)) {
     notFound();
   }
+
+  const persistedSummary = article.latamworldnews_summary?.trim() ?? "";
+  const persistedCurated = article.curated_news?.trim() ?? "";
   const related = await getRelatedArticles(article, 4);
   const displayMeta = getArticleDisplayMeta(article);
   const fallbackTopic = getPrimaryTopicSlug({

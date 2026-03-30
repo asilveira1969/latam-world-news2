@@ -189,6 +189,10 @@ function isLatamDisplayableArticle(article: Article): boolean {
   return hasPersistedEditorialCuration(article);
 }
 
+function isPublishedLatamApiNote(article: Pick<Article, "is_impact" | "source_type" | "section_slug">): boolean {
+  return !article.is_impact && article.source_type === "api" && article.section_slug === "latinoamerica";
+}
+
 function sanitizeArticleTags(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -706,6 +710,9 @@ export async function getArticleBySlug(
     if (kind === "nota" && cachedArticle.is_impact) {
       return null;
     }
+    if (kind === "nota" && !isDisplayableArticle(cachedArticle) && !isPublishedLatamApiNote(cachedArticle)) {
+      return null;
+    }
     if (kind === "impacto" && (!cachedArticle.is_impact || cachedArticle.impact_format === "editorial")) {
       return null;
     }
@@ -768,7 +775,7 @@ const getCachedArticleBySlug = (slug: string) =>
         }
 
         const article = mapRecordToArticle(data as Record<string, unknown>);
-        return isDisplayableArticle(article) ? article : null;
+        return passesBaseDisplayChecks(article) ? article : null;
       } catch (error) {
         console.error("Supabase slug lookup failed, falling back to in-memory scan:", error);
         return null;
