@@ -55,9 +55,11 @@ const INTERNAL_TAGS = new Set([
   "rss-dw-es"
 ]);
 const GENERIC_TOPIC_TAGS = new Set(["internacional", "mundo", "latam", "america-latina"]);
-const ARTICLE_SELECT_FIELDS = "*";
+const ARTICLE_SELECT_FIELDS =
+  "id, title, slug, excerpt, summary, latamworldnews_summary, curated_news, editorial_status, editorial_generated_at, editorial_model, seo_title, seo_description, latam_angle, faq_items, image_url, source_name, source_url, source_type, region, country, category, tags, countries, topic_slug, section_slug, impact_format, editorial_sections, published_at, created_at, is_featured, is_impact, views";
+const ARTICLE_DETAIL_SELECT_FIELDS = ARTICLE_SELECT_FIELDS;
 const SITEMAP_ARTICLE_SELECT_FIELDS =
-  "id, title, slug, excerpt, summary, content, latamworldnews_summary, curated_news, topic_slug, section_slug, image_url, source_name, source_url, region, country, category, tags, countries, impact_format, published_at, created_at, is_featured, is_impact, views";
+  "id, title, slug, excerpt, summary, latamworldnews_summary, curated_news, editorial_status, source_type, image_url, source_name, source_url, region, country, category, tags, countries, topic_slug, section_slug, impact_format, published_at, created_at, is_impact";
 
 export interface MundoSourceSummary {
   sourceName: string;
@@ -412,6 +414,15 @@ async function fetchAllArticlesFromSource(): Promise<Article[]> {
   }
 }
 
+const getCachedAllArticles = unstable_cache(
+  async (): Promise<Article[]> => {
+    const all = await fetchAllArticlesFromSource();
+    return dedupeBySourceUrl(sortByPublishedDesc(all)).filter(isDisplayableArticle);
+  },
+  ["all-articles"],
+  { revalidate: 300 }
+);
+
 function sortMundoFeedForDisplay(articles: Article[]): Article[] {
   return [...articles].sort((a, b) => {
     const aHasImage = hasUsableRemoteImage(a.image_url);
@@ -438,7 +449,7 @@ async function fetchMundoRssArticlesFromSupabase(limit: number): Promise<Article
     const supabase = getSupabaseServerClient();
     const { data, error } = await supabase
       .from("articles")
-      .select("*")
+      .select(ARTICLE_SELECT_FIELDS)
       .eq("region", "Mundo")
       .contains("tags", [MUNDO_RSS_TAG])
       .order("published_at", { ascending: false })
@@ -474,7 +485,7 @@ async function fetchArticlesFromSupabaseQuery(input: {
     const supabase = getSupabaseServerClient();
     let query = supabase
       .from("articles")
-      .select("*")
+      .select(ARTICLE_SELECT_FIELDS)
       .order("published_at", { ascending: false })
       .limit(input.limit);
 
@@ -509,8 +520,7 @@ async function fetchArticlesFromSupabaseQuery(input: {
 }
 
 export async function getAllArticles(): Promise<Article[]> {
-  const all = await fetchAllArticlesFromSource();
-  return dedupeBySourceUrl(sortByPublishedDesc(all)).filter(isDisplayableArticle);
+  return getCachedAllArticles();
 }
 
 export async function getMundoArticles(
@@ -777,7 +787,7 @@ const getCachedArticleBySlug = (slug: string) =>
         const supabase = getSupabaseServerClient();
         const { data, error } = await supabase
           .from("articles")
-          .select("*")
+          .select(ARTICLE_DETAIL_SELECT_FIELDS)
           .eq("slug", slug)
           .maybeSingle();
 
