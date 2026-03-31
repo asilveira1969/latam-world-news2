@@ -99,7 +99,7 @@ function isExcludedElPaisArticle(article: Pick<Article, "source_name" | "source_
   const isElPais =
     sourceName === "el pais" ||
     sourceName === "el pais espana" ||
-    sourceName === "el paÃ­s espaÃ±a";
+    sourceName === "el paÃƒÂ­s espaÃƒÂ±a";
 
   if (!isElPais) {
     return false;
@@ -519,6 +519,48 @@ async function fetchArticlesFromSupabaseQuery(input: {
   }
 }
 
+async function getListingArticles(input: {
+  limit: number;
+  region?: Article["region"];
+  onlyNewsdata?: boolean;
+  sectionSlug?: string;
+  displayFilter?: (article: Article) => boolean;
+}): Promise<Article[]> {
+  const queryLimit = Math.max(input.limit, 1);
+  const queried = await fetchArticlesFromSupabaseQuery({
+    limit: queryLimit,
+    region: input.region,
+    onlyNewsdata: input.onlyNewsdata,
+    sectionSlug: input.sectionSlug,
+    displayFilter: input.displayFilter
+  });
+
+  if (queried.length > 0) {
+    return queried.slice(0, input.limit);
+  }
+
+  const all = await getAllArticles();
+  let filtered = all;
+
+  if (input.region) {
+    filtered = filtered.filter((article) => article.region === input.region);
+  }
+
+  if (input.sectionSlug) {
+    filtered = filtered.filter((article) => article.section_slug === input.sectionSlug);
+  }
+
+  if (input.onlyNewsdata) {
+    filtered = filtered.filter((article) => article.tags.includes("newsdata"));
+  }
+
+  if (input.displayFilter) {
+    filtered = filtered.filter(input.displayFilter);
+  }
+
+  return filtered.slice(0, input.limit);
+}
+
 export async function getAllArticles(): Promise<Article[]> {
   return getCachedAllArticles();
 }
@@ -528,18 +570,7 @@ export async function getMundoArticles(
   region?: Article["region"],
   onlyNewsdata = false
 ): Promise<Article[]> {
-  const filtered = await fetchArticlesFromSupabaseQuery({ limit, region, onlyNewsdata });
-  if (filtered.length > 0) {
-    return filtered.slice(0, limit);
-  }
-
-  const all = await getAllArticles();
-  const base = onlyNewsdata
-    ? all.filter((article) => article.tags.includes("newsdata"))
-    : all;
-  return region
-    ? base.filter((article) => article.region === region).slice(0, limit)
-    : base.slice(0, limit);
+  return getListingArticles({ limit, region, onlyNewsdata });
 }
 
 export async function getMundoRssArticles(limit = 24): Promise<Article[]> {
@@ -583,13 +614,11 @@ export async function getLatinoamericaArticles(
   limit = 24,
   region?: Article["region"]
 ): Promise<Article[]> {
-  const filtered = await fetchArticlesFromSupabaseQuery(
-    {
-      limit: Math.max(limit * 4, 60),
-      sectionSlug: "latinoamerica",
-      displayFilter: isLatamDisplayableArticle
-    }
-  );
+  const filtered = await fetchArticlesFromSupabaseQuery({
+    limit: Math.max(limit * 4, 60),
+    sectionSlug: "latinoamerica",
+    displayFilter: isLatamDisplayableArticle
+  });
   if (filtered.length > 0) {
     const withImage = filtered.filter(hasDisplayableListingImage);
     const scoped = region
@@ -618,7 +647,12 @@ export async function getHomeData(input?: {
   region?: Article["region"];
   onlyNewsdata?: boolean;
 }): Promise<HomeData> {
-  const allArticles = await getAllArticles();
+  const listingLimit = input?.region ? 180 : 240;
+  const allArticles = await getListingArticles({
+    limit: listingLimit,
+    region: input?.region,
+    onlyNewsdata: input?.onlyNewsdata
+  });
   const sourceScoped = input?.onlyNewsdata
     ? allArticles.filter((article) => article.tags.includes("newsdata"))
     : allArticles;
@@ -672,21 +706,35 @@ export async function getLatest(input?: {
 }): Promise<Article[]> {
   const limit = input?.limit ?? 30;
   const offset = input?.offset ?? 0;
-  const all = await getAllArticles();
-  return all.slice(offset, offset + limit);
+  const listingLimit = Math.max(offset + limit, 90);
+  const recent = await getListingArticles({ limit: listingLimit });
+  return recent.slice(offset, offset + limit);
 }
 
 export async function getRegionArticles(
   section: RegionKey | "economia-global" | "energia" | "tecnologia",
   limit = 30
 ): Promise<Article[]> {
-  const all = await getAllArticles();
-  return filterBySection(all, section).slice(0, limit);
+  if (section === "latinoamerica") {
+    return getLatinoamericaArticles(limit);
+  }
+
+  if (section === "mundo") {
+    return getMundoArticles(limit, "Mundo");
+  }
+
+  const regionValue = REGION_ROUTE_MAP[section as RegionKey];
+  if (regionValue) {
+    return getListingArticles({ limit, region: regionValue });
+  }
+
+  const recent = await getListingArticles({ limit: Math.max(limit * 4, 120) });
+  return filterBySection(recent, section).slice(0, limit);
 }
 
 export async function getImpactArticles(limit = 3): Promise<Article[]> {
-  const all = await getAllArticles();
-  const impactArticles = all
+  const recent = await getListingArticles({ limit: Math.max(limit * 12, 48) });
+  const impactArticles = recent
     .filter((article) => article.is_impact && article.impact_format === "analysis")
     .slice(0, limit);
   if (impactArticles.length > 0) {
@@ -697,8 +745,8 @@ export async function getImpactArticles(limit = 3): Promise<Article[]> {
 }
 
 export async function getEditorialArticles(limit = 12): Promise<Article[]> {
-  const all = await getAllArticles();
-  return all
+  const recent = await getListingArticles({ limit: Math.max(limit * 8, 48) });
+  return recent
     .filter((article) => article.is_impact && article.impact_format === "editorial")
     .slice(0, limit);
 }
@@ -709,15 +757,15 @@ export async function getLatestEditorial(): Promise<Article | null> {
 }
 
 export async function getOpinionArticles(limit = 6): Promise<Article[]> {
-  const all = await getAllArticles();
-  return all
+  const recent = await getListingArticles({ limit: Math.max(limit * 8, 48) });
+  return recent
     .filter((article) => article.is_impact && article.impact_format === "opinion")
     .slice(0, limit);
 }
 
 export async function getColumnistArticles(limit = 6): Promise<Article[]> {
-  const all = await getAllArticles();
-  return all
+  const recent = await getListingArticles({ limit: Math.max(limit * 8, 48) });
+  return recent
     .filter((article) => article.is_impact && article.impact_format === "columnist")
     .slice(0, limit);
 }
