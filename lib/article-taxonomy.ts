@@ -1,5 +1,9 @@
-import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
-import { getPrimaryTopicSlug, isGenericTopicSlug, normalizeCountry, normalizeTopicSlug } from "@/lib/hubs";
+import {
+  getPrimaryTopicSlug,
+  normalizeCountry,
+  normalizeTopicSlug,
+  validateTopicAssignment
+} from "@/lib/hubs";
 import type { NormalizedArticle, TaxonomyQualitySummary } from "@/lib/types";
 import type { Article } from "@/lib/types/article";
 
@@ -94,23 +98,19 @@ export function deriveIngestionTaxonomy(seed: TaxonomySeed): {
   section_slug: string;
   tags: string[];
 } {
-  const temporaryArticle = buildTemporaryArticle(seed);
-  const displayMeta = getArticleDisplayMeta(temporaryArticle);
-  const candidateTags = (seed.tags ?? []).filter((tag) => {
-    const normalizedTag = normalizeTopicSlug(tag);
-    return Boolean(normalizedTag && !isGenericTopicSlug(normalizedTag) && normalizedTag !== "rss" && normalizedTag !== "mundo-rss" && !normalizedTag.startsWith("rss-"));
-  });
   const normalizedCountry =
     normalizeCountry(seed.country) ??
-    displayMeta.countrySlug ??
     normalizeCountry(seed.region) ??
     null;
-  const topicSlug =
-    getPrimaryTopicSlug({
-      topic: null,
-      tags: candidateTags,
-      category: seed.category ?? null
-    }) ?? null;
+  const topicSlug = getPrimaryTopicSlug({
+    topic: null,
+    tags: seed.tags ?? [],
+    category: seed.category ?? null,
+    title: seed.title,
+    excerpt: seed.excerpt,
+    content: seed.content ?? null,
+    sourceName: seed.source_name ?? null
+  });
   const tags = topicSlug && !(seed.tags ?? []).includes(topicSlug)
     ? [...new Set([...(seed.tags ?? []), topicSlug])]
     : [...new Set(seed.tags ?? [])];
@@ -167,15 +167,15 @@ export function finalizeArticleTaxonomy<T extends {
   const missingSection = !article.section_slug;
 
   const fallbackCountry = article.country ?? (normalizeCountry(article.region) ?? "internacional");
-  const fallbackTopic =
-    article.topic_slug ??
-    getPrimaryTopicSlug({
-      topic: null,
-      tags: article.tags,
-      category: article.category
-    }) ??
-    normalizeTopicSlug(article.category) ??
-    "actualidad-internacional";
+  const fallbackTopic = getPrimaryTopicSlug({
+    topic: article.topic_slug ?? null,
+    tags: article.tags,
+    category: article.category,
+    title: article.title,
+    excerpt: article.excerpt,
+    content: article.content,
+    sourceName: article.source_name
+  });
   let fallbackSection =
     article.section_slug ||
     deriveSectionSlug({
@@ -189,6 +189,16 @@ export function finalizeArticleTaxonomy<T extends {
     inconsistencyReasons.push("latam_country_with_mundo_section");
     fallbackSection = "latinoamerica";
   }
+  const topicValidationReasons = validateTopicAssignment({
+    topicSlug: fallbackTopic,
+    tags: article.tags,
+    category: article.category,
+    title: article.title,
+    excerpt: article.excerpt,
+    content: article.content,
+    sourceName: article.source_name
+  });
+  inconsistencyReasons.push(...topicValidationReasons);
 
   const taxonomyMeta = {
     source_type: sourceType,

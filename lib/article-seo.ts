@@ -1,5 +1,6 @@
 import { cleanExcerpt, cleanPlainText } from "@/lib/text/clean";
 import type { Article } from "@/lib/types/article";
+import { getTopicLabel, getPrimaryTopicSlug } from "@/lib/hubs";
 
 const GENERIC_TAGS = new Set([
   "rss",
@@ -99,36 +100,16 @@ function toSentenceList(tags: string[]): string {
 }
 
 function articleTopic(article: Article): string {
-  const sourceText = cleanPlainText(`${article.title} ${article.excerpt}`).toLowerCase();
-  const tags = article.tags.map((tag) => cleanPlainText(tag).toLowerCase());
-
-  if (tags.some((tag) => tag.includes("energia")) || sourceText.includes("energia") || sourceText.includes("gas") || sourceText.includes("petroleo")) {
-    return "energia";
-  }
-  if (tags.some((tag) => tag.includes("inflacion") || tag.includes("precios")) || sourceText.includes("inflacion") || sourceText.includes("tasas")) {
-    return "inflacion y economia";
-  }
-  if (tags.some((tag) => tag.includes("geopolit")) || sourceText.includes("iran") || sourceText.includes("ucrania") || sourceText.includes("guerra")) {
-    return "geopolitica internacional";
-  }
-  if (tags.some((tag) => tag.includes("comercio") || tag.includes("logistica")) || sourceText.includes("comercio") || sourceText.includes("logistica")) {
-    return "comercio y logistica";
-  }
-  if (tags.some((tag) => tag.includes("semiconductor") || tag.includes("tecnologia")) ||
-    sourceText.includes("tecnologia") ||
-    sourceText.includes("semiconductor") ||
-    /\bia\b/.test(sourceText) ||
-    sourceText.includes("inteligencia artificial")) {
-    return "tecnologia";
-  }
-  if (sourceText.includes("corteidh") || sourceText.includes("derechos humanos")) {
-    return "derechos humanos y justicia internacional";
-  }
-  if (sourceText.includes("econom") || sourceText.includes("inflacion") || sourceText.includes("tasas")) {
-    return "economia internacional";
-  }
-
-  return cleanPlainText(article.category || "actualidad internacional").toLowerCase();
+  const topicSlug = getPrimaryTopicSlug({
+    topic: article.topic_slug,
+    tags: article.tags,
+    category: article.category,
+    title: article.title,
+    excerpt: article.excerpt,
+    content: article.content,
+    sourceName: article.source_name
+  });
+  return getTopicLabel(topicSlug).toLowerCase();
 }
 
 function articleRegion(article: Article): string {

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import SectionPage from "@/components/SectionPage";
 import { getArticlesByCountry } from "@/lib/data/articles-repo";
-import { getCountryLabel, normalizeCountry, toTopicSlug } from "@/lib/hubs";
+import { getCountryLabel, normalizeCountry, getTopicLabel } from "@/lib/hubs";
 import { buildMetadata } from "@/lib/seo";
 
 type CountryPageProps = {
@@ -38,11 +38,11 @@ export default async function CountryPage({ params }: CountryPageProps) {
     notFound();
   }
 
-  const topicLinks = [...new Set(articles.flatMap((article) => article.tags).filter(Boolean))]
+  const topicLinks = [...new Set(articles.map((article) => article.topic_slug).filter(Boolean))]
     .slice(0, 4)
-    .map((tag) => ({
-      href: `/tema/${toTopicSlug(tag)}`,
-      label: `Tema: ${tag}`
+    .map((topicSlug) => ({
+      href: `/tema/${topicSlug}`,
+      label: `Tema: ${getTopicLabel(topicSlug as string)}`
     }));
   const articleCountLabel = articles.length === 1 ? "1 pieza vinculada" : `${articles.length} piezas vinculadas`;
 

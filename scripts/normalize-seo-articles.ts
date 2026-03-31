@@ -2,7 +2,7 @@ import { config as loadEnv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { generateEditorialWithAgent } from "@/lib/editorial-agent-enrichment";
 import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
-import { getPrimaryTopicSlug, normalizeCountry } from "@/lib/hubs";
+import { getPrimaryTopicSlug, normalizeCountry, validateTopicAssignment } from "@/lib/hubs";
 import { mapRecordToArticle } from "@/lib/data/articles-repo";
 import { deriveSectionSlug } from "@/lib/article-taxonomy";
 
@@ -103,7 +103,11 @@ async function main() {
       getPrimaryTopicSlug({
         topic: article.topic_slug,
         tags: article.tags,
-        category: article.category
+        category: article.category,
+        title: article.title,
+        excerpt: article.excerpt,
+        content: article.content,
+        sourceName: article.source_name
       }) ?? null;
     const sectionSlug = article.section_slug ?? deriveSectionSlug(article);
     const needsEditorial =
@@ -127,6 +131,18 @@ async function main() {
     }
     if (JSON.stringify(row.tags ?? []) !== JSON.stringify(nextTags)) {
       updatePayload.tags = nextTags;
+    }
+    const taxonomyIssues = validateTopicAssignment({
+      topicSlug,
+      tags: nextTags,
+      category: article.category,
+      title: article.title,
+      excerpt: article.excerpt,
+      content: article.content,
+      sourceName: article.source_name
+    });
+    if (taxonomyIssues.length > 0) {
+      console.warn(`TOPIC REVIEW ${article.slug}: ${taxonomyIssues.join(",")}`);
     }
 
     if (needsEditorial) {

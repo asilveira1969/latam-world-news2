@@ -1,4 +1,10 @@
-import { getCountryLabel, normalizeCountry, isLatamCountryCode } from "@/lib/hubs";
+import {
+  getCountryLabel,
+  getPrimaryTopicSlug,
+  getTopicLabel,
+  isLatamCountryCode,
+  normalizeCountry
+} from "@/lib/hubs";
 import { cleanPlainText } from "@/lib/text/clean";
 import type { Article } from "@/lib/types/article";
 
@@ -22,6 +28,9 @@ export type ArticleDisplayMeta = {
   countryLabel: string | null;
   categoryLabel: string;
   sectionLabel: string;
+  topicSlug: string;
+  topicLabel: string;
+  topicHref: string;
   isInternationalFallback: boolean;
 };
 
@@ -66,46 +75,14 @@ const COUNTRY_DEFINITIONS: CountryDefinition[] = [
   { slug: "venezuela", label: "Venezuela", aliases: ["venezuela", "venezol"], primaryAliases: ["venezuela"] }
 ];
 
-const CATEGORY_RULES: Array<{ label: string; patterns: RegExp[] }> = [
-  {
-    label: "Deportes",
-    patterns: [/\bfutbol\b/, /\bpartido\b/, /\bliga\b/, /\bgol\b/, /\bmundial\b/, /\bdeporte/]
-  },
-  {
-    label: "Energia",
-    patterns: [/\benergia\b/, /\bgas\b/, /\bpetroleo\b/, /\belectric/, /\bopec\b/, /\bcrudo\b/]
-  },
-  {
-    label: "Economia",
-    patterns: [/\beconomia\b/, /\binflacion\b/, /\bmercad/, /\bcomercio\b/, /\bfinanz/, /\barancel/]
-  },
-  {
-    label: "Tecnologia",
-    patterns: [/\btecnolog/, /\binteligencia artificial\b/, /\bia\b/, /\bchip/, /\bsemiconductor/, /\bdigital/]
-  },
-  {
-    label: "Cultura",
-    patterns: [/\bcultura\b/, /\bfrancofonia\b/, /\bfrances\b/, /\baulas\b/, /\bidioma\b/, /\bmusic/, /\bcine\b/, /\blibro/]
-  },
-  {
-    label: "Seguridad",
-    patterns: [/\bataque\b/, /\bmisil/, /\bbombarde/, /\bguardia\b/, /\bmilitar/, /\bguerra\b/, /\bconflicto\b/, /\bcolision/, /\baccidente/]
-  },
-  {
-    label: "Politica",
-    patterns: [/\beleccion/, /\bvoto\b/, /\bgobierno\b/, /\bpresident/, /\bparlament/, /\bcongreso\b/, /\bministro\b/, /\bdiplom/]
-  },
-  {
-    label: "Sociedad",
-    patterns: [/\beducacion\b/, /\bsalud\b/, /\bvivienda\b/, /\bprotesta\b/, /\bhuelga\b/, /\bescuela\b/, /\buniversidad/]
-  }
-];
-
 function normalizeForMatch(value: string): string {
   return cleanPlainText(value)
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, " ");
+    .replace(/[\u0300-\u036f]/g, " ")
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function scoreTextMatches(text: string, aliases: string[]): number {
@@ -209,60 +186,60 @@ function resolvePrimaryCountry(article: Article): { slug: string; label: string 
   };
 }
 
-function categoryFromRaw(value: string): string {
-  const normalized = normalizeForMatch(value);
-  if (normalized.includes("polit")) {
-    return "Politica";
+function getSectionMeta(article: Article): { label: string; href: string } {
+  if (article.section_slug === "latinoamerica" || article.region === "LatAm") {
+    return { label: "Latinoamerica", href: "/latinoamerica" };
   }
-  if (normalized.includes("econom")) {
-    return "Economia";
+  if (article.section_slug === "eeuu" || article.region === "EE.UU.") {
+    return { label: "Estados Unidos", href: "/eeuu" };
   }
-  if (normalized.includes("energ")) {
-    return "Energia";
+  if (article.section_slug === "europa" || article.region === "Europa") {
+    return { label: "Europa", href: "/europa" };
   }
-  if (normalized.includes("tecnolog")) {
-    return "Tecnologia";
+  if (article.section_slug === "asia" || article.region === "Asia") {
+    return { label: "Asia", href: "/asia" };
   }
-  if (normalized.includes("cultur")) {
-    return "Cultura";
+  if (article.section_slug === "medio-oriente" || article.region === "Medio Oriente") {
+    return { label: "Medio Oriente", href: "/medio-oriente" };
   }
-  if (normalized.includes("seguridad") || normalized.includes("geopolit")) {
-    return "Seguridad";
+  if (article.section_slug === "tecnologia") {
+    return { label: "Tecnologia", href: "/tecnologia" };
   }
-  if (normalized.includes("deporte")) {
-    return "Deportes";
+  if (article.section_slug === "energia") {
+    return { label: "Energia", href: "/energia" };
   }
-  if (normalized.includes("sociedad")) {
-    return "Sociedad";
+  if (article.section_slug === "economia-global") {
+    return { label: "Economia Global", href: "/economia-global" };
   }
-  return "Internacional";
-}
-
-function detectCategory(article: Article): string {
-  const text = normalizeForMatch(`${article.title}\n${article.excerpt}\n${article.content ?? ""}`);
-
-  for (const rule of CATEGORY_RULES) {
-    if (rule.patterns.some((pattern) => pattern.test(text))) {
-      return rule.label;
-    }
-  }
-
-  return categoryFromRaw(article.category);
+  return { label: "Mundo", href: "/mundo" };
 }
 
 export function getArticleDisplayMeta(article: Article): ArticleDisplayMeta {
   const primaryCountry = resolvePrimaryCountry(article);
-  const categoryLabel = detectCategory(article);
-  const sectionLabel = primaryCountry?.label ?? "Internacional";
-  const href = primaryCountry ? `/pais/${primaryCountry.slug}` : "/mundo";
+  const sectionMeta = getSectionMeta(article);
+  const topicSlug = getPrimaryTopicSlug({
+    topic: article.topic_slug ?? null,
+    tags: article.tags,
+    category: article.category,
+    title: article.title,
+    excerpt: article.excerpt,
+    content: article.content,
+    sourceName: article.source_name
+  });
+  const topicLabel = getTopicLabel(topicSlug);
+  const sectionLabel = primaryCountry?.label ?? sectionMeta.label;
+  const href = primaryCountry ? `/pais/${primaryCountry.slug}` : sectionMeta.href;
 
   return {
-    label: `${sectionLabel} | ${categoryLabel}`,
+    label: `${sectionLabel} | ${topicLabel}`,
     href,
     countrySlug: primaryCountry?.slug ?? null,
     countryLabel: primaryCountry?.label ?? null,
-    categoryLabel,
+    categoryLabel: topicLabel,
     sectionLabel,
+    topicSlug,
+    topicLabel,
+    topicHref: `/tema/${topicSlug}`,
     isInternationalFallback: !primaryCountry
   };
 }

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "audit:editorial-duplication": "tsx scripts/audit-editorial-duplication.ts",
+    "audit:taxonomy": "tsx scripts/audit-taxonomy-report.ts",
     "enrich:rss-editorial": "tsx scripts/enrich-rss-editorial.ts",
     "generate:impacto-draft": "tsx scripts/generate-impacto-draft.ts",
     "send:operations-report": "tsx scripts/send-operations-report.ts",

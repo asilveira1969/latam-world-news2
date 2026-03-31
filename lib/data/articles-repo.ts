@@ -30,6 +30,7 @@ import {
 import {
   getCountryRegionCode,
   getPrimaryTopicSlug,
+  getTopicLabel,
   normalizeCountry,
   isLatamCountryCode,
   toTopicSlug
@@ -240,12 +241,15 @@ export function mapRecordToArticle(record: Record<string, unknown>): Article {
   const sourceUrlInput = String(record.url ?? record.source_url ?? "#");
   const tags = sanitizeArticleTags(record.tags);
   const category = cleanPlainText(String(record.category ?? "Geopolitica")) || "Geopolitica";
-  const topicSlug =
-    getPrimaryTopicSlug({
-      topic: String(record.topic_slug ?? ""),
-      tags,
-      category
-    }) ?? null;
+  const topicSlug = getPrimaryTopicSlug({
+    topic: String(record.topic_slug ?? ""),
+    tags,
+    category,
+    title,
+    excerpt,
+    content: rawContent,
+    sourceName: sourceNameInput
+  });
   const sectionSlugInput = cleanPlainText(String(record.section_slug ?? ""));
 
   return {
@@ -971,16 +975,12 @@ export async function getSitemapHubs(): Promise<
   for (const article of all) {
     const modifiedAt = new Date(article.published_at || article.created_at).getTime();
 
-    const topicSeeds = article.topic_slug ? [article.topic_slug, ...article.tags] : article.tags;
-
-    for (const tag of topicSeeds) {
-      const slug = toTopicSlug(tag);
-      if (!slug || GENERIC_TOPIC_TAGS.has(slug)) {
-        continue;
-      }
-
-      topicMap.set(slug, (topicMap.get(slug) ?? 0) + 1);
-      topicLastModified.set(slug, Math.max(topicLastModified.get(slug) ?? 0, modifiedAt));
+    if (article.topic_slug && !GENERIC_TOPIC_TAGS.has(article.topic_slug)) {
+      topicMap.set(article.topic_slug, (topicMap.get(article.topic_slug) ?? 0) + 1);
+      topicLastModified.set(
+        article.topic_slug,
+        Math.max(topicLastModified.get(article.topic_slug) ?? 0, modifiedAt)
+      );
     }
 
     const countries = new Set<string>();
@@ -1050,13 +1050,10 @@ async function getSitemapEligibleArticles(): Promise<Article[]> {
 }
 
 export async function getArticlesByTag(tag: string, limit = 24): Promise<Article[]> {
-  const normalized = cleanPlainText(tag).toLowerCase().replace(/\s+/g, "-");
+  const normalized = toTopicSlug(tag);
   const all = await getAllArticles();
   return all
-    .filter((article) =>
-      article.topic_slug === normalized ||
-      article.tags.some((item) => item === normalized || item.replace(/\s+/g, "-") === normalized)
-    )
+    .filter((article) => article.topic_slug === normalized)
     .slice(0, limit);
 }
 
@@ -1090,6 +1087,7 @@ export async function getArticlesByCountry(country: string, limit = 24): Promise
 
 export async function getRelatedArticles(article: Article, limit = 4): Promise<Article[]> {
   const all = await getAllArticles();
+  const displayMeta = getArticleDisplayMeta(article);
   const countries = new Set<string>();
   const primaryCountry = normalizeCountry(article.country);
   if (primaryCountry) {
@@ -1120,8 +1118,8 @@ export async function getRelatedArticles(article: Article, limit = 4): Promise<A
       }
       const sharedTags = candidate.tags.filter((tag) => article.tags.includes(tag)).length;
       score += sharedTags * 2;
-      if (candidate.topic_slug && article.topic_slug && candidate.topic_slug === article.topic_slug) {
-        score += 3;
+      if (candidate.topic_slug && displayMeta.topicSlug && candidate.topic_slug === displayMeta.topicSlug) {
+        score += 5;
       }
       const candidateCountries = new Set<string>();
       const candidatePrimaryCountry = normalizeCountry(candidate.country);
@@ -1147,6 +1145,9 @@ export async function getRelatedArticles(article: Article, limit = 4): Promise<A
       }
       if (candidate.is_impact === article.is_impact) {
         score += 1;
+      }
+      if (candidate.topic_slug === "internacional") {
+        score -= 1;
       }
 
       return { candidate, score };

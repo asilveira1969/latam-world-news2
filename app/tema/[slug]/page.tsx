@@ -15,8 +15,8 @@ export async function generateMetadata({ params }: TopicPageProps): Promise<Meta
   const resolvedParams = await params;
   const label = getTopicLabel(resolvedParams.slug);
   return buildMetadata({
-    title: `Tema: ${label}`,
-    description: `Cobertura y lecturas relacionadas con ${label} en LATAM World News.`,
+    title: `Noticias de ${label}`,
+    description: `Cobertura, analisis y lecturas relacionadas con ${label} en LATAM World News.`,
     pathname: `/tema/${resolvedParams.slug}`
   });
 }
@@ -29,7 +29,7 @@ export default async function TopicPage({ params }: TopicPageProps) {
     notFound();
   }
 
-  const countryLinks = [...new Set(articles.flatMap((article) => article.countries ?? []))]
+  const countryLinks = [...new Set(articles.flatMap((article) => [article.country, ...(article.countries ?? [])]))]
     .map((country) => normalizeCountry(country))
     .filter((country): country is string => Boolean(country))
     .slice(0, 4)
@@ -41,14 +41,14 @@ export default async function TopicPage({ params }: TopicPageProps) {
 
   return (
     <SectionPage
-      title={`Tema: ${label}`}
-      description={`Notas, analisis y editoriales relacionadas con ${label}. ${articleCountLabel}.`}
+      title={label}
+      description={`Notas, analisis y editoriales sobre ${label}. ${articleCountLabel}.`}
       articles={articles}
       pathname={`/tema/${resolvedParams.slug}`}
       introTitle="Hub tematico"
       introParagraphs={[
         `Esta pagina concentra la cobertura de LATAM World News sobre ${label} y ayuda a que buscadores y lectores encuentren todas las piezas relevantes desde una misma URL.`,
-        "Cuando un tema se trabaja con continuidad editorial, este tipo de hub mejora la navegacion interna y refuerza la autoridad tematica del sitio."
+        "El hub tematico usa la taxonomia editorial principal del sitio, no tags sueltos ni etiquetas genericas, para reforzar coherencia y autoridad."
       ]}
       quickLinks={[
         { href: `/buscar?q=${encodeURIComponent(label)}`, label: `Buscar ${label}` },

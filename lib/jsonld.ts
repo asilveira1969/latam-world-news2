@@ -1,4 +1,5 @@
 import { SITE_NAME } from "@/lib/constants/nav";
+import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { getEditorialBlocks, type FaqItem } from "@/lib/article-seo";
 import { isValidHttpUrl, resolveCardImage } from "@/lib/images";
 import type { Article } from "@/lib/types/article";
@@ -124,6 +125,7 @@ export function buildNewsArticleJsonLd(
   relatedArticles: Article[] = []
 ) {
   const editorial = getEditorialBlocks(article);
+  const displayMeta = getArticleDisplayMeta(article);
   const articleSection =
     article.impact_format === "editorial"
       ? "Editorial Impacto Latinoamerica"
@@ -148,17 +150,17 @@ export function buildNewsArticleJsonLd(
     datePublished: article.published_at,
     dateModified: article.created_at,
     articleSection,
-    keywords: article.tags,
+    keywords: [...new Set([displayMeta.topicLabel, ...(displayMeta.countryLabel ? [displayMeta.countryLabel] : []), ...article.tags])],
     inLanguage: "es",
     isAccessibleForFree: true,
     about: [
       {
         "@type": "Thing",
-        name: cleanPlainText(article.region)
+        name: cleanPlainText(displayMeta.topicLabel)
       },
       {
         "@type": "Thing",
-        name: cleanPlainText(article.category)
+        name: cleanPlainText(displayMeta.countryLabel ?? displayMeta.sectionLabel)
       }
     ],
     author: {
