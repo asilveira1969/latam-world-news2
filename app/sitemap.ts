@@ -17,12 +17,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/energia",
     "/tecnologia",
     "/impacto",
-    "/acerca",
-    "/contacto",
-    "/fuentes",
-    "/privacidad",
-    "/terminos",
-    "/cookies",
     "/publicidad"
   ];
 
@@ -52,3 +46,4 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [...staticEntries, ...hubEntries, ...articleEntries];
 }
+

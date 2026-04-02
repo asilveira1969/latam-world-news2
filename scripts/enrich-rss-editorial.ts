@@ -1,21 +1,8 @@
 import { config as loadEnv } from "dotenv";
+import { loadPendingRssEditorialRows } from "../lib/rss/editorial-queue";
 
 loadEnv({ path: ".env.local" });
 loadEnv();
-
-type EditorialRow = {
-  id: string;
-  slug: string;
-  title: string;
-  excerpt: string;
-  content: string | null;
-  source_name: string;
-  source_url: string;
-  region: "Mundo" | "LatAm" | "EE.UU." | "Europa" | "Asia" | "Medio Oriente" | "UY" | "AR" | "BR" | "MX" | "CL";
-  category: string;
-  tags: string[] | null;
-  published_at: string;
-};
 
 function parseLimit(argv: string[]): number {
   const raw = argv.find((arg) => arg.startsWith("--limit="));
@@ -32,19 +19,10 @@ async function main() {
 
   const supabase = getSupabaseServiceClient();
   const limit = parseLimit(process.argv.slice(2));
-  const { data, error } = await supabase
-    .from("articles")
-    .select("id, slug, title, excerpt, content, source_name, source_url, region, category, tags, published_at")
-    .eq("source_type", "rss")
-    .or("editorial_status.is.null,editorial_status.eq.pending,editorial_status.eq.failed")
-    .order("published_at", { ascending: false })
-    .limit(limit);
-
-  if (error) {
-    throw new Error(`Failed to load pending RSS articles: ${error.message}`);
-  }
-
-  const rows = (data ?? []) as EditorialRow[];
+  const rows = await loadPendingRssEditorialRows(supabase, {
+    totalLimit: limit,
+    perSourceLimit: Math.min(8, limit)
+  });
   if (rows.length === 0) {
     console.log("No RSS articles pending editorial enrichment.");
     return;

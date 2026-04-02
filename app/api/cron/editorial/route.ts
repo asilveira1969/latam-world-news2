@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateEditorialWithAgent } from "@/lib/editorial-agent-enrichment";
 import { isCronAuthorized } from "@/lib/ingest/execute";
+import { loadPendingRssEditorialRows } from "@/lib/rss/editorial-queue";
 import { getSupabaseServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -15,17 +16,10 @@ export async function GET(request: Request) {
   }
 
   const supabase = getSupabaseServiceClient();
-  const { data, error } = await supabase
-    .from("articles")
-    .select("id, slug, title, excerpt, content, source_name, source_url, region, category, tags, published_at")
-    .eq("source_type", "rss")
-    .or("editorial_status.is.null,editorial_status.eq.pending,editorial_status.eq.failed")
-    .order("published_at", { ascending: false })
-    .limit(30);
-
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  }
+  const data = await loadPendingRssEditorialRows(supabase, {
+    totalLimit: 30,
+    perSourceLimit: 8
+  });
 
   let ready = 0;
   let failed = 0;
@@ -60,7 +54,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    processed: (data ?? []).length,
+    processed: data.length,
     ready,
     failed
   });

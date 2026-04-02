@@ -12,3 +12,6 @@ openclaw/ingested/*.json
 estructura*.txt
 docs/operations/*.pdf
 
+.vercel
+tmp_logs/
+supabase/.temp/
