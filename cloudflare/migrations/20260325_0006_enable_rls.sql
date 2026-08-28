@@ -1,0 +1,2 @@
+-- Supabase Row Level Security has no D1 equivalent. Authorization must be enforced
+-- by the Worker before it executes D1 statements. No D1 tables are public by themselves.

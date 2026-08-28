@@ -17,6 +17,11 @@ import {
   hasSupabaseAnonEnv,
   hasSupabaseServiceEnv
 } from "@/lib/supabase/server";
+import {
+  getAllD1WorkerArticles,
+  getD1WorkerArticleBySlug,
+  listD1WorkerArticles
+} from "@/lib/d1/worker-client";
 import { hasUsableRemoteImage, resolveCardImage } from "@/lib/images";
 import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { formatSourceDisplayName } from "@/lib/sources";
@@ -61,6 +66,10 @@ const ARTICLE_SELECT_FIELDS =
 const ARTICLE_DETAIL_SELECT_FIELDS = ARTICLE_SELECT_FIELDS;
 const SITEMAP_ARTICLE_SELECT_FIELDS =
   "id, title, slug, excerpt, summary, latamworldnews_summary, curated_news, editorial_status, source_type, image_url, source_name, source_url, region, country, category, tags, countries, topic_slug, section_slug, impact_format, published_at, created_at, is_impact";
+
+function d1ReadsEnabled(): boolean {
+  return process.env.D1_READS_ENABLED === "true";
+}
 
 export interface MundoSourceSummary {
   sourceName: string;
@@ -156,6 +165,13 @@ function isDisplayableArticle(article: Article): boolean {
   if (!passesBaseDisplayChecks(article)) {
     return false;
   }
+
+  // D1 staging receives raw RSS first; editorial enrichment is intentionally not
+  // a prerequisite for the local D1 read path.
+  if (d1ReadsEnabled()) {
+    return true;
+  }
+
   if (!article.is_impact && !hasPersistedEditorialCuration(article)) {
     return false;
   }
@@ -361,6 +377,10 @@ function filterBySection(articles: Article[], section: SectionKey): Article[] {
 }
 
 async function fetchAllArticleRecords(selectFields = ARTICLE_SELECT_FIELDS): Promise<Record<string, unknown>[]> {
+  if (d1ReadsEnabled()) {
+    return (await getAllD1WorkerArticles()) as unknown as Record<string, unknown>[];
+  }
+
   if (!hasSupabaseAnonEnv) {
     return [];
   }
@@ -399,6 +419,17 @@ async function fetchAllArticleRecords(selectFields = ARTICLE_SELECT_FIELDS): Pro
 }
 
 async function fetchAllArticlesFromSource(): Promise<Article[]> {
+  if (d1ReadsEnabled()) {
+    try {
+      return (await getAllD1WorkerArticles()).map((article) =>
+        mapRecordToArticle(article as unknown as Record<string, unknown>)
+      );
+    } catch (error) {
+      console.error("D1 read failed:", error);
+      return [];
+    }
+  }
+
   if (!hasSupabaseAnonEnv) {
     return mockArticles;
   }
@@ -423,7 +454,7 @@ const getCachedAllArticles = unstable_cache(
     const all = await fetchAllArticlesFromSource();
     return dedupeBySourceUrl(sortByPublishedDesc(all)).filter(isDisplayableArticle);
   },
-  ["all-articles"],
+  ["all-articles", d1ReadsEnabled() ? "d1" : "supabase"],
   { revalidate: 300 }
 );
 
@@ -445,6 +476,23 @@ export function sortMundoArticlesForDisplay(articles: Article[]): Article[] {
 }
 
 async function fetchMundoRssArticlesFromSupabase(limit: number): Promise<Article[]> {
+  if (d1ReadsEnabled()) {
+    try {
+      const result = await listD1WorkerArticles({
+        page: 1,
+        pageSize: Math.min(Math.max(limit, 1), 100),
+        region: "Mundo",
+        sourceType: "rss"
+      });
+      return dedupeBySourceUrl(sortByPublishedDesc(result.data.map((article) => mapRecordToArticle(article as unknown as Record<string, unknown>))))
+        .filter((article) => article.tags.includes(MUNDO_RSS_TAG))
+        .filter(isDisplayableArticle);
+    } catch (error) {
+      console.error("D1 mundo-rss read failed:", error);
+      return [];
+    }
+  }
+
   if (!hasSupabaseAnonEnv) {
     return [];
   }
@@ -481,6 +529,37 @@ async function fetchArticlesFromSupabaseQuery(input: {
   sectionSlug?: string;
   displayFilter?: (article: Article) => boolean;
 }): Promise<Article[]> {
+  if (d1ReadsEnabled()) {
+    try {
+      let articles = (await getAllD1WorkerArticles()).map((article) =>
+        mapRecordToArticle(article as unknown as Record<string, unknown>)
+      );
+
+      if (input.country) {
+        articles = articles.filter((article) => article.country === input.country);
+      } else if (input.region) {
+        articles = articles.filter((article) => article.region === input.region);
+      } else if (input.countries && input.countries.length > 0) {
+        articles = articles.filter((article) => article.country && input.countries?.includes(article.country));
+      }
+
+      if (input.sectionSlug) {
+        articles = articles.filter((article) => article.section_slug === input.sectionSlug);
+      }
+
+      if (input.onlyNewsdata) {
+        articles = articles.filter((article) => article.tags.includes("newsdata"));
+      }
+
+      return dedupeBySourceUrl(sortByPublishedDesc(articles))
+        .filter(input.displayFilter ?? isDisplayableArticle)
+        .slice(0, input.limit);
+    } catch (error) {
+      console.error("D1 filtered read failed:", error);
+      return [];
+    }
+  }
+
   if (!hasSupabaseAnonEnv) {
     return [];
   }
@@ -689,10 +768,14 @@ export async function getHomeData(input?: {
   const impactArticles = all.filter((article) => article.is_impact);
   const editorialArticles = impactArticles.filter((article) => article.impact_format === "editorial");
   const analysisArticles = impactArticles.filter((article) => article.impact_format !== "editorial");
-  const fallbackImpact = analysisArticles.length > 0 ? analysisArticles : getFallbackImpactArticles(3);
+  const fallbackImpact = analysisArticles.length > 0
+    ? analysisArticles
+    : d1ReadsEnabled()
+      ? []
+      : getFallbackImpactArticles(3);
 
   return {
-    ticker: ticker.length >= 6 ? ticker : fallbackTickerHeadlines,
+    ticker: d1ReadsEnabled() ? ticker : ticker.length >= 6 ? ticker : fallbackTickerHeadlines,
     heroLead: hero.lead,
     heroSecondary: hero.secondary,
     latestEditorial: editorialArticles[0] ?? null,
@@ -745,7 +828,7 @@ export async function getImpactArticles(limit = 3): Promise<Article[]> {
     return impactArticles;
   }
 
-  return getFallbackImpactArticles(limit);
+  return d1ReadsEnabled() ? [] : getFallbackImpactArticles(limit);
 }
 
 export async function getEditorialArticles(limit = 12): Promise<Article[]> {
@@ -831,6 +914,16 @@ export async function getArticleBySlug(
 const getCachedArticleBySlug = (slug: string) =>
   unstable_cache(
     async (): Promise<Article | null> => {
+      if (d1ReadsEnabled()) {
+        try {
+          const article = await getD1WorkerArticleBySlug(slug);
+          return article && passesBaseDisplayChecks(article) ? mapRecordToArticle(article as unknown as Record<string, unknown>) : null;
+        } catch (error) {
+          console.error("D1 slug lookup failed:", error);
+          return null;
+        }
+      }
+
       if (!hasSupabaseAnonEnv) {
         return null;
       }
@@ -854,7 +947,7 @@ const getCachedArticleBySlug = (slug: string) =>
         return null;
       }
     },
-    ["article-by-slug", slug],
+    ["article-by-slug", d1ReadsEnabled() ? "d1" : "supabase", slug],
     { revalidate: 3600 }
   )();
 
@@ -908,6 +1001,11 @@ export async function getAllArticleSlugs(): Promise<{
 }
 
 export async function incrementArticleViews(slug: string): Promise<boolean> {
+  if (d1ReadsEnabled()) {
+    // This local read-only phase deliberately does not use the internal write secret.
+    return false;
+  }
+
   if (!hasSupabaseServiceEnv) {
     return false;
   }
@@ -1034,6 +1132,10 @@ export async function getSitemapHubs(): Promise<
 }
 
 async function getSitemapEligibleArticles(): Promise<Article[]> {
+  if (d1ReadsEnabled()) {
+    return getAllArticles();
+  }
+
   if (!hasSupabaseAnonEnv) {
     return getAllArticles();
   }

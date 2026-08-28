@@ -36,6 +36,18 @@ function hostVariants(hostname: string): string[] {
   return [...new Set([host, last2, last3])];
 }
 
+function areKnownImageAndSourceHostsRelated(imageHost: string, sourceHost: string): boolean {
+  const normalizedImageHost = imageHost.toLowerCase();
+  const normalizedSourceHost = sourceHost.toLowerCase();
+
+  // BBC article pages live on bbc.com while their CDN images use bbci.co.uk.
+  // They are the same publisher and are safe to present together.
+  return (
+    (normalizedImageHost.endsWith(".bbci.co.uk") || normalizedImageHost === "bbci.co.uk") &&
+    (normalizedSourceHost.endsWith(".bbc.com") || normalizedSourceHost === "bbc.com")
+  );
+}
+
 export function isImageLikelyFromSource(
   imageUrl: string | null | undefined,
   sourceUrl: string | null | undefined
@@ -50,6 +62,9 @@ export function isImageLikelyFromSource(
   try {
     const imageHost = new URL(imageUrl).hostname;
     const sourceHost = new URL(sourceUrl).hostname;
+    if (areKnownImageAndSourceHostsRelated(imageHost, sourceHost)) {
+      return true;
+    }
     const imageVariants = hostVariants(imageHost);
     const sourceVariants = hostVariants(sourceHost);
 

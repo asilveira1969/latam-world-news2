@@ -38,6 +38,12 @@ function hasPublishedEditorialCuration(summary: string, curated: string): boolea
 }
 
 function canRenderPublishedNote(article: NonNullable<Awaited<ReturnType<typeof getArticleBySlug>>>) {
+  // Local D1 staging intentionally renders raw RSS entries before editorial
+  // enrichment exists. Production keeps the existing publication gate.
+  if (process.env.D1_READS_ENABLED === "true") {
+    return true;
+  }
+
   if (article.source_type === "api" && article.section_slug === "latinoamerica") {
     return true;
   }
