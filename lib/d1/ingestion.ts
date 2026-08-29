@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import { createEmptyTaxonomyQualitySummary, finalizeArticleTaxonomy, summarizeTaxonomyQuality } from "@/lib/article-taxonomy";
 import { upsertD1Article, recordD1IngestionError } from "@/lib/d1/internal-client";
+import { getAllD1WorkerArticles } from "@/lib/d1/worker-client";
+import {
+  dedupeBySourceUrl,
+  findPossibleTopicDuplicate,
+  type TopicDuplicateCandidate
+} from "@/lib/d1/topic-dedup";
 import { fetchNewsdataArticles } from "@/lib/providers/newsdata";
 import { fetchRssFeed } from "@/lib/rss/fetch-rss";
 import { normalizeRssItems } from "@/lib/rss/normalize";
@@ -94,10 +100,23 @@ function emptySummary(): D1IngestionSummary {
   return { run_at: new Date().toISOString(), okSources: 0, failedSources: 0, inserted: 0, updated: 0, skipped: 0, taxonomy: createEmptyTaxonomyQualitySummary(), errors: [], sourceResults: [] };
 }
 async function writeBatch(articles: D1IngestArticle[], sourceType: "rss" | "api") {
-  const seen = new Set<string>(); let inserted = 0; let updated = 0; let skipped = 0;
-  const unique = articles.filter((article) => { if (!article.source_url || seen.has(article.source_url)) { skipped += 1; return false; } seen.add(article.source_url); return true; });
+  let inserted = 0; let updated = 0;
+  const { unique, skipped } = dedupeBySourceUrl(articles);
   const finalized = unique.map((article) => finalizeArticleTaxonomy({ ...article, excerpt: article.excerpt ?? article.summary ?? article.title, country: article.country ?? null, topic_slug: article.topic_slug ?? null, section_slug: article.section_slug ?? "mundo" }, sourceType));
-  for (const article of finalized) { const result = await upsertD1Article(toD1Article(article, sourceType)); if (result.created) inserted += 1; else updated += 1; }
+  const topicCorpus: TopicDuplicateCandidate[] = (await getAllD1WorkerArticles()).map((article) => ({ slug: article.slug, title: article.title, source_name: article.source_name, source_url: article.source_url, published_at: article.published_at }));
+  for (const article of finalized) {
+    const payload = toD1Article(article, sourceType);
+    const topicMatch = findPossibleTopicDuplicate(payload, topicCorpus);
+    const result = await upsertD1Article({
+      ...payload,
+      possible_topic_duplicate: Boolean(topicMatch),
+      topic_duplicate_group: topicMatch?.group ?? null,
+      topic_duplicate_confidence: topicMatch?.confidence ?? null,
+      topic_duplicate_of_slug: topicMatch?.matchedSlug ?? null
+    });
+    topicCorpus.push(payload);
+    if (result.created) inserted += 1; else updated += 1;
+  }
   return { inserted, updated, skipped, taxonomy: summarizeTaxonomyQuality(finalized) };
 }
 function mergeSummary(summary: D1IngestionSummary, result: Awaited<ReturnType<typeof writeBatch>>) {

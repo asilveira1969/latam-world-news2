@@ -113,6 +113,10 @@ export interface Article {
   created_at: string;
   is_featured: boolean;
   is_impact: boolean;
+  possible_topic_duplicate?: boolean;
+  topic_duplicate_group?: string | null;
+  topic_duplicate_confidence?: number | null;
+  topic_duplicate_of_slug?: string | null;
   views: number;
 }
 

@@ -103,6 +103,14 @@ The NewsData run needs `NEWSDATA_API_KEY`; it is not required for RSS. Failed so
 - Authorization replaces RLS and must be implemented at the Worker boundary.
 - `articles.url` is uniquely indexed. SQLite cannot add its historical `NOT NULL` constraint without rebuilding the table, so write validation is required before enabling writes.
 
+## RSS external-content policy
+
+RSS ingestion never persists a third-party article body. For every external RSS item, `content` is stored as `NULL`; `content:encoded`, HTML, and full feed bodies are discarded. The only retained text is an optional plain-text excerpt from the feed, capped at 280 characters. If no safely bounded excerpt is available, it is stored as an empty string. Every record preserves the source name, original URL, publication date, title, and an attributed source link.
+
+## Cross-source topic-duplicate markers
+
+URL, `source_url`, and deterministic slug conflicts still prevent direct duplicates. A separate non-blocking check compares normalized title terms from different media in a 48-hour window. It marks `possible_topic_duplicate` only when there are at least four shared relevant terms, Jaccard similarity is at least 0.65, and overlap covers at least 75% of the shorter term set. The record is kept and receives a group, confidence, and matched-slug marker; low-confidence matches do nothing. This deterministic method cannot reliably understand synonyms, translations, sarcasm, or materially different angles with similar vocabulary, so editorial review remains required.
+
 ## Before production use
 
 1. Review and test the translated schema with representative data, including JSON arrays and ISO dates.
