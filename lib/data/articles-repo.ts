@@ -802,6 +802,13 @@ export async function getRegionArticles(
   section: RegionKey | "economia-global" | "energia" | "tecnologia",
   limit = 30
 ): Promise<Article[]> {
+  // D1 editorial decisions persist the route's canonical section identifier.
+  // Prefer it to presentation labels such as "Energía" or regional values so
+  // the local D1 read path does not depend on accent-sensitive comparisons.
+  if (d1ReadsEnabled()) {
+    return getListingArticles({ limit, sectionSlug: section });
+  }
+
   if (section === "latinoamerica") {
     return getLatinoamericaArticles(limit);
   }
