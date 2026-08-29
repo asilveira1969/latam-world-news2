@@ -1,4 +1,20 @@
+import "server-only";
+
 export type D1ArticleWrite = Record<string, unknown>;
+export type D1EditorialDecisionWrite = {
+  slug: string;
+  editorial_status: "ready" | "rejected" | "pending_review";
+  editorial_review_status: "approved" | "rejected" | "pending";
+  audit_note: string;
+  editorial_reviewed_at?: string;
+  region?: string;
+  country?: string | null;
+  countries?: string[];
+  category?: string;
+  tags?: string[];
+  topic_slug?: string;
+  section_slug?: string;
+};
 
 const workerUrl = process.env.D1_WORKER_URL;
 const internalSecret = process.env.D1_WORKER_INTERNAL_SECRET;
@@ -27,6 +43,18 @@ async function internalRequest<T>(path: string, payload: Record<string, unknown>
 
 export async function upsertD1Article(article: D1ArticleWrite): Promise<{ created: boolean }> {
   return internalRequest<{ created: boolean }>("/internal/articles/upsert", { article });
+}
+
+export async function applyD1EditorialDecisions(changes: D1EditorialDecisionWrite[]): Promise<{
+  requested: number;
+  changed: number;
+  approved: number;
+  rejected: number;
+  pending: number;
+  slugs: string[];
+}> {
+  const response = await internalRequest<{ data: { requested: number; changed: number; approved: number; rejected: number; pending: number; slugs: string[] } }>("/internal/editorial/apply-batch", { changes });
+  return response.data;
 }
 
 export async function recordD1IngestionError(input: {

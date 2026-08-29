@@ -25,6 +25,45 @@ export interface TopicDuplicateMatch {
   sharedTerms: string[];
 }
 
+/**
+ * Exact editorial duplicates are intentionally stricter than topic duplicates:
+ * same normalized headline within 48 hours is enough, even from the same outlet.
+ * They are marked for a human choice; this helper never suppresses either item.
+ */
+export function findExactEditorialDuplicate(
+  candidate: TopicDuplicateCandidate,
+  existing: TopicDuplicateCandidate[]
+): TopicDuplicateMatch | null {
+  const candidateTime = dateValue(candidate.published_at);
+  const normalizedTitle = candidate.title
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  if (!candidateTime || !normalizedTitle) return null;
+
+  for (const item of existing) {
+    if (item.slug === candidate.slug) continue;
+    const itemTime = dateValue(item.published_at);
+    const itemTitle = item.title
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    if (!itemTime || Math.abs(candidateTime - itemTime) > TOPIC_DUPLICATE_WINDOW_MS || itemTitle !== normalizedTitle) continue;
+    const groupSeed = [candidate.slug, item.slug].sort().join(":");
+    return {
+      matchedSlug: item.slug,
+      group: `editorial-exact-${createHash("sha1").update(groupSeed).digest("hex").slice(0, 16)}`,
+      confidence: 1,
+      sharedTerms: normalizedTerms(candidate.title)
+    };
+  }
+  return null;
+}
+
 function normalizedTerms(title: string): string[] {
   return [...new Set(
     title

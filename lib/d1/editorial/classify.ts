@@ -21,7 +21,7 @@ const COUNTRY_RULES: CountryRule[] = [
   { country: "ecuador", region: "LatAm", terms: ["ecuador", "ecuatoriano", "ecuatoriana", "ecuatorianos", "ecuatorianas"] },
   { country: "mexico", region: "LatAm", terms: ["mexico", "mexicano", "mexicana", "mexicanos", "mexicanas"] },
   { country: "peru", region: "LatAm", terms: ["peru", "peruano", "peruana", "peruanos", "peruanas"] },
-  { country: "venezuela", region: "LatAm", terms: ["venezuela", "venezolano", "venezolana", "venezolanos", "venezolanas"] },
+  { country: "venezuela", region: "LatAm", terms: ["venezuela", "venezolano", "venezolana", "venezolanos", "venezolanas", "delcy rodriguez"] },
   { country: "uruguay", region: "LatAm", terms: ["uruguay", "uruguayo", "uruguaya", "uruguayos", "uruguayas"] },
   { country: "estados-unidos", region: "EE.UU.", terms: ["ee uu", "eeuu", "estados unidos", "estadounidense", "estadounidenses", "pentagono"] },
   { country: "canada", region: "Mundo", terms: ["canada", "canadiense", "canadienses"] },

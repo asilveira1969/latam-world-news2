@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { D1_EDITORIAL_FIXTURES } from "@/fixtures/d1-editorial-rss-fixtures";
 import { classifyD1EditorialInput } from "@/lib/d1/editorial/classify";
 import { buildD1EditorialModelRequest, prepareD1EditorialPatch, validateD1EditorialResult } from "@/lib/d1/editorial/workflow";
+import { findExactEditorialDuplicate } from "@/lib/d1/topic-dedup";
 
 const [venezuela, china, malvinas, ucrania, brasil] = D1_EDITORIAL_FIXTURES;
 assert.equal(classifyD1EditorialInput(venezuela).section_slug, "energia");
@@ -41,6 +42,11 @@ assert.equal(venezuelaOil.region, "LatAm");
 assert.equal(venezuelaOil.country, "venezuela");
 assert.equal(classify("Ucrania refuerza sus defensas").region, "Europa");
 assert.equal(classify("Ucrania refuerza sus defensas").country, "ucrania");
+const delcy = classify("Delcy Rodríguez se pronuncia sobre el histórico acuerdo petrolero con EE.UU.");
+assert.equal(delcy.section_slug, "energia");
+assert.equal(delcy.region, "LatAm");
+assert.equal(delcy.country, "venezuela");
+assert.ok(delcy.countries.includes("estados-unidos"));
 
 for (const [title, region, country] of [
   ["Nepal registra nuevas lluvias", "Asia", "nepal"],
@@ -60,6 +66,14 @@ for (const [title, region, country] of [
   assert.equal(result.region, region, title);
   assert.equal(result.country, country, title);
 }
+
+const exactFrance24Duplicate = findExactEditorialDuplicate(
+  { slug: "el-acuerdo-petrolero-mas-grande-de-la-historia-trump-anuncia-trato-por-65-000-mi-5c47bae166", title: "El acuerdo petrolero más grande de la historia: Trump anuncia trato por 65.000 millones de barriles con Venezuela", source_name: "France 24 Español", source_url: "https://example.test/b", published_at: "2026-08-29T10:00:00Z" },
+  [{ slug: "el-acuerdo-petrolero-mas-grande-de-la-historia-trump-anuncia-trato-por-65-000-mi-7b6092c6fe", title: "El acuerdo petrolero más grande de la historia: Trump anuncia trato por 65.000 millones de barriles con Venezuela", source_name: "France 24 Español", source_url: "https://example.test/a", published_at: "2026-08-29T09:00:00Z" }]
+);
+assert.ok(exactFrance24Duplicate);
+assert.equal(exactFrance24Duplicate?.matchedSlug, "el-acuerdo-petrolero-mas-grande-de-la-historia-trump-anuncia-trato-por-65-000-mi-7b6092c6fe");
+assert.equal(exactFrance24Duplicate?.confidence, 1);
 
 const request = buildD1EditorialModelRequest(venezuela);
 assert.equal(request.allowed_source.source_url, venezuela.source_url);
