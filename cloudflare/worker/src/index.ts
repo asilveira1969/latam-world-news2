@@ -5,8 +5,8 @@ interface D1Database { prepare(query: string): D1PreparedStatement; }
 interface Env { DB: D1Database; INTERNAL_API_SECRET?: string; }
 
 type Row = Record<string, unknown>;
-const JSON_COLUMNS = ["tags", "countries", "raw", "faq_items", "editorial_sections"] as const;
-const ARTICLE_COLUMNS = ["id","title","slug","excerpt","content","image_url","source_name","source_url","region","category","tags","published_at","created_at","is_featured","is_impact","views","url","summary","source","source_type","country","language","raw","latamworldnews_summary","curated_news","editorial_status","editorial_generated_at","editorial_model","topic_slug","section_slug","countries","impact_format","editorial_sections","latam_angle","faq_items","seo_title","seo_description","possible_topic_duplicate","topic_duplicate_group","topic_duplicate_confidence","topic_duplicate_of_slug"] as const;
+const JSON_COLUMNS = ["tags", "countries", "raw", "faq_items", "editorial_sections", "editorial_validation"] as const;
+const ARTICLE_COLUMNS = ["id","title","slug","excerpt","content","image_url","source_name","source_url","region","category","tags","published_at","created_at","is_featured","is_impact","views","url","summary","source","source_type","country","language","raw","latamworldnews_summary","curated_news","editorial_status","editorial_generated_at","editorial_model","topic_slug","section_slug","countries","impact_format","editorial_sections","latam_angle","faq_items","seo_title","seo_description","possible_topic_duplicate","topic_duplicate_group","topic_duplicate_confidence","topic_duplicate_of_slug","editorial_origin","editorial_input_hash","editorial_prompt_version","editorial_validation","editorial_review_status","editorial_reviewed_at","editorial_review_notes"] as const;
 const DRAFT_COLUMNS = ["id","slug","title","excerpt","seo_title","seo_description","editorial_context","editorial_sections","tags","countries","source_articles","source_count","status","review_email","email_sent_at","email_provider","email_message_id","model","generated_at","approved_at","published_article_slug","created_at","updated_at"] as const;
 
 function json(data: unknown, init: ResponseInit = {}) { return new Response(JSON.stringify(data), { ...init, headers: { "content-type": "application/json; charset=utf-8", ...init.headers } }); }
@@ -32,6 +32,23 @@ async function upsertArticle(db: D1Database, input: Row) {
   const article = normalizeArticle(input, ids[0]); const values = ARTICLE_COLUMNS.map((column) => article[column] ?? null); const assignments = ARTICLE_COLUMNS.filter((column) => column !== "id" && column !== "created_at").map((column) => `${column} = excluded.${column}`).join(", ");
   await db.prepare(`INSERT INTO articles (${ARTICLE_COLUMNS.join(", ")}) VALUES (${ARTICLE_COLUMNS.map(() => "?").join(", ")}) ON CONFLICT(id) DO UPDATE SET ${assignments}`).bind(...values).run(); const saved = await db.prepare("SELECT * FROM articles WHERE id = ?").bind(article.id).first<Row>(); return { article: serializeArticle(saved ?? article), created: ids.length === 0 };
 }
+const EDITORIAL_PATCH_COLUMNS = ["region", "country", "countries", "category", "tags", "topic_slug", "section_slug", "latamworldnews_summary", "editorial_status", "editorial_generated_at", "editorial_model", "editorial_origin", "editorial_input_hash", "editorial_prompt_version", "editorial_validation", "editorial_review_status"] as const;
+function normalizeEditorialPatch(input: Row): Row {
+  if ("content" in input || "source_url" in input || "url" in input || "source_name" in input || "title" in input || "excerpt" in input) throw new Error("Editorial patches cannot replace source metadata or content.");
+  const summary = stringValue(input.latamworldnews_summary);
+  if (!summary) throw new Error("latamworldnews_summary is required.");
+  if (stringValue(input.editorial_origin) !== "generated_metadata_only") throw new Error("Unsupported editorial origin.");
+  if (stringValue(input.editorial_status) !== "pending_review") throw new Error("Editorial patches must remain pending review.");
+  if (stringValue(input.editorial_review_status) !== "pending") throw new Error("Editorial patches must require review.");
+  return { ...input, country: stringValue(input.country) || null, region: stringValue(input.region) || "Mundo", category: stringValue(input.category) || "Internacional", topic_slug: stringValue(input.topic_slug) || null, section_slug: stringValue(input.section_slug) || "mundo", tags: asJson(input.tags, []), countries: asJson(input.countries, []), latamworldnews_summary: summary, editorial_generated_at: stringValue(input.editorial_generated_at) || new Date().toISOString(), editorial_model: stringValue(input.editorial_model), editorial_origin: "generated_metadata_only", editorial_input_hash: stringValue(input.editorial_input_hash), editorial_prompt_version: stringValue(input.editorial_prompt_version), editorial_validation: asJson(input.editorial_validation, {}), editorial_status: "pending_review", editorial_review_status: "pending" };
+}
+async function patchArticleEditorial(db: D1Database, slug: string, input: Row) {
+  const existing = await db.prepare("SELECT id FROM articles WHERE slug = ?").bind(slug).first<{ id: string }>();
+  if (!existing) throw new Error("Article not found.");
+  const patch = normalizeEditorialPatch(input); const values = EDITORIAL_PATCH_COLUMNS.map((column) => patch[column] ?? null);
+  await db.prepare(`UPDATE articles SET ${EDITORIAL_PATCH_COLUMNS.map((column) => `${column} = ?`).join(", ")} WHERE slug = ?`).bind(...values, slug).run();
+  const saved = await db.prepare("SELECT * FROM articles WHERE slug = ?").bind(slug).first<Row>(); return serializeArticle(saved ?? patch);
+}
 function normalizeDraft(input: Row, existingId?: string): Row {
   const now = new Date().toISOString(); const title = stringValue(input.title); const slug = stringValue(input.slug); if (!title || !slug) throw new Error("title and slug are required.");
   return { ...input, id: existingId || stringValue(input.id) || crypto.randomUUID(), title, slug, excerpt: stringValue(input.excerpt) || title, editorial_sections: asJson(input.editorial_sections, {}), tags: asJson(input.tags, []), countries: asJson(input.countries, []), source_articles: asJson(input.source_articles, []), source_count: Number.isFinite(Number(input.source_count)) ? Number(input.source_count) : 0, status: stringValue(input.status) || "pending_review", generated_at: stringValue(input.generated_at) || now, created_at: stringValue(input.created_at) || now, updated_at: now };
@@ -50,6 +67,7 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "GET" && path.startsWith("/articles/")) { const slug = decodeURIComponent(path.slice("/articles/".length)); const article = await env.DB.prepare("SELECT * FROM articles WHERE slug = ? LIMIT 1").bind(slug).first<Row>(); return article ? json({ data: serializeArticle(article) }) : json({ error: "Not found" }, { status: 404 }); }
     if (!isInternalRequest(request, env)) return json({ error: "Unauthorized" }, { status: 401 });
     if (request.method === "POST" && path === "/internal/articles/upsert") { const payload = await requestBody(request); const result = await upsertArticle(env.DB, payload.article as Row); return json({ data: result.article, created: result.created }, { status: result.created ? 201 : 200 }); }
+    if (request.method === "POST" && /^\/internal\/articles\/[^/]+\/editorial$/.test(path)) { const slug = decodeURIComponent(path.split("/")[3]); const payload = await requestBody(request); return json({ data: await patchArticleEditorial(env.DB, slug, payload.editorial as Row) }); }
     if (request.method === "POST" && /^\/internal\/articles\/[^/]+\/views$/.test(path)) { const slug = decodeURIComponent(path.split("/")[3]); await env.DB.prepare("UPDATE articles SET views = views + 1 WHERE slug = ?").bind(slug).run(); return json({ ok: true }); }
     if (request.method === "POST" && path === "/internal/impacto-drafts/upsert") { const payload = await requestBody(request); const result = await upsertDraft(env.DB, payload.draft as Row); return json({ data: result.draft, created: result.created }, { status: result.created ? 201 : 200 }); }
     if (request.method === "POST" && path === "/internal/ingestion-errors") { await recordError(env.DB, await requestBody(request)); return json({ ok: true }, { status: 201 }); }

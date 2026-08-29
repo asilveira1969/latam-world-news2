@@ -111,6 +111,47 @@ RSS ingestion never persists a third-party article body. For every external RSS 
 
 URL, `source_url`, and deterministic slug conflicts still prevent direct duplicates. A separate non-blocking check compares normalized title terms from different media in a 48-hour window. It marks `possible_topic_duplicate` only when there are at least four shared relevant terms, Jaccard similarity is at least 0.65, and overlap covers at least 75% of the shorter term set. The record is kept and receives a group, confidence, and matched-slug marker; low-confidence matches do nothing. This deterministic method cannot reliably understand synonyms, translations, sarcasm, or materially different angles with similar vocabulary, so editorial review remains required.
 
+## D1 editorial enrichment (prepared, disabled)
+
+`lib/d1/editorial/` is a D1-only workflow. It does not import Supabase, fetch source article bodies, call OpenAI, or write anything unless a future caller explicitly invokes the protected Worker endpoint.
+
+The only permitted input is the RSS metadata already stored in D1: title, bounded plain-text excerpt, publication date, source name, and original URL. `content` remains `NULL` for every RSS item. Source attribution stays in `source_name` and `source_url`; the generated editorial text is stored separately in `latamworldnews_summary` and never replaces source metadata.
+
+### Classification and generated-output contract
+
+1. `classifyD1EditorialInput` deterministically derives category, section, region, country/countries, topic, and tags from matched terms in title plus excerpt. Energy, technology, and economy select their respective sections; otherwise the geographic section is used. The model is not allowed to alter this classification.
+2. `buildD1EditorialModelRequest` prepares a strict metadata-only contract for a future provider. It does not make a network call.
+3. A future provider may return only `latamworldnews_summary`: an original Spanish summary of 25–55 words. It cannot receive RSS body content.
+4. `validateD1EditorialResult` rejects empty/out-of-range text, HTML, URLs, near-copying, and numeric claims absent from the permitted metadata. Classification evidence is persisted with the result. Automated checks cannot prove every semantic claim, so human approval is mandatory.
+5. `prepareD1EditorialPatch` marks output `pending_review`. The planned protected endpoint updates only approved taxonomy/editorial columns; it explicitly rejects `content`, title, source, URL, and excerpt fields.
+
+Migration `20260829_0011_editorial_provenance_and_review.sql` is intentionally pending. It adds `editorial_origin`, input hash, prompt version, validation JSON, and review fields. Do **not** apply it or deploy the Worker until the workflow is approved.
+
+### Human review before publication
+
+An editor reviews the source attribution/link, source date, deterministic classification, the evidence terms, and every sentence of the generated summary against the title/excerpt. The editor then records `approved` or `rejected`; only an approved record may later change to the existing `ready` state. This phase creates no public publishing path.
+
+### Future variables and cost estimate
+
+Names only; all must remain server-side:
+
+- `D1_EDITORIAL_ENABLED` — explicit opt-in switch, default disabled.
+- `OPENAI_API_KEY` — future provider credential.
+- `OPENAI_EDITORIAL_MODEL` — approved model identifier.
+- `D1_WORKER_URL` and `D1_WORKER_INTERNAL_SECRET` — existing protected write channel.
+
+For a 100-article batch, budget approximately 70,000 input tokens and 8,000 output tokens (metadata-only prompt plus a 25–55 word summary). At the currently listed standard prices, GPT-5 mini would be about US$0.03–$0.05 per 100 articles; GPT-5.4 mini about US$0.08–$0.10. These are planning estimates only and exclude retries or future prompt changes. Confirm pricing before activation: [GPT-5 mini pricing](https://developers.openai.com/api/docs/models/gpt-5-mini) and [GPT-5.4 mini pricing](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
+
+### Local validation only
+
+Run the metadata-only tests without credentials, D1 writes, or model calls:
+
+```powershell
+npm run test:d1-editorial
+```
+
+To process the current staging records later: apply migration `0011` to staging, deploy the Worker explicitly, set the server-only variables, run a dry-run that emits review candidates, inspect and approve each candidate, then submit only approved patches through `/internal/articles/:slug/editorial`. None of these steps is enabled or executed in this phase.
+
 ## Before production use
 
 1. Review and test the translated schema with representative data, including JSON arrays and ISO dates.

@@ -88,9 +88,21 @@ export interface Article {
   section_slug?: string | null;
   latamworldnews_summary?: string | null;
   curated_news?: string | null;
-  editorial_status?: "pending" | "ready" | "failed" | null;
+  editorial_status?: "pending" | "pending_review" | "ready" | "failed" | null;
   editorial_generated_at?: string | null;
   editorial_model?: string | null;
+  editorial_origin?: "generated_metadata_only" | null;
+  editorial_input_hash?: string | null;
+  editorial_prompt_version?: string | null;
+  editorial_validation?: {
+    input_hash: string;
+    evidence_terms: string[];
+    summary_word_count: number;
+    validation_version: string;
+  } | null;
+  editorial_review_status?: "not_requested" | "pending" | "approved" | "rejected" | null;
+  editorial_reviewed_at?: string | null;
+  editorial_review_notes?: string | null;
   seo_title?: string | null;
   seo_description?: string | null;
   editorial_context?: string | null;
