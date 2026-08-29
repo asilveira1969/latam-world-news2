@@ -4,6 +4,8 @@
 node_modules
 .env.local
 .env
+.env.d1.local
+.playwright-cli/
 dist
 coverage
 
@@ -14,4 +16,7 @@ docs/operations/*.pdf
 
 .vercel
 tmp_logs/
+.codex-dev*.log
 supabase/.temp/
+cloudflare/worker/.wrangler/
+cloudflare/worker/.dev.vars

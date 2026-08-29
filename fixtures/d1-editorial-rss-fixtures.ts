@@ -1,0 +1,10 @@
+import type { D1EditorialInput } from "@/lib/d1/editorial/types";
+
+// Short metadata-only samples taken from the controlled D1 staging RSS run.
+export const D1_EDITORIAL_FIXTURES: D1EditorialInput[] = [
+  { id: "fixture-venezuela", slug: "venezuela-petroleo", title: "Trump asegura haber alcanzado con Venezuela el mayor acuerdo de petróleo de la historia", excerpt: "El presidente estadounidense aseguró que el pacto otorga a su país el control mayoritario sobre más de 65.000 millones de barriles de reservas venezolanas.", source_name: "BBC Mundo", source_url: "https://example.test/bbc-venezuela", published_at: "2026-08-29T00:28:01.000Z" },
+  { id: "fixture-china", slug: "china-antidrones", title: "Interceptores antidrones impresos en 3D: la nueva apuesta de China", excerpt: "El fabricante chino concentra una parte relevante del mercado mundial de estos aparatos.", source_name: "RT Actualidad", source_url: "https://example.test/rt-china", published_at: "2026-08-29T00:25:13.000Z" },
+  { id: "fixture-malvinas", slug: "malvinas-reino-unido", title: "EE.UU. amenaza al Reino Unido con retirarle su apoyo sobre las Malvinas", excerpt: "El Pentágono evalúa utilizar la disputa de soberanía con Argentina como herramienta de presión para que Londres aumente su gasto militar.", source_name: "RT Actualidad", source_url: "https://example.test/rt-malvinas", published_at: "2026-08-29T00:12:56.000Z" },
+  { id: "fixture-ucrania", slug: "ucrania-disturbios", title: "EE.UU. alerta a sus ciudadanos sobre posibles disturbios civiles en Ucrania", excerpt: "Se advierte de inestabilidad política, económica, religiosa y étnica en ese país europeo.", source_name: "RT Actualidad", source_url: "https://example.test/rt-ucrania", published_at: "2026-08-28T23:55:59.000Z" },
+  { id: "fixture-brasil", slug: "brasil-empresa", title: "Una decisión de Trump puede afectar seriamente a compañía gigante suramericana", excerpt: "El mandatario acusó a varias compañías de ejercer prácticas monopólicas que perjudican a agricultores y ganaderos de EE.UU.", source_name: "RT Actualidad", source_url: "https://example.test/rt-brasil", published_at: "2026-08-28T23:42:13.000Z" }
+];

@@ -3,7 +3,6 @@ import type { Article } from "@/lib/types/article";
 import { deriveIngestionTaxonomy } from "@/lib/article-taxonomy";
 import { isValidHttpUrl } from "@/lib/images";
 import type { ParsedRssItem } from "@/lib/rss/parse-rss";
-import { truncateExcerpt } from "@/lib/ranking";
 import type { MundoRssSource } from "@/lib/sources";
 import { cleanExcerpt, cleanPlainText, looksCorruptedText } from "@/lib/text/clean";
 
@@ -211,13 +210,14 @@ export function normalizeRssItems(
         : `Actualizacion internacional ${index + 1}`;
     const slugBase = slugify(safeTitle || `nota-${index + 1}`);
     const sourceUrl = item.link || `https://example.com/${slugBase}-${index + 1}`;
-    const cleanedExcerpt = cleanExcerpt(item.excerpt || "", 180);
-    const cleanedContent = cleanPlainText(item.content || "");
+    // RSS bodies are third-party content. Keep only a bounded, plain-text excerpt;
+    // content/content:encoded is intentionally never persisted by this flow.
+    const cleanedExcerpt = cleanExcerpt(item.excerpt || "", 280);
     const category = resolveRssCategory(item);
     const taxonomy = deriveIngestionTaxonomy({
       title: safeTitle,
       excerpt: cleanedExcerpt || "Actualizacion internacional.",
-      content: cleanedContent || null,
+      content: null,
       source_name: sourceConfig.name,
       region: sourceConfig.region,
       category,
@@ -226,8 +226,8 @@ export function normalizeRssItems(
     return {
       title: safeTitle,
       slug: makeDeterministicSlug(safeTitle, sourceUrl),
-      excerpt: truncateExcerpt(cleanedExcerpt || "Actualizacion internacional.", 180),
-      content: cleanedContent.length > 40 ? cleanedContent : null,
+      excerpt: cleanedExcerpt.slice(0, 280),
+      content: null,
       topic_slug: taxonomy.topic_slug,
       section_slug: taxonomy.section_slug,
       image_url: item.imageUrl && isValidHttpUrl(item.imageUrl) ? item.imageUrl : "",

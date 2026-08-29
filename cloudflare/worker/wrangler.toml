@@ -1,0 +1,10 @@
+name = "latam-world-news-d1-staging"
+main = "src/index.ts"
+compatibility_date = "2026-08-28"
+
+# Staging database only. This Worker is not deployed by this configuration.
+[[d1_databases]]
+binding = "DB"
+database_name = "latam-world-news-staging"
+database_id = "5f0f9b93-a6d2-470b-b719-2bb066cda8da"
+migrations_dir = "../migrations"
