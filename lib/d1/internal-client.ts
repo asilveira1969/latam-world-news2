@@ -41,6 +41,16 @@ async function internalRequest<T>(path: string, payload: Record<string, unknown>
   return responseBody;
 }
 
+async function internalGet<T>(path: string): Promise<T> {
+  const response = await fetch(`${baseUrl()}${path}`, {
+    headers: { "x-internal-api-secret": internalSecret as string },
+    cache: "no-store"
+  });
+  const responseBody = (await response.json().catch(() => ({}))) as { error?: string } & T;
+  if (!response.ok) throw new Error(responseBody.error || `D1 Worker request failed (${response.status}).`);
+  return responseBody;
+}
+
 export async function upsertD1Article(article: D1ArticleWrite): Promise<{ created: boolean }> {
   return internalRequest<{ created: boolean }>("/internal/articles/upsert", { article });
 }
@@ -64,4 +74,28 @@ export async function recordD1IngestionError(input: {
   context?: Record<string, unknown>;
 }): Promise<void> {
   await internalRequest<{ ok: boolean }>("/internal/ingestion-errors", input);
+}
+
+export async function listD1InternalArticles(input: {
+  editorialStatus?: string;
+  editorialReviewStatus?: string;
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<{ data: Array<Record<string, unknown>>; pagination: { page: number; pageSize: number } }> {
+  const params = new URLSearchParams();
+  if (input.editorialStatus) params.set("editorial_status", input.editorialStatus);
+  if (input.editorialReviewStatus) params.set("editorial_review_status", input.editorialReviewStatus);
+  params.set("page", String(input.page ?? 1));
+  params.set("pageSize", String(input.pageSize ?? 100));
+  return internalGet(`/internal/articles?${params.toString()}`);
+}
+
+export async function getD1InternalArticleBySlug(slug: string): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await internalGet<{ data: Record<string, unknown> }>(`/internal/articles/${encodeURIComponent(slug)}`);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("(404)")) return null;
+    throw error;
+  }
 }

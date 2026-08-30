@@ -1,3 +1,5 @@
+import { XMLParser } from "fast-xml-parser";
+
 interface D1Result<T> { results: T[]; }
 interface D1RunResult { success: boolean; meta: { changes?: number }; }
 interface D1PreparedStatement {
@@ -20,6 +22,16 @@ const EDITORIAL_PATCH_COLUMNS = ["region", "country", "countries", "category", "
 const EDITORIAL_DECISION_COLUMNS = ["region", "country", "countries", "category", "tags", "topic_slug", "section_slug", "editorial_status", "editorial_review_status", "editorial_reviewed_at", "editorial_review_notes"] as const;
 const PUBLIC_READY_CLAUSE = "editorial_status = 'ready' AND editorial_review_status = 'approved'";
 
+const RSS_CRON_SOURCES = [
+  { id: "rss-rt", name: "RT Actualidad", feedUrl: "https://actualidad.rt.com/feeds/all.rss", tag: "rss-rt" },
+  { id: "rss-elpais-ultimas", name: "El País España", feedUrl: "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/ultimas-noticias/portada", tag: "rss-elpais" },
+  { id: "rss-france24-es", name: "France 24 Español", feedUrl: "https://www.france24.com/es/rss", tag: "rss-france24-es" },
+  { id: "rss-bbc-mundo", name: "BBC Mundo", feedUrl: "https://feeds.bbci.co.uk/mundo/rss.xml", tag: "rss-bbc-mundo" }
+] as const;
+const RSS_ITEM_LIMIT = 25;
+const TOPIC_WINDOW_MS = 48 * 60 * 60 * 1000;
+const TOPIC_STOP_WORDS = new Set(["a", "al", "ante", "con", "contra", "como", "desde", "del", "el", "en", "es", "la", "las", "lo", "los", "para", "por", "que", "se", "sin", "sobre", "tras", "un", "una", "unos", "unas", "y", "ya", "su", "sus", "the", "and", "of", "to", "in", "on", "for", "with"]);
+
 function json(data: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(data), { ...init, headers: { "content-type": "application/json; charset=utf-8", ...init.headers } });
 }
@@ -28,6 +40,54 @@ function boundedRssExcerpt(value: unknown) { return stringValue(value).replace(/
 function parsePositiveInt(value: string | null, fallback: number, maximum: number) { const parsed = Number.parseInt(value ?? "", 10); return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, maximum) : fallback; }
 function asJson(value: unknown, fallback: unknown) { if (typeof value === "string") { JSON.parse(value); return value; } return JSON.stringify(value ?? fallback); }
 function parseJson(value: unknown) { if (typeof value !== "string") return value; try { return JSON.parse(value); } catch { return value; } }
+function plainText(value: unknown) { return stringValue(value).replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, "\"").replace(/&#39;/gi, "'").replace(/\s+/g, " ").trim(); }
+function normalizedText(value: string) { return plainText(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
+function hasWholeTerm(text: string, term: string) { const normalized = normalizedText(term); return normalized ? ` ${text} `.includes(` ${normalized} `) : false; }
+function slugify(value: string) { return normalizedText(value).replace(/\s+/g, "-").slice(0, 80).replace(/-+$/g, "") || "nota"; }
+async function sha1(value: string) { const bytes = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(value)); return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join(""); }
+function rssCategory(title: string, excerpt: string) {
+  const text = normalizedText(`${title} ${excerpt}`);
+  if (["petroleo", "petrolero", "petrolera", "barril", "barriles", "gas", "energia", "energetico", "energetica"].some((term) => hasWholeTerm(text, term))) return { category: "Energía", section_slug: "energia", topic_slug: "energia" };
+  if (["tecnologia", "tecnologico", "tecnologica", "antidron", "antidrones", "dron", "drones", "robot", "robots", "ciborg", "ciborgs"].some((term) => hasWholeTerm(text, term))) return { category: "Tecnología", section_slug: "tecnologia", topic_slug: "tecnologia" };
+  if (["economia", "mercado", "monopolio", "finanzas", "arancel", "comercio"].some((term) => hasWholeTerm(text, term))) return { category: "Economía", section_slug: "economia-global", topic_slug: "economia" };
+  return { category: "Internacional", section_slug: "mundo", topic_slug: "internacional" };
+}
+function sourceEntryText(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (value && typeof value === "object") { const raw = value as Row; return stringValue(raw["#text"]) || stringValue(raw["@_href"]) || stringValue(raw.href); }
+  return "";
+}
+function firstEntry(value: unknown): unknown { return Array.isArray(value) ? value[0] : value; }
+function parseRssItems(xml: string) {
+  const parsed = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" }).parse(xml) as Row;
+  const channel = (parsed.rss as Row | undefined)?.channel as Row | undefined;
+  const rawItems = channel?.item;
+  if (!rawItems) return [] as Array<{ title: string; sourceUrl: string; publishedAt: string; excerpt: string; imageUrl: string | null }>;
+  return (Array.isArray(rawItems) ? rawItems : [rawItems]).map((item) => {
+    const raw = item as Row;
+    const enclosure = firstEntry(raw.enclosure) as Row | undefined;
+    const media = firstEntry(raw["media:content"]) as Row | undefined;
+    const thumbnail = firstEntry(raw["media:thumbnail"]) as Row | undefined;
+    return { title: plainText(sourceEntryText(raw.title)), sourceUrl: sourceEntryText(raw.link), publishedAt: sourceEntryText(raw.pubDate) || new Date().toISOString(), excerpt: boundedRssExcerpt(sourceEntryText(raw.description) || sourceEntryText(raw.summary)), imageUrl: stringValue(enclosure?.["@_url"]) || stringValue(media?.["@_url"]) || stringValue(thumbnail?.["@_url"]) || null };
+  });
+}
+function topicTerms(title: string) { return [...new Set(normalizedText(title).split(" ").filter((term) => term.length >= 3 && !TOPIC_STOP_WORDS.has(term)))]; }
+async function possibleTopicDuplicate(db: D1Database, candidate: { slug: string; title: string; sourceUrl: string; sourceName: string; publishedAt: string }) {
+  const candidateTime = Date.parse(candidate.publishedAt); const terms = topicTerms(candidate.title);
+  if (!Number.isFinite(candidateTime) || terms.length < 4) return null;
+  const since = new Date(candidateTime - TOPIC_WINDOW_MS).toISOString(); const until = new Date(candidateTime + TOPIC_WINDOW_MS).toISOString();
+  const result = await db.prepare("SELECT slug, title, source_name, source_url, published_at FROM articles WHERE published_at BETWEEN ? AND ?").bind(since, until).all<Row>();
+  const candidateSet = new Set(terms); let best: { matchedSlug: string; group: string; confidence: number } | null = null;
+  for (const item of result.results) {
+    if (stringValue(item.source_url) === candidate.sourceUrl || stringValue(item.source_name) === candidate.sourceName) continue;
+    const existingTerms = topicTerms(stringValue(item.title)); const shared = existingTerms.filter((term) => candidateSet.has(term)); const union = new Set([...terms, ...existingTerms]).size;
+    const jaccard = shared.length / union; const coverage = shared.length / Math.min(terms.length, existingTerms.length);
+    if (shared.length < 4 || jaccard < 0.65 || coverage < 0.75) continue;
+    const confidence = Number(((jaccard + coverage) / 2).toFixed(3));
+    if (!best || confidence > best.confidence) best = { matchedSlug: stringValue(item.slug), group: `topic-${(await sha1([candidate.slug, stringValue(item.slug)].sort().join(":"))).slice(0, 16)}`, confidence };
+  }
+  return best;
+}
 function serializeArticle(row: Row): Row {
   const article = { ...row };
   for (const column of JSON_COLUMNS) if (column in article) article[column] = parseJson(article[column]);
@@ -44,7 +104,36 @@ function normalizeArticle(input: Row, existingId?: string): Row {
   const now = new Date().toISOString(); const title = stringValue(input.title); const slug = stringValue(input.slug); const sourceUrl = stringValue(input.source_url); const url = stringValue(input.url) || sourceUrl;
   if (!title || !slug || !sourceUrl || !url) throw new Error("title, slug, source_url and url are required.");
   const sourceType = stringValue(input.source_type) || "rss";
-  return { ...input, id: existingId || stringValue(input.id) || crypto.randomUUID(), title, slug, source_url: sourceUrl, url, excerpt: sourceType === "rss" ? boundedRssExcerpt(input.excerpt) : stringValue(input.excerpt) || title, content: sourceType === "rss" ? null : input.content ?? null, image_url: stringValue(input.image_url) || "https://picsum.photos/seed/d1-fallback/1200/675", source_name: stringValue(input.source_name) || stringValue(input.source) || "Fuente externa", source: stringValue(input.source) || stringValue(input.source_name) || "Fuente externa", region: stringValue(input.region) || "Mundo", category: stringValue(input.category) || "Internacional", source_type: sourceType, published_at: stringValue(input.published_at) || now, created_at: stringValue(input.created_at) || now, tags: asJson(input.tags, []), countries: asJson(input.countries, []), raw: asJson(input.raw, {}), faq_items: input.faq_items == null ? null : asJson(input.faq_items, []), editorial_sections: input.editorial_sections == null ? null : asJson(input.editorial_sections, {}), is_featured: input.is_featured ? 1 : 0, is_impact: input.is_impact ? 1 : 0, views: Number.isFinite(Number(input.views)) ? Number(input.views) : 0, possible_topic_duplicate: input.possible_topic_duplicate ? 1 : 0, topic_duplicate_group: stringValue(input.topic_duplicate_group) || null, topic_duplicate_confidence: Number.isFinite(Number(input.topic_duplicate_confidence)) ? Number(input.topic_duplicate_confidence) : null, topic_duplicate_of_slug: stringValue(input.topic_duplicate_of_slug) || null };
+  return { ...input, id: existingId || stringValue(input.id) || crypto.randomUUID(), title, slug, source_url: sourceUrl, url, excerpt: sourceType === "rss" ? boundedRssExcerpt(input.excerpt) : stringValue(input.excerpt) || title, content: sourceType === "rss" ? null : input.content ?? null, image_url: stringValue(input.image_url) || "https://picsum.photos/seed/d1-fallback/1200/675", source_name: stringValue(input.source_name) || stringValue(input.source) || "Fuente externa", source: stringValue(input.source) || stringValue(input.source_name) || "Fuente externa", region: stringValue(input.region) || "Mundo", category: stringValue(input.category) || "Internacional", source_type: sourceType, published_at: stringValue(input.published_at) || now, created_at: stringValue(input.created_at) || now, tags: asJson(input.tags, []), countries: asJson(input.countries, []), raw: asJson(input.raw, {}), faq_items: input.faq_items == null ? null : asJson(input.faq_items, []), editorial_sections: input.editorial_sections == null ? null : asJson(input.editorial_sections, {}), is_featured: input.is_featured ? 1 : 0, is_impact: input.is_impact ? 1 : 0, views: Number.isFinite(Number(input.views)) ? Number(input.views) : 0, possible_topic_duplicate: input.possible_topic_duplicate ? 1 : 0, topic_duplicate_group: stringValue(input.topic_duplicate_group) || null, topic_duplicate_confidence: Number.isFinite(Number(input.topic_duplicate_confidence)) ? Number(input.topic_duplicate_confidence) : null, topic_duplicate_of_slug: stringValue(input.topic_duplicate_of_slug) || null, editorial_status: stringValue(input.editorial_status) || (sourceType === "rss" ? "pending_review" : null), editorial_review_status: stringValue(input.editorial_review_status) || (sourceType === "rss" ? "pending" : null) };
+}
+
+async function ingestRssSource(db: D1Database, source: typeof RSS_CRON_SOURCES[number]) {
+  const response = await fetch(source.feedUrl, { headers: { "user-agent": "LatamWorldNewsRSS/1.0 (+https://latamworldnews.com/fuentes)", accept: "application/rss+xml, application/xml, text/xml" }, signal: AbortSignal.timeout(20_000) });
+  if (!response.ok) throw new Error(`RSS request failed (${response.status}).`);
+  const seen = new Set<string>(); let created = 0; let skipped = 0;
+  for (const item of parseRssItems(await response.text()).slice(0, RSS_ITEM_LIMIT)) {
+    if (!item.title || !item.sourceUrl || seen.has(item.sourceUrl)) { skipped += 1; continue; }
+    seen.add(item.sourceUrl);
+    if (source.tag === "rss-elpais" && /\/(escaparate|opinion)\//i.test(new URL(item.sourceUrl).pathname)) { skipped += 1; continue; }
+    const slug = `${slugify(item.title)}-${(await sha1(item.sourceUrl)).slice(0, 10)}`;
+    const existing = await db.prepare("SELECT id FROM articles WHERE slug = ? OR source_url = ? OR url = ? LIMIT 1").bind(slug, item.sourceUrl, item.sourceUrl).first<{ id: string }>();
+    if (existing) { skipped += 1; continue; }
+    const publishedAt = Number.isFinite(Date.parse(item.publishedAt)) ? new Date(item.publishedAt).toISOString() : new Date().toISOString();
+    const duplicate = await possibleTopicDuplicate(db, { slug, title: item.title, sourceUrl: item.sourceUrl, sourceName: source.name, publishedAt });
+    const taxonomy = rssCategory(item.title, item.excerpt);
+    const article = normalizeArticle({ title: item.title, slug, excerpt: item.excerpt, content: null, image_url: item.imageUrl, source_name: source.name, source_url: item.sourceUrl, url: item.sourceUrl, summary: item.excerpt, source: source.name, source_type: "rss", region: "Mundo", category: taxonomy.category, section_slug: taxonomy.section_slug, topic_slug: taxonomy.topic_slug, tags: ["rss", source.tag, taxonomy.topic_slug, "editorial-pendiente"], countries: [], language: "es", raw: { imported_via: "cloudflare-scheduled-rss", rss: true, source_id: source.id }, published_at: publishedAt, editorial_status: "pending_review", editorial_review_status: "pending", possible_topic_duplicate: Boolean(duplicate), topic_duplicate_group: duplicate?.group ?? null, topic_duplicate_confidence: duplicate?.confidence ?? null, topic_duplicate_of_slug: duplicate?.matchedSlug ?? null });
+    const inserted = await db.prepare(`INSERT INTO articles (${ARTICLE_COLUMNS.join(", ")}) VALUES (${ARTICLE_COLUMNS.map(() => "?").join(", ")}) ON CONFLICT DO NOTHING`).bind(...ARTICLE_COLUMNS.map((column) => article[column] ?? null)).run();
+    if ((inserted.meta.changes ?? 0) > 0) created += 1; else skipped += 1;
+  }
+  return { sourceId: source.id, created, skipped };
+}
+async function runScheduledRssIngestion(db: D1Database) {
+  const results: Array<{ sourceId: string; created: number; skipped: number; error?: string }> = [];
+  for (const source of RSS_CRON_SOURCES) {
+    try { results.push(await ingestRssSource(db, source)); }
+    catch (error) { const message = error instanceof Error ? error.message : "Unknown RSS error."; await recordError(db, { source_id: source.id, provider: "rss", message, context: { scheduled: true, source_name: source.name } }).catch(() => undefined); results.push({ sourceId: source.id, created: 0, skipped: 0, error: message }); }
+  }
+  return { run_at: new Date().toISOString(), sources: results, created: results.reduce((total, result) => total + result.created, 0), skipped: results.reduce((total, result) => total + result.skipped, 0), failed: results.filter((result) => result.error).length };
 }
 async function upsertArticle(db: D1Database, input: Row) {
   const initial = normalizeArticle(input); const matches = await db.prepare("SELECT id FROM articles WHERE slug = ? OR source_url = ? OR url = ?").bind(initial.slug, initial.source_url, initial.url).all<{ id: string }>(); const ids = [...new Set(matches.results.map((row) => row.id))];
@@ -124,7 +213,7 @@ async function listArticles(db: D1Database, url: URL, publicOnly: boolean) {
   const pageSize = parsePositiveInt(url.searchParams.get("pageSize"), 20, 100);
   const clauses: string[] = publicOnly ? [PUBLIC_READY_CLAUSE] : [];
   const values: unknown[] = [];
-  for (const [query, column] of [["region", "region"], ["country", "country"], ["section_slug", "section_slug"], ["source_type", "source_type"]] as const) {
+  for (const [query, column] of [["region", "region"], ["country", "country"], ["section_slug", "section_slug"], ["source_type", "source_type"], ["editorial_status", "editorial_status"], ["editorial_review_status", "editorial_review_status"]] as const) {
     const value = url.searchParams.get(query); if (value) { clauses.push(`${column} = ?`); values.push(value); }
   }
   const search = url.searchParams.get("q");
@@ -151,6 +240,7 @@ export default {
       if (request.method === "GET" && path.startsWith("/internal/articles/")) return getArticleBySlug(env.DB, decodeURIComponent(path.slice("/internal/articles/".length)), false);
       if (request.method === "POST" && path === "/internal/editorial/apply-batch") return json({ data: await applyEditorialDecisionBatch(env.DB, await requestBody(request)) });
       if (request.method === "POST" && path === "/internal/articles/upsert") { const payload = await requestBody(request); const result = await upsertArticle(env.DB, payload.article as Row); return json({ data: result.article, created: result.created }, { status: result.created ? 201 : 200 }); }
+      if (request.method === "POST" && path === "/internal/ingestion/rss") return json({ data: await runScheduledRssIngestion(env.DB) });
       if (request.method === "POST" && /^\/internal\/articles\/[^/]+\/editorial$/.test(path)) { const slug = decodeURIComponent(path.split("/")[3]); const payload = await requestBody(request); return json({ data: await patchArticleEditorial(env.DB, slug, payload.editorial as Row) }); }
       if (request.method === "POST" && /^\/internal\/articles\/[^/]+\/views$/.test(path)) { const slug = decodeURIComponent(path.split("/")[3]); await env.DB.prepare("UPDATE articles SET views = views + 1 WHERE slug = ?").bind(slug).run(); return json({ ok: true }); }
       if (request.method === "POST" && path === "/internal/impacto-drafts/upsert") { const payload = await requestBody(request); const result = await upsertDraft(env.DB, payload.draft as Row); return json({ data: result.draft, created: result.created }, { status: result.created ? 201 : 200 }); }
@@ -161,5 +251,8 @@ export default {
       console.error("D1 Worker request failed", error);
       return json({ error: message }, { status: message.includes("Conflicting") ? 409 : 400 });
     }
+  },
+  async scheduled(_controller: unknown, env: Env, ctx: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
+    ctx.waitUntil(runScheduledRssIngestion(env.DB).then((summary) => console.log("RSS cron completed", summary)).catch((error) => console.error("RSS cron failed", error)));
   }
 };

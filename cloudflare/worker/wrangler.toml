@@ -2,6 +2,11 @@ name = "latam-world-news-d1-staging"
 main = "src/index.ts"
 compatibility_date = "2026-08-28"
 
+# One UTC cron trigger. The scheduled handler fetches only the four approved
+# RSS sources and writes new items as pending editorial review.
+[triggers]
+crons = ["*/15 * * * *"]
+
 # Staging database only. This Worker is not deployed by this configuration.
 [[d1_databases]]
 binding = "DB"
