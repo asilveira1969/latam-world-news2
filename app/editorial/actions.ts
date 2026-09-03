@@ -13,6 +13,13 @@ function toArticle(value: Record<string, unknown>): EditorialArticle {
   return { id: take("id"), slug: take("slug"), title: take("title"), excerpt: take("excerpt"), source_name: take("source_name"), source_url: take("source_url"), published_at: take("published_at") };
 }
 
+export type IndividualEditorialDecisionResult = {
+  ok: boolean;
+  slug: string;
+  decision: "approved" | "rejected";
+  error?: string;
+};
+
 async function decide(slugs: string[], decision: "approved" | "rejected") {
   await requireEditorialSession();
   const unique = [...new Set(slugs.filter(Boolean))].slice(0, 100);
@@ -36,7 +43,20 @@ export async function login(formData: FormData) {
   redirect("/editorial");
 }
 export async function logout() { await endEditorialSession(); redirect("/editorial"); }
-export async function approveOne(formData: FormData) { await decide([String(formData.get("oneSlug") ?? "")], "approved"); }
-export async function rejectOne(formData: FormData) { await decide([String(formData.get("oneSlug") ?? "")], "rejected"); }
+export async function approveOne(slug: string): Promise<IndividualEditorialDecisionResult> { return decideOne(slug, "approved"); }
+export async function rejectOne(slug: string): Promise<IndividualEditorialDecisionResult> { return decideOne(slug, "rejected"); }
+
+async function decideOne(slug: string, decision: "approved" | "rejected"): Promise<IndividualEditorialDecisionResult> {
+  const normalizedSlug = typeof slug === "string" ? slug.trim() : "";
+  if (!normalizedSlug) return { ok: false, slug: "", decision, error: "No se recibió el identificador del artículo." };
+  try {
+    await decide([normalizedSlug], decision);
+    return { ok: true, slug: normalizedSlug, decision };
+  } catch (error) {
+    console.error("Individual editorial decision failed", error);
+    return { ok: false, slug: normalizedSlug, decision, error: "No se pudo guardar la decisión. La noticia sigue pendiente." };
+  }
+}
+
 export async function approveSelected(formData: FormData) { await decide(formData.getAll("slug").map(String), "approved"); }
 export async function rejectSelected(formData: FormData) { await decide(formData.getAll("slug").map(String), "rejected"); }
