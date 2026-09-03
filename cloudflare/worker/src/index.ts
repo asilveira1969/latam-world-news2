@@ -20,7 +20,8 @@ const ARTICLE_COLUMNS = ["id","title","slug","excerpt","content","image_url","so
 const DRAFT_COLUMNS = ["id","slug","title","excerpt","seo_title","seo_description","editorial_context","editorial_sections","tags","countries","source_articles","source_count","status","review_email","email_sent_at","email_provider","email_message_id","model","generated_at","approved_at","published_article_slug","created_at","updated_at"] as const;
 const EDITORIAL_PATCH_COLUMNS = ["region", "country", "countries", "category", "tags", "topic_slug", "section_slug", "latamworldnews_summary", "editorial_status", "editorial_generated_at", "editorial_model", "editorial_origin", "editorial_input_hash", "editorial_prompt_version", "editorial_validation", "editorial_review_status"] as const;
 const EDITORIAL_DECISION_COLUMNS = ["region", "country", "countries", "category", "tags", "topic_slug", "section_slug", "editorial_status", "editorial_review_status", "editorial_reviewed_at", "editorial_review_notes"] as const;
-const PUBLIC_READY_CLAUSE = "editorial_status = 'ready' AND editorial_review_status = 'approved'";
+const MAX_FUTURE_RSS_PUBLICATION_MS = 15 * 60 * 1_000;
+const PUBLIC_READY_CLAUSE = "editorial_status = 'ready' AND editorial_review_status = 'approved' AND julianday(published_at) <= julianday('now', '+15 minutes')";
 
 const RSS_CRON_SOURCES = [
   { id: "rss-rt", name: "RT Actualidad", feedUrl: "https://actualidad.rt.com/feeds/all.rss", tag: "rss-rt" },
@@ -118,7 +119,18 @@ async function ingestRssSource(db: D1Database, source: typeof RSS_CRON_SOURCES[n
     const slug = `${slugify(item.title)}-${(await sha1(item.sourceUrl)).slice(0, 10)}`;
     const existing = await db.prepare("SELECT id FROM articles WHERE slug = ? OR source_url = ? OR url = ? LIMIT 1").bind(slug, item.sourceUrl, item.sourceUrl).first<{ id: string }>();
     if (existing) { skipped += 1; continue; }
-    const publishedAt = Number.isFinite(Date.parse(item.publishedAt)) ? new Date(item.publishedAt).toISOString() : new Date().toISOString();
+    const parsedPublishedAt = Date.parse(item.publishedAt);
+    const publishedAt = Number.isFinite(parsedPublishedAt) ? new Date(parsedPublishedAt).toISOString() : new Date().toISOString();
+    if (Number.isFinite(parsedPublishedAt) && parsedPublishedAt > Date.now() + MAX_FUTURE_RSS_PUBLICATION_MS) {
+      skipped += 1;
+      await recordError(db, {
+        source_id: source.id,
+        provider: "rss",
+        message: "Skipped RSS item with a publication date too far in the future.",
+        context: { source_name: source.name, slug, source_url: item.sourceUrl, published_at: publishedAt }
+      });
+      continue;
+    }
     const duplicate = await possibleTopicDuplicate(db, { slug, title: item.title, sourceUrl: item.sourceUrl, sourceName: source.name, publishedAt });
     const taxonomy = rssCategory(item.title, item.excerpt);
     const article = normalizeArticle({ title: item.title, slug, excerpt: item.excerpt, content: null, image_url: item.imageUrl, source_name: source.name, source_url: item.sourceUrl, url: item.sourceUrl, summary: item.excerpt, source: source.name, source_type: "rss", region: "Mundo", category: taxonomy.category, section_slug: taxonomy.section_slug, topic_slug: taxonomy.topic_slug, tags: ["rss", source.tag, taxonomy.topic_slug, "editorial-pendiente"], countries: [], language: "es", raw: { imported_via: "cloudflare-scheduled-rss", rss: true, source_id: source.id }, published_at: publishedAt, editorial_status: "pending_review", editorial_review_status: "pending", possible_topic_duplicate: Boolean(duplicate), topic_duplicate_group: duplicate?.group ?? null, topic_duplicate_confidence: duplicate?.confidence ?? null, topic_duplicate_of_slug: duplicate?.matchedSlug ?? null });
