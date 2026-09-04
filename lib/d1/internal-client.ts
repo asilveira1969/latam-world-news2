@@ -99,3 +99,7 @@ export async function getD1InternalArticleBySlug(slug: string): Promise<Record<s
     throw error;
   }
 }
+
+export async function saveD1EditorialDraft(slug: string, editorial: Record<string, unknown>): Promise<void> {
+  await internalRequest(`/internal/articles/${encodeURIComponent(slug)}/editorial`, { editorial });
+}

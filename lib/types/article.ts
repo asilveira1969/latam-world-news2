@@ -103,6 +103,12 @@ export interface Article {
   editorial_review_status?: "not_requested" | "pending" | "approved" | "rejected" | null;
   editorial_reviewed_at?: string | null;
   editorial_review_notes?: string | null;
+  editorial_format?: "brief" | "context" | "latam_impact" | null;
+  editorial_key_takeaway?: string | null;
+  editorial_what_to_watch?: string | null;
+  editorial_latam_impact?: string | null;
+  editorial_author?: string | null;
+  editorial_updated_at?: string | null;
   seo_title?: string | null;
   seo_description?: string | null;
   editorial_context?: string | null;
@@ -134,7 +140,7 @@ export interface Article {
 
 export interface HomeData {
   ticker: string[];
-  heroLead: Article;
+  heroLead: Article | null;
   heroSecondary: Article[];
   latestEditorial: Article | null;
   impact: Article[];

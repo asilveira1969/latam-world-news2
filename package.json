@@ -35,6 +35,7 @@
     "test:d1-rss-safety": "tsx scripts/test-d1-rss-safety.ts",
     "test:d1-editorial": "tsx scripts/test-d1-editorial-workflow.ts",
     "test:editorial-dashboard-individual": "tsx scripts/test-editorial-dashboard-individual.ts",
+    "test:editorial-ai-drafts": "tsx scripts/test-editorial-ai-drafts.ts",
     "test:d1-worker-rss-cron": "tsx scripts/test-d1-worker-rss-cron.ts",
     "d1:ingest:rss-sample": "tsx scripts/d1-ingest-rss-sample.ts"
   },
