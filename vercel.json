@@ -9,14 +9,6 @@
       "schedule": "0 5 * * *"
     },
     {
-      "path": "/api/cron/editorial",
-      "schedule": "15 5 * * *"
-    },
-    {
-      "path": "/api/cron/impacto",
-      "schedule": "30 5 * * *"
-    },
-    {
       "path": "/api/cron/ops-report",
       "schedule": "45 6 * * *"
     }

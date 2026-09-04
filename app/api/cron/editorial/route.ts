@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import {
+  EDITORIAL_AUTOMATION_DISABLED_MESSAGE,
+  isEditorialAutomationEnabled
+} from "@/lib/editorial-dashboard/automation";
 import { generateEditorialWithAgent } from "@/lib/editorial-agent-enrichment";
 import { isCronAuthorized } from "@/lib/ingest/execute";
 import { loadPendingRssEditorialRows } from "@/lib/rss/editorial-queue";
@@ -7,6 +11,10 @@ import { getSupabaseServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  if (!isEditorialAutomationEnabled()) {
+    return NextResponse.json({ ok: false, error: EDITORIAL_AUTOMATION_DISABLED_MESSAGE }, { status: 403 });
+  }
+
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }

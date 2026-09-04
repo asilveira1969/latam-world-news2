@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import {
+  EDITORIAL_AUTOMATION_DISABLED_MESSAGE,
+  isEditorialAutomationEnabled
+} from "@/lib/editorial-dashboard/automation";
+import {
   insertImpactoEditorialDraft,
   listImpactoSourceArticles
 } from "@/lib/data/impacto-drafts-repo";
@@ -25,6 +29,10 @@ function getMontevideoDayStartIso(now = new Date()): string {
 }
 
 async function handleCron(request: Request) {
+  if (!isEditorialAutomationEnabled()) {
+    return NextResponse.json({ ok: false, error: EDITORIAL_AUTOMATION_DISABLED_MESSAGE }, { status: 403 });
+  }
+
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
