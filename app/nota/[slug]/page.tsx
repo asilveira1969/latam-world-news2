@@ -91,7 +91,7 @@ export async function generateMetadata({ params }: NotePageProps): Promise<Metad
     imageUrl: article.image_url,
     type: "article",
     publishedTime: article.published_at,
-    modifiedTime: article.created_at,
+    modifiedTime: article.editorial_updated_at || article.created_at,
     keywords: article.tags
   });
 }
@@ -160,6 +160,7 @@ export default async function NotaPage({ params }: NotePageProps) {
           <p className="mt-3 text-sm text-slate-600">
             Publicado: {new Date(article.published_at).toLocaleString("es-ES")}
           </p>
+          {article.editorial_updated_at ? <p className="mt-1 text-sm text-slate-600">Actualizado: {new Date(article.editorial_updated_at).toLocaleString("es-ES")}</p> : null}
         </header>
 
         <div className="relative mt-6 aspect-video overflow-hidden rounded border border-slate-200 bg-slate-100">
@@ -167,8 +168,12 @@ export default async function NotaPage({ params }: NotePageProps) {
         </div>
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-stone-50/80 p-5 sm:p-6">
-          <h2 className="text-lg font-bold text-brand">Resumen LatamWorldNews</h2>
+          <h2 className="text-lg font-bold text-brand">Resumen de LATAM World News / Qué pasó</h2>
           <p className="mt-3 text-sm leading-7 text-slate-700">{persistedSummary}</p>
+          {article.editorial_key_takeaway ? <><h3 className="mt-5 font-semibold text-brand">La clave</h3><p className="mt-2 text-sm leading-7 text-slate-700">{article.editorial_key_takeaway}</p></> : null}
+          {article.editorial_what_to_watch ? <><h3 className="mt-5 font-semibold text-brand">Qué mirar ahora</h3><p className="mt-2 text-sm leading-7 text-slate-700">{article.editorial_what_to_watch}</p></> : null}
+          {article.editorial_latam_impact ? <><h3 className="mt-5 font-semibold text-brand">Impacto para América Latina</h3><p className="mt-2 text-sm leading-7 text-slate-700">{article.editorial_latam_impact}</p></> : null}
+          {article.editorial_author ? <p className="mt-5 text-sm font-medium text-slate-600">{article.editorial_author}</p> : null}
         </section>
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">

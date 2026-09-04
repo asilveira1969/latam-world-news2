@@ -44,7 +44,7 @@ type MetadataInput = {
 };
 
 function normalizeTitle(title: string): string {
-  return cleanExcerpt(cleanPlainText(title), 68);
+  return cleanPlainText(title);
 }
 
 function normalizeDescription(description: string): string {
@@ -55,7 +55,7 @@ export function buildMetadata(input: MetadataInput): Metadata {
   const normalizedTitle = normalizeTitle(input.title);
   const fullTitle = normalizedTitle.includes(SITE_NAME)
     ? normalizedTitle
-    : normalizeTitle(`${normalizedTitle} | ${SITE_NAME}`);
+    : `${normalizedTitle} | ${SITE_NAME}`;
   const description = normalizeDescription(input.description);
   const canonical = absoluteUrl(input.pathname);
   const resolvedOgImage = resolveCardImage(input.imageUrl);

@@ -107,6 +107,52 @@ The NewsData run needs `NEWSDATA_API_KEY`; it is not required for RSS. Failed so
 
 RSS ingestion never persists a third-party article body. For every external RSS item, `content` is stored as `NULL`; `content:encoded`, HTML, and full feed bodies are discarded. The only retained text is an optional plain-text excerpt from the feed, capped at 280 characters. If no safely bounded excerpt is available, it is stored as an empty string. Every record preserves the source name, original URL, publication date, title, and an attributed source link.
 
+## Scheduled RSS ingestion (prepared, not deployed)
+
+`cloudflare/worker/wrangler.toml` declares one Cron Trigger: `*/15 * * * *` (UTC). Its `scheduled()` handler uses only these configured sources:
+
+- BBC Mundo
+- RT Actualidad
+- France 24 Español
+- El País España
+
+It does not call NewsData, OpenAI, Supabase, or the public Next.js site. Each run reads the latest 25 feed entries per source, normalizes them, skips duplicates by deterministic slug, `source_url`, and `url`, performs the existing non-blocking topic-duplicate check, and records feed failures in `ingestion_errors`.
+
+New RSS records are explicitly stored with:
+
+- `content = NULL`
+- a plain-text `excerpt` of at most 280 characters
+- `editorial_status = pending_review`
+- `editorial_review_status = pending`
+
+Therefore a scheduled run never publishes a new article. Cloudflare Cron delivery is at-least-once; the database unique constraints plus `ON CONFLICT DO NOTHING` make repeated executions idempotent.
+
+The schedule does not exist remotely until the Worker is explicitly deployed. After a deploy, Cloudflare may take up to 15 minutes to propagate cron configuration globally. To exercise the code locally without remote D1 writes, run:
+
+```powershell
+npm run test:d1-worker-rss-cron
+```
+
+## Private editorial dashboard (prepared, not deployed)
+
+The permanent dashboard route is `/editorial` on the Next.js deployment. It is a single authenticated review surface that reuses the existing deterministic classifier and protected Worker `apply-batch` endpoint; it does not create a second editorial data store.
+
+It lists only `pending_review / pending` records, exposes the attributed original link, source, date, bounded excerpt, and suggested classification. An authenticated editor may approve or reject one record or a selected batch:
+
+- approval writes `ready / approved` plus deterministic classification; public Worker reads can then include the article in home, sections, search, related content, and sitemap;
+- rejection writes `rejected / rejected`; the record remains in D1 for audit and is excluded from all public Worker reads.
+
+Required server-only Next.js variables (names only):
+
+- `D1_WORKER_URL`
+- `D1_WORKER_INTERNAL_SECRET`
+- `EDITORIAL_DASHBOARD_PASSWORD`
+- `EDITORIAL_DASHBOARD_SESSION_SECRET`
+
+The password and HMAC session secret must be configured independently for Preview and Production. They must never use a `NEXT_PUBLIC_` prefix. The Worker secret is sent only by Vercel server code to the Worker as `x-internal-api-secret`; the browser receives only an HTTP-only signed session cookie.
+
+Before enabling Production, deploy the Worker change to staging, rotate and set `INTERNAL_API_SECRET` safely, configure the four server-only variables in Vercel Preview, and confirm `/editorial` rejects unauthenticated access. Do not add any of these values to Git, `.env.example`, or a committed Wrangler file.
+
 ## Cross-source topic-duplicate markers
 
 URL, `source_url`, and deterministic slug conflicts still prevent direct duplicates. A separate non-blocking check compares normalized title terms from different media in a 48-hour window. It marks `possible_topic_duplicate` only when there are at least four shared relevant terms, Jaccard similarity is at least 0.65, and overlap covers at least 75% of the shorter term set. The record is kept and receives a group, confidence, and matched-slug marker; low-confidence matches do nothing. This deterministic method cannot reliably understand synonyms, translations, sarcasm, or materially different angles with similar vocabulary, so editorial review remains required.

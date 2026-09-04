@@ -9,12 +9,15 @@ export function sortByPublishedDesc(articles: Article[]): Article[] {
 }
 
 export function pickHero(articles: Article[]): {
-  lead: Article;
+  lead: Article | null;
   secondary: Article[];
 } {
   const sorted = sortByPublishedDesc(articles);
   const featured = sorted.find((article) => article.is_featured);
   const lead = featured ?? sorted[0];
+  if (!lead) {
+    return { lead: null, secondary: [] };
+  }
   const secondary = sorted.filter((article) => article.id !== lead.id).slice(0, 4);
   return { lead, secondary };
 }

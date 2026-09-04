@@ -62,7 +62,7 @@ const INTERNAL_TAGS = new Set([
 ]);
 const GENERIC_TOPIC_TAGS = new Set(["internacional", "mundo", "latam", "america-latina"]);
 const ARTICLE_SELECT_FIELDS =
-  "id, title, slug, excerpt, summary, latamworldnews_summary, curated_news, editorial_status, editorial_generated_at, editorial_model, seo_title, seo_description, latam_angle, faq_items, image_url, source_name, source_url, source_type, region, country, category, tags, countries, topic_slug, section_slug, impact_format, editorial_sections, published_at, created_at, is_featured, is_impact, views";
+  "id, title, slug, excerpt, summary, latamworldnews_summary, curated_news, editorial_status, editorial_generated_at, editorial_model, editorial_format, editorial_key_takeaway, editorial_what_to_watch, editorial_latam_impact, editorial_author, editorial_updated_at, seo_title, seo_description, latam_angle, faq_items, image_url, source_name, source_url, source_type, region, country, category, tags, countries, topic_slug, section_slug, impact_format, editorial_sections, published_at, created_at, is_featured, is_impact, views";
 const ARTICLE_DETAIL_SELECT_FIELDS = ARTICLE_SELECT_FIELDS;
 const SITEMAP_ARTICLE_SELECT_FIELDS =
   "id, title, slug, excerpt, summary, latamworldnews_summary, curated_news, editorial_status, source_type, image_url, source_name, source_url, region, country, category, tags, countries, topic_slug, section_slug, impact_format, published_at, created_at, is_impact";
@@ -308,6 +308,12 @@ export function mapRecordToArticle(record: Record<string, unknown>): Article {
       ? String(record.editorial_generated_at)
       : null,
     editorial_model: record.editorial_model ? cleanPlainText(String(record.editorial_model)) : null,
+    editorial_format: record.editorial_format === "brief" || record.editorial_format === "context" || record.editorial_format === "latam_impact" ? record.editorial_format : null,
+    editorial_key_takeaway: record.editorial_key_takeaway ? cleanExcerpt(String(record.editorial_key_takeaway), 240) : null,
+    editorial_what_to_watch: record.editorial_what_to_watch ? cleanExcerpt(String(record.editorial_what_to_watch), 500) : null,
+    editorial_latam_impact: record.editorial_latam_impact ? cleanExcerpt(String(record.editorial_latam_impact), 500) : null,
+    editorial_author: record.editorial_author ? cleanPlainText(String(record.editorial_author)) : null,
+    editorial_updated_at: record.editorial_updated_at ? String(record.editorial_updated_at) : null,
     seo_title: record.seo_title ? cleanPlainText(String(record.seo_title)) : null,
     seo_description: record.seo_description
       ? cleanExcerpt(String(record.seo_description), 180)
