@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import worker from "../cloudflare/worker/src/index";
 
 const ARTICLE_COLUMNS = ["id","title","slug","excerpt","content","image_url","source_name","source_url","region","category","tags","published_at","created_at","is_featured","is_impact","views","url","summary","source","source_type","country","language","raw","latamworldnews_summary","curated_news","editorial_status","editorial_generated_at","editorial_model","topic_slug","section_slug","countries","impact_format","editorial_sections","latam_angle","faq_items","seo_title","seo_description","possible_topic_duplicate","topic_duplicate_group","topic_duplicate_confidence","topic_duplicate_of_slug","editorial_origin","editorial_input_hash","editorial_prompt_version","editorial_validation","editorial_review_status","editorial_reviewed_at","editorial_review_notes"] as const;
@@ -50,6 +52,9 @@ async function invokeScheduled() {
 }
 
 async function main() {
+  const wranglerConfig = readFileSync(resolve(process.cwd(), "cloudflare/worker/wrangler.toml"), "utf8");
+  assert.match(wranglerConfig, /crons = \["0 \*\/4 \* \* \*"\]/, "the RSS schedule is prepared for every four hours");
+
   await invokeScheduled();
   assert.equal(rows.length, 4, "first cron run inserts one new item from each configured source");
   for (const row of rows) {

@@ -7,10 +7,12 @@ const ready: Row = { id: "ready-id", slug: "ready", title: "Ready", editorial_st
 const rejected: Row = { id: "rejected-id", slug: "rejected", title: "Rejected", editorial_status: "rejected", editorial_review_status: "rejected", tags: "[]", countries: "[]" };
 const pending: Row = { id: "pending-id", slug: "pending", title: "Pending", editorial_status: "pending_review", editorial_review_status: "pending", tags: "[]", countries: "[]" };
 const queries: string[] = [];
+const preparedQueries: string[] = [];
 const queryValues: Array<{ query: string; values: unknown[] }> = [];
 let batched = 0;
 
 function statement(query: string) {
+  preparedQueries.push(query);
   let values: unknown[] = [];
   return {
     bind(...next: unknown[]) { values = next; return this; },
@@ -35,7 +37,11 @@ function statement(query: string) {
       }
       return null;
     },
-    async run() { return { success: true, meta: { changes: 1 } }; }
+    async run() {
+      queries.push(query);
+      queryValues.push({ query, values });
+      return { success: true, meta: { changes: 1 } };
+    }
   };
 }
 
@@ -74,20 +80,40 @@ const validBatch = await worker.fetch(request("/internal/editorial/apply-batch",
   method: "POST",
   headers: { "content-type": "application/json", "x-internal-api-secret": "test-secret" },
   body: JSON.stringify({ changes: [
-    { slug: "ready", editorial_status: "ready", editorial_review_status: "approved", audit_note: "review fixture", region: "LatAm", category: "Internacional", section_slug: "latinoamerica", topic_slug: "venezuela", country: "venezuela", countries: ["venezuela"], tags: ["rss", "venezuela"] },
-    { slug: "rejected", editorial_status: "rejected", editorial_review_status: "rejected", audit_note: "review fixture" }
+    { slug: "ready", editorial_status: "ready", editorial_review_status: "approved", region: "LatAm", category: "Internacional", section_slug: "latinoamerica", topic_slug: "venezuela", country: "venezuela", countries: ["venezuela"], tags: ["rss", "venezuela"] }
   ] })
 }), env);
 assert.equal(validBatch.status, 200);
-assert.equal((await validBatch.json() as { data: { changed: number; rejected: number } }).data.changed, 2);
-assert.equal(batched, 2);
+assert.equal((await validBatch.json() as { data: { changed: number; rejected: number } }).data.changed, 1);
+assert.equal(batched, 1);
+
+const protectedDelete = await worker.fetch(request("/internal/articles/delete-batch", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ slugs: ["rejected"] })
+}), env);
+assert.equal(protectedDelete.status, 401);
+
+const deleteBatch = await worker.fetch(request("/internal/articles/delete-batch", {
+  method: "POST",
+  headers: { "content-type": "application/json", "x-internal-api-secret": "test-secret" },
+  body: JSON.stringify({ slugs: ["rejected"] })
+}), env);
+assert.equal(deleteBatch.status, 200);
+assert.deepEqual((await deleteBatch.json() as { data: { requested: number; deleted: number; slugs: string[] } }).data, {
+  requested: 1,
+  deleted: 1,
+  slugs: ["rejected"]
+});
+assert.equal(batched, 1);
+assert.ok(preparedQueries.some((query) => query === "DELETE FROM articles WHERE slug = ?"), "rejection deletion targets only the requested article slug");
 
 const originalConsoleError = console.error;
 console.error = () => undefined;
 const invalidBatch = await worker.fetch(request("/internal/editorial/apply-batch", {
   method: "POST",
   headers: { "content-type": "application/json", "x-internal-api-secret": "test-secret" },
-  body: JSON.stringify({ changes: [{ slug: "ready", editorial_status: "ready", editorial_review_status: "rejected", audit_note: "invalid" }] })
+  body: JSON.stringify({ changes: [{ slug: "ready", editorial_status: "rejected", editorial_review_status: "rejected" }] })
 }), env);
 console.error = originalConsoleError;
 assert.equal(invalidBatch.status, 400);

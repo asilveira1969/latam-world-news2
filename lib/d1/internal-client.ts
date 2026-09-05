@@ -3,9 +3,8 @@ import "server-only";
 export type D1ArticleWrite = Record<string, unknown>;
 export type D1EditorialDecisionWrite = {
   slug: string;
-  editorial_status: "ready" | "rejected" | "pending_review";
-  editorial_review_status: "approved" | "rejected" | "pending";
-  audit_note: string;
+  editorial_status: "ready" | "pending_review";
+  editorial_review_status: "approved" | "pending";
   editorial_reviewed_at?: string;
   region?: string;
   country?: string | null;
@@ -64,6 +63,11 @@ export async function applyD1EditorialDecisions(changes: D1EditorialDecisionWrit
   slugs: string[];
 }> {
   const response = await internalRequest<{ data: { requested: number; changed: number; approved: number; rejected: number; pending: number; slugs: string[] } }>("/internal/editorial/apply-batch", { changes });
+  return response.data;
+}
+
+export async function deleteD1Articles(slugs: string[]): Promise<{ requested: number; deleted: number; slugs: string[] }> {
+  const response = await internalRequest<{ data: { requested: number; deleted: number; slugs: string[] } }>("/internal/articles/delete-batch", { slugs });
   return response.data;
 }
 
