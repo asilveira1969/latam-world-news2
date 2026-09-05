@@ -13,7 +13,7 @@ export function applyIndividualDecisionResult<T extends { slug: string }>(articl
   }
   return {
     articles: articles.filter((article) => article.slug !== result.slug),
-    message: result.decision === "approved" ? "Artículo aprobado y publicado." : "Artículo rechazado y conservado para auditoría.",
+    message: result.decision === "approved" ? "Artículo aprobado y publicado." : "Artículo rechazado y eliminado definitivamente.",
     error: null
   };
 }

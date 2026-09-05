@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { applyD1EditorialDecisions, getD1InternalArticleBySlug, saveD1EditorialDraft } from "@/lib/d1/internal-client";
+import { applyD1EditorialDecisions, deleteD1Articles, getD1InternalArticleBySlug, saveD1EditorialDraft } from "@/lib/d1/internal-client";
 import { classifyD1EditorialInput } from "@/lib/d1/editorial/classify";
 import { endEditorialSession, requireEditorialSession, startEditorialSession } from "@/lib/editorial-dashboard/auth";
 import { generateEditorialDraft, type EditorialDraftFields, type EditorialDraftFormat } from "@/lib/editorial-dashboard/ai-drafts";
@@ -25,15 +25,19 @@ async function decide(slugs: string[], decision: "approved" | "rejected") {
   await requireEditorialSession();
   const unique = [...new Set(slugs.filter(Boolean))].slice(0, 100);
   if (!unique.length) return;
+  if (decision === "rejected") {
+    await deleteD1Articles(unique);
+    revalidatePath("/"); revalidatePath("/sitemap.xml"); revalidatePath("/editorial");
+    return;
+  }
   const articles = await Promise.all(unique.map((slug) => getD1InternalArticleBySlug(slug)));
   const missing = unique.filter((_, index) => !articles[index]);
   if (missing.length) throw new Error(`No se encontraron artículos: ${missing.join(", ")}`);
   const reviewedAt = new Date().toISOString();
   await applyD1EditorialDecisions(articles.map((value) => {
     const article = toArticle(value as Record<string, unknown>);
-    if (decision === "rejected") return { slug: article.slug, editorial_status: "rejected" as const, editorial_review_status: "rejected" as const, editorial_reviewed_at: reviewedAt, audit_note: "Rechazado desde el dashboard editorial autenticado." };
     const classification = classifyD1EditorialInput(article);
-    return { slug: article.slug, editorial_status: "ready" as const, editorial_review_status: "approved" as const, editorial_reviewed_at: reviewedAt, audit_note: "Aprobado desde el dashboard editorial autenticado.", ...classification };
+    return { slug: article.slug, editorial_status: "ready" as const, editorial_review_status: "approved" as const, editorial_reviewed_at: reviewedAt, ...classification };
   }));
   revalidatePath("/"); revalidatePath("/sitemap.xml"); revalidatePath("/editorial");
 }
@@ -55,7 +59,7 @@ async function decideOne(slug: string, decision: "approved" | "rejected"): Promi
     return { ok: true, slug: normalizedSlug, decision };
   } catch (error) {
     console.error("Individual editorial decision failed", error);
-    return { ok: false, slug: normalizedSlug, decision, error: "No se pudo guardar la decisión. La noticia sigue pendiente." };
+    return { ok: false, slug: normalizedSlug, decision, error: decision === "rejected" ? "No se pudo eliminar la noticia. Sigue pendiente." : "No se pudo guardar la decisión. La noticia sigue pendiente." };
   }
 }
 

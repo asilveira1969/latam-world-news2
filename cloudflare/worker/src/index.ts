@@ -15,6 +15,9 @@ interface D1Database {
 interface Env { DB: D1Database; INTERNAL_API_SECRET?: string; }
 
 type Row = Record<string, unknown>;
+class RequestError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
 const JSON_COLUMNS = ["tags", "countries", "raw", "faq_items", "editorial_sections", "editorial_validation"] as const;
 const ARTICLE_COLUMNS = ["id","title","slug","excerpt","content","image_url","source_name","source_url","region","category","tags","published_at","created_at","is_featured","is_impact","views","url","summary","source","source_type","country","language","raw","latamworldnews_summary","curated_news","editorial_status","editorial_generated_at","editorial_model","topic_slug","section_slug","countries","impact_format","editorial_sections","latam_angle","faq_items","seo_title","seo_description","possible_topic_duplicate","topic_duplicate_group","topic_duplicate_confidence","topic_duplicate_of_slug","editorial_origin","editorial_input_hash","editorial_prompt_version","editorial_validation","editorial_review_status","editorial_reviewed_at","editorial_review_notes","editorial_format","editorial_key_takeaway","editorial_what_to_watch","editorial_latam_impact","editorial_author","editorial_updated_at"] as const;
 const DRAFT_COLUMNS = ["id","slug","title","excerpt","seo_title","seo_description","editorial_context","editorial_sections","tags","countries","source_articles","source_count","status","review_email","email_sent_at","email_provider","email_message_id","model","generated_at","approved_at","published_article_slug","created_at","updated_at"] as const;
@@ -35,6 +38,9 @@ const TOPIC_STOP_WORDS = new Set(["a", "al", "ante", "con", "contra", "como", "d
 
 function json(data: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(data), { ...init, headers: { "content-type": "application/json; charset=utf-8", ...init.headers } });
+}
+function internalWriteJson(data: unknown, init: ResponseInit = {}) {
+  return json(data, { ...init, headers: { "Cache-Control": "no-store", ...init.headers } });
 }
 function stringValue(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
 function boundedRssExcerpt(value: unknown) { return stringValue(value).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 280); }
@@ -181,16 +187,14 @@ function normalizeEditorialDecision(input: Row): Row {
   const slug = stringValue(input.slug);
   const editorialStatus = stringValue(input.editorial_status);
   const reviewStatus = stringValue(input.editorial_review_status);
-  const validPair = (editorialStatus === "ready" && reviewStatus === "approved") || (editorialStatus === "rejected" && reviewStatus === "rejected") || (editorialStatus === "pending_review" && reviewStatus === "pending");
+  const validPair = (editorialStatus === "ready" && reviewStatus === "approved") || (editorialStatus === "pending_review" && reviewStatus === "pending");
   if (!slug) throw new Error("Editorial decision slug is required.");
   if (!validPair) throw new Error("Invalid editorial status/review-status pair.");
-  const note = stringValue(input.audit_note);
-  if (!note) throw new Error("audit_note is required.");
   const classificationFields = ["region", "country", "countries", "category", "tags", "topic_slug", "section_slug"];
   const updatesClassification = classificationFields.some((field) => field in input);
   if (editorialStatus === "ready" && (!updatesClassification || !stringValue(input.section_slug) || !stringValue(input.region) || !stringValue(input.category) || !stringValue(input.topic_slug))) throw new Error("Ready decisions require complete classification.");
   if (updatesClassification && !classificationFields.every((field) => field in input)) throw new Error("Classification must include every classification field.");
-  return { slug, updates_classification: updatesClassification, region: stringValue(input.region) || "Mundo", country: stringValue(input.country) || null, countries: asJson(input.countries, []), category: stringValue(input.category) || "Internacional", tags: asJson(input.tags, []), topic_slug: stringValue(input.topic_slug) || "internacional", section_slug: stringValue(input.section_slug) || "mundo", editorial_status: editorialStatus, editorial_review_status: reviewStatus, editorial_reviewed_at: stringValue(input.editorial_reviewed_at) || new Date().toISOString(), editorial_review_notes: note.slice(0, 2_000) };
+  return { slug, updates_classification: updatesClassification, region: stringValue(input.region) || "Mundo", country: stringValue(input.country) || null, countries: asJson(input.countries, []), category: stringValue(input.category) || "Internacional", tags: asJson(input.tags, []), topic_slug: stringValue(input.topic_slug) || "internacional", section_slug: stringValue(input.section_slug) || "mundo", editorial_status: editorialStatus, editorial_review_status: reviewStatus, editorial_reviewed_at: stringValue(input.editorial_reviewed_at) || new Date().toISOString(), editorial_review_notes: stringValue(input.editorial_review_notes).slice(0, 2_000) || null };
 }
 async function applyEditorialDecisionBatch(db: D1Database, input: Row) {
   const rawChanges = input.changes;
@@ -214,7 +218,23 @@ async function applyEditorialDecisionBatch(db: D1Database, input: Row) {
       : ["editorial_status", "editorial_review_status", "editorial_reviewed_at", "editorial_review_notes"];
     return db.prepare(`UPDATE articles SET ${columns.map((column) => `${column} = ?`).join(", ")} WHERE slug = ?`).bind(...columns.map((column) => change[column] ?? null), change.slug);
   }));
-  return { requested: changes.length, changed: changes.length, approved: changes.filter((change) => change.editorial_status === "ready").length, rejected: changes.filter((change) => change.editorial_status === "rejected").length, pending: changes.filter((change) => change.editorial_status === "pending_review").length, slugs: changes.map((change) => change.slug) };
+  return { requested: changes.length, changed: changes.length, approved: changes.filter((change) => change.editorial_status === "ready").length, rejected: 0, pending: changes.filter((change) => change.editorial_status === "pending_review").length, slugs: changes.map((change) => change.slug) };
+}
+
+async function deleteArticleBatch(db: D1Database, input: Row) {
+  const rawSlugs = input.slugs;
+  if (!Array.isArray(rawSlugs) || rawSlugs.length === 0 || rawSlugs.length > 100) throw new Error("slugs must contain between 1 and 100 article identifiers.");
+  const slugs = rawSlugs.map(stringValue);
+  if (slugs.some((slug) => !slug)) throw new Error("Every article identifier must be a non-empty slug.");
+  if (new Set(slugs).size !== slugs.length) throw new Error("Duplicate slugs are not allowed in a deletion batch.");
+  const placeholders = slugs.map(() => "?").join(", ");
+  const deleted = await db.prepare(`DELETE FROM articles WHERE slug IN (${placeholders}) AND editorial_status = 'pending_review' AND editorial_review_status = 'pending' AND (SELECT COUNT(*) FROM articles WHERE slug IN (${placeholders})) = ? AND (SELECT COUNT(*) FROM articles WHERE slug IN (${placeholders}) AND editorial_status = 'pending_review' AND editorial_review_status = 'pending') = ? RETURNING slug`).bind(...slugs, ...slugs, slugs.length, ...slugs, slugs.length).all<{ slug: string }>();
+  if (deleted.results.length === slugs.length) return { requested: slugs.length, deleted: deleted.results.length, slugs };
+  const remaining = await db.prepare(`SELECT slug, editorial_status, editorial_review_status FROM articles WHERE slug IN (${placeholders})`).bind(...slugs).all<Row>();
+  const existing = new Set(remaining.results.map((article) => stringValue(article.slug)));
+  const missing = slugs.filter((slug) => !existing.has(slug));
+  if (missing.length) throw new RequestError(`Article not found: ${missing.join(", ")}`, 404);
+  throw new RequestError("Only articles pending editorial review can be rejected.", 409);
 }
 
 function normalizeDraft(input: Row, existingId?: string): Row {
@@ -252,25 +272,28 @@ async function getArticleBySlug(db: D1Database, slug: string, publicOnly: boolea
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url); const path = url.pathname;
+    const internalWrite = request.method !== "GET" && path.startsWith("/internal/");
     try {
       if (request.method === "GET" && path === "/health") { await env.DB.prepare("SELECT 1 AS ok").first(); return json({ ok: true, service: "latam-world-news-d1", writesProtected: Boolean(env.INTERNAL_API_SECRET) }); }
       if (request.method === "GET" && path === "/articles") return listArticles(env.DB, url, true);
       if (request.method === "GET" && path.startsWith("/articles/")) return getArticleBySlug(env.DB, decodeURIComponent(path.slice("/articles/".length)), true);
-      if (!isInternalRequest(request, env)) return json({ error: "Unauthorized" }, { status: 401 });
+      if (!isInternalRequest(request, env)) return internalWrite ? internalWriteJson({ error: "Unauthorized" }, { status: 401 }) : json({ error: "Unauthorized" }, { status: 401 });
       if (request.method === "GET" && path === "/internal/articles") return listArticles(env.DB, url, false);
       if (request.method === "GET" && path.startsWith("/internal/articles/")) return getArticleBySlug(env.DB, decodeURIComponent(path.slice("/internal/articles/".length)), false);
-      if (request.method === "POST" && path === "/internal/editorial/apply-batch") return json({ data: await applyEditorialDecisionBatch(env.DB, await requestBody(request)) });
-      if (request.method === "POST" && path === "/internal/articles/upsert") { const payload = await requestBody(request); const result = await upsertArticle(env.DB, payload.article as Row); return json({ data: result.article, created: result.created }, { status: result.created ? 201 : 200 }); }
-      if (request.method === "POST" && path === "/internal/ingestion/rss") return json({ data: await runScheduledRssIngestion(env.DB) });
-      if (request.method === "POST" && /^\/internal\/articles\/[^/]+\/editorial$/.test(path)) { const slug = decodeURIComponent(path.split("/")[3]); const payload = await requestBody(request); return json({ data: await patchArticleEditorial(env.DB, slug, payload.editorial as Row) }); }
-      if (request.method === "POST" && /^\/internal\/articles\/[^/]+\/views$/.test(path)) { const slug = decodeURIComponent(path.split("/")[3]); await env.DB.prepare("UPDATE articles SET views = views + 1 WHERE slug = ?").bind(slug).run(); return json({ ok: true }); }
-      if (request.method === "POST" && path === "/internal/impacto-drafts/upsert") { const payload = await requestBody(request); const result = await upsertDraft(env.DB, payload.draft as Row); return json({ data: result.draft, created: result.created }, { status: result.created ? 201 : 200 }); }
-      if (request.method === "POST" && path === "/internal/ingestion-errors") { await recordError(env.DB, await requestBody(request)); return json({ ok: true }, { status: 201 }); }
-      return json({ error: "Not found" }, { status: 404 });
+      if (request.method === "POST" && path === "/internal/editorial/apply-batch") return internalWriteJson({ data: await applyEditorialDecisionBatch(env.DB, await requestBody(request)) });
+      if (request.method === "POST" && path === "/internal/articles/delete-batch") return internalWriteJson({ data: await deleteArticleBatch(env.DB, await requestBody(request)) });
+      if (request.method === "POST" && path === "/internal/articles/upsert") { const payload = await requestBody(request); const result = await upsertArticle(env.DB, payload.article as Row); return internalWriteJson({ data: result.article, created: result.created }, { status: result.created ? 201 : 200 }); }
+      if (request.method === "POST" && path === "/internal/ingestion/rss") return internalWriteJson({ data: await runScheduledRssIngestion(env.DB) });
+      if (request.method === "POST" && /^\/internal\/articles\/[^/]+\/editorial$/.test(path)) { const slug = decodeURIComponent(path.split("/")[3]); const payload = await requestBody(request); return internalWriteJson({ data: await patchArticleEditorial(env.DB, slug, payload.editorial as Row) }); }
+      if (request.method === "POST" && /^\/internal\/articles\/[^/]+\/views$/.test(path)) { const slug = decodeURIComponent(path.split("/")[3]); await env.DB.prepare("UPDATE articles SET views = views + 1 WHERE slug = ?").bind(slug).run(); return internalWriteJson({ ok: true }); }
+      if (request.method === "POST" && path === "/internal/impacto-drafts/upsert") { const payload = await requestBody(request); const result = await upsertDraft(env.DB, payload.draft as Row); return internalWriteJson({ data: result.draft, created: result.created }, { status: result.created ? 201 : 200 }); }
+      if (request.method === "POST" && path === "/internal/ingestion-errors") { await recordError(env.DB, await requestBody(request)); return internalWriteJson({ ok: true }, { status: 201 }); }
+      return internalWrite ? internalWriteJson({ error: "Not found" }, { status: 404 }) : json({ error: "Not found" }, { status: 404 });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Internal server error";
       console.error("D1 Worker request failed", error);
-      return json({ error: message }, { status: message.includes("Conflicting") ? 409 : 400 });
+      const status = error instanceof RequestError ? error.status : message.includes("Conflicting") ? 409 : 400;
+      return internalWrite ? internalWriteJson({ error: message }, { status }) : json({ error: message }, { status });
     }
   },
   async scheduled(_controller: unknown, env: Env, ctx: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
