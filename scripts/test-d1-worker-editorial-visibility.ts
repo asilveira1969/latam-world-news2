@@ -7,6 +7,7 @@ const ready: Row = { id: "ready-id", slug: "ready", title: "Ready", editorial_st
 const rejected: Row = { id: "rejected-id", slug: "rejected", title: "Rejected", editorial_status: "rejected", editorial_review_status: "rejected", tags: "[]", countries: "[]" };
 const pending: Row = { id: "pending-id", slug: "pending", title: "Pending", editorial_status: "pending_review", editorial_review_status: "pending", tags: "[]", countries: "[]" };
 const queries: string[] = [];
+const queryValues: Array<{ query: string; values: unknown[] }> = [];
 let batched = 0;
 
 function statement(query: string) {
@@ -15,6 +16,7 @@ function statement(query: string) {
     bind(...next: unknown[]) { values = next; return this; },
     async all<T>() {
       queries.push(query);
+      queryValues.push({ query, values });
       if (query.includes("SELECT * FROM articles")) {
         if (query.includes("editorial_status = 'ready'")) return { results: [ready] as T[] };
         return { results: [ready, rejected, pending] as T[] };
@@ -23,6 +25,7 @@ function statement(query: string) {
     },
     async first<T>() {
       queries.push(query);
+      queryValues.push({ query, values });
       if (query === "SELECT 1 AS ok") return { ok: 1 } as T;
       if (query === "SELECT id FROM articles WHERE slug = ?") return ["ready", "rejected", "pending"].includes(String(values[0])) ? { id: String(values[0]) } as T : null;
       if (query.includes("SELECT * FROM articles WHERE slug")) {
@@ -48,6 +51,13 @@ const publicList = await worker.fetch(request("/articles?q=ready"), env);
 assert.equal(publicList.status, 200);
 assert.deepEqual((await publicList.json() as { data: Row[] }).data.map((article) => article.slug), ["ready"]);
 assert.ok(queries.some((query) => query.includes("editorial_status = 'ready' AND editorial_review_status = 'approved'")));
+
+await worker.fetch(request("/articles?section_slug=energia&is_impact=0"), env);
+const scopedQuery = queryValues.find(({ query }) => query.includes("section_slug = ?") && query.includes("is_impact = ?"));
+assert.ok(scopedQuery, "public listings pass section and impact filters to D1");
+assert.ok(scopedQuery.query.includes("published_at <= ?"), "public listings compare ISO publication dates without julianday()");
+assert.equal(scopedQuery.query.includes("julianday("), false, "the publication-date predicate remains indexable");
+assert.deepEqual(scopedQuery.values.slice(1, 3), ["energia", "0"]);
 
 assert.equal((await worker.fetch(request("/articles/ready"), env)).status, 200);
 assert.equal((await worker.fetch(request("/articles/rejected"), env)).status, 404);

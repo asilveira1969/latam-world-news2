@@ -533,29 +533,28 @@ async function fetchArticlesFromSupabaseQuery(input: {
   region?: Article["region"];
   onlyNewsdata?: boolean;
   sectionSlug?: string;
+  isImpact?: boolean;
+  impactFormat?: string;
   displayFilter?: (article: Article) => boolean;
 }): Promise<Article[]> {
   if (d1ReadsEnabled()) {
     try {
-      let articles = (await getAllD1WorkerArticles()).map((article) =>
+      const pageSize = Math.min(Math.max(input.limit, 1), 100);
+      const countries = input.country ? [input.country] : input.countries?.length ? input.countries : [undefined];
+      const responses = await Promise.all(countries.map((country) => listD1WorkerArticles({
+        page: 1,
+        pageSize,
+        country,
+        region: input.country || input.countries?.length ? undefined : input.region,
+        sectionSlug: input.sectionSlug,
+        isImpact: input.isImpact,
+        impactFormat: input.impactFormat
+      })));
+      let articles = responses.flatMap((response) => response.data).map((article) =>
         mapRecordToArticle(article as unknown as Record<string, unknown>)
       );
 
-      if (input.country) {
-        articles = articles.filter((article) => article.country === input.country);
-      } else if (input.region) {
-        articles = articles.filter((article) => article.region === input.region);
-      } else if (input.countries && input.countries.length > 0) {
-        articles = articles.filter((article) => article.country && input.countries?.includes(article.country));
-      }
-
-      if (input.sectionSlug) {
-        articles = articles.filter((article) => article.section_slug === input.sectionSlug);
-      }
-
-      if (input.onlyNewsdata) {
-        articles = articles.filter((article) => article.tags.includes("newsdata"));
-      }
+      if (input.onlyNewsdata) articles = articles.filter((article) => article.tags.includes("newsdata"));
 
       return dedupeBySourceUrl(sortByPublishedDesc(articles))
         .filter(input.displayFilter ?? isDisplayableArticle)
@@ -613,6 +612,8 @@ async function getListingArticles(input: {
   region?: Article["region"];
   onlyNewsdata?: boolean;
   sectionSlug?: string;
+  isImpact?: boolean;
+  impactFormat?: string;
   displayFilter?: (article: Article) => boolean;
 }): Promise<Article[]> {
   const queryLimit = Math.max(input.limit, 1);
@@ -621,6 +622,8 @@ async function getListingArticles(input: {
     region: input.region,
     onlyNewsdata: input.onlyNewsdata,
     sectionSlug: input.sectionSlug,
+    isImpact: input.isImpact,
+    impactFormat: input.impactFormat,
     displayFilter: input.displayFilter
   });
 
@@ -736,12 +739,8 @@ export async function getHomeData(input?: {
   region?: Article["region"];
   onlyNewsdata?: boolean;
 }): Promise<HomeData> {
-  const listingLimit = input?.region ? 180 : 240;
-  const allArticles = await getListingArticles({
-    limit: listingLimit,
-    region: input?.region,
-    onlyNewsdata: input?.onlyNewsdata
-  });
+  const listingLimit = d1ReadsEnabled() ? 40 : input?.region ? 180 : 240;
+  const allArticles = await getListingArticles({ limit: listingLimit, region: input?.region, onlyNewsdata: input?.onlyNewsdata });
   const sourceScoped = input?.onlyNewsdata
     ? allArticles.filter((article) => article.tags.includes("newsdata"))
     : allArticles;
@@ -762,11 +761,14 @@ export async function getHomeData(input?: {
     "medio-oriente"
   ];
 
-  const regionBlocks = regionKeys.map((regionKey) => ({
+  const regionItems = d1ReadsEnabled()
+    ? await Promise.all(regionKeys.map((regionKey) => getListingArticles({ limit: 4, sectionSlug: regionKey, isImpact: false })))
+    : regionKeys.map((regionKey) => filterBySection(nonImpact, regionKey).slice(0, 4));
+  const regionBlocks = regionKeys.map((regionKey, index) => ({
     key: regionKey,
     title: REGION_TITLE_MAP[regionKey],
     href: `/${regionKey}`,
-    items: filterBySection(nonImpact, regionKey).slice(0, 4)
+    items: regionItems[index]
   }));
 
   const ticker = pool.slice(0, 10).map((article) => article.title);

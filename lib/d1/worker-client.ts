@@ -26,7 +26,9 @@ function getBaseUrl(): string {
 
 async function requestD1Worker<T>(path: string): Promise<T> {
   const response = await fetch(`${getBaseUrl()}${path}`, {
-    next: { revalidate: 60 }
+    // Public articles are editorially curated. Reusing each Worker response for
+    // ten minutes prevents Vercel from repeatedly asking D1 for the same list.
+    next: { revalidate: 600 }
   });
   if (!response.ok) throw new Error(`D1 Worker request failed (${response.status}).`);
   return (await response.json()) as T;
@@ -41,6 +43,8 @@ export async function listD1WorkerArticles(input?: {
   country?: string;
   sectionSlug?: string;
   sourceType?: string;
+  isImpact?: boolean;
+  impactFormat?: string;
   query?: string;
 }): Promise<D1WorkerArticleList> {
   const params = new URLSearchParams();
@@ -50,6 +54,8 @@ export async function listD1WorkerArticles(input?: {
   if (input?.country) params.set("country", input.country);
   if (input?.sectionSlug) params.set("section_slug", input.sectionSlug);
   if (input?.sourceType) params.set("source_type", input.sourceType);
+  if (input?.isImpact !== undefined) params.set("is_impact", input.isImpact ? "1" : "0");
+  if (input?.impactFormat) params.set("impact_format", input.impactFormat);
   if (input?.query) params.set("q", input.query);
   const suffix = params.size ? `?${params.toString()}` : "";
   return requestD1Worker<D1WorkerArticleList>(`/articles${suffix}`);
