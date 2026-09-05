@@ -10,6 +10,7 @@ const queries: string[] = [];
 const preparedQueries: string[] = [];
 const queryValues: Array<{ query: string; values: unknown[] }> = [];
 let batched = 0;
+const presentSlugs = new Set(["ready", "rejected", "pending"]);
 
 function statement(query: string) {
   preparedQueries.push(query);
@@ -19,6 +20,20 @@ function statement(query: string) {
     async all<T>() {
       queries.push(query);
       queryValues.push({ query, values });
+      if (query.startsWith("DELETE FROM articles")) {
+        const slug = String(values[0]);
+        const row = ({ ready, rejected, pending } as Record<string, Row>)[slug];
+        if (presentSlugs.has(slug) && row?.editorial_status === "pending_review" && row.editorial_review_status === "pending") {
+          presentSlugs.delete(slug);
+          return { results: [{ slug }] as T[] };
+        }
+        return { results: [] as T[] };
+      }
+      if (query.startsWith("SELECT slug, editorial_status, editorial_review_status FROM articles")) {
+        const slug = String(values[0]);
+        const row = ({ ready, rejected, pending } as Record<string, Row>)[slug];
+        return { results: presentSlugs.has(slug) && row ? [row] as T[] : [] as T[] };
+      }
       if (query.includes("SELECT * FROM articles")) {
         if (query.includes("editorial_status = 'ready'")) return { results: [ready] as T[] };
         return { results: [ready, rejected, pending] as T[] };
@@ -94,21 +109,43 @@ const protectedDelete = await worker.fetch(request("/internal/articles/delete-ba
 }), env);
 assert.equal(protectedDelete.status, 401);
 
-const deleteBatch = await worker.fetch(request("/internal/articles/delete-batch", {
+assert.equal(protectedDelete.headers.get("cache-control"), "no-store");
+
+const deletePending = await worker.fetch(request("/internal/articles/delete-batch", {
   method: "POST",
   headers: { "content-type": "application/json", "x-internal-api-secret": "test-secret" },
-  body: JSON.stringify({ slugs: ["rejected"] })
+  body: JSON.stringify({ slugs: ["pending"] })
 }), env);
-assert.equal(deleteBatch.status, 200);
-assert.deepEqual((await deleteBatch.json() as { data: { requested: number; deleted: number; slugs: string[] } }).data, {
+assert.equal(deletePending.status, 200);
+assert.equal(deletePending.headers.get("cache-control"), "no-store");
+assert.deepEqual((await deletePending.json() as { data: { requested: number; deleted: number; slugs: string[] } }).data, {
   requested: 1,
   deleted: 1,
-  slugs: ["rejected"]
+  slugs: ["pending"]
 });
-assert.equal(batched, 1);
-assert.ok(preparedQueries.some((query) => query === "DELETE FROM articles WHERE slug = ?"), "rejection deletion targets only the requested article slug");
+assert.ok(preparedQueries.some((query) => query.startsWith("DELETE FROM articles WHERE slug IN (?) AND editorial_status = 'pending_review' AND editorial_review_status = 'pending'")), "the delete itself requires a pending editorial-review status");
 
 const originalConsoleError = console.error;
+console.error = () => undefined;
+const deleteReady = await worker.fetch(request("/internal/articles/delete-batch", {
+  method: "POST",
+  headers: { "content-type": "application/json", "x-internal-api-secret": "test-secret" },
+  body: JSON.stringify({ slugs: ["ready"] })
+}), env);
+assert.equal(deleteReady.status, 409);
+assert.equal(deleteReady.headers.get("cache-control"), "no-store");
+assert.match((await deleteReady.json() as { error: string }).error, /pending editorial review/i);
+
+const deleteMissing = await worker.fetch(request("/internal/articles/delete-batch", {
+  method: "POST",
+  headers: { "content-type": "application/json", "x-internal-api-secret": "test-secret" },
+  body: JSON.stringify({ slugs: ["missing"] })
+}), env);
+console.error = originalConsoleError;
+assert.equal(deleteMissing.status, 404);
+assert.equal(deleteMissing.headers.get("cache-control"), "no-store");
+assert.match((await deleteMissing.json() as { error: string }).error, /not found/i);
+
 console.error = () => undefined;
 const invalidBatch = await worker.fetch(request("/internal/editorial/apply-batch", {
   method: "POST",
