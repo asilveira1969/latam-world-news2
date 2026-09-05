@@ -21,7 +21,7 @@ const DRAFT_COLUMNS = ["id","slug","title","excerpt","seo_title","seo_descriptio
 const EDITORIAL_PATCH_COLUMNS = ["region", "country", "countries", "category", "tags", "topic_slug", "section_slug", "latamworldnews_summary", "editorial_status", "editorial_generated_at", "editorial_model", "editorial_origin", "editorial_input_hash", "editorial_prompt_version", "editorial_validation", "editorial_review_status", "editorial_format", "editorial_key_takeaway", "editorial_what_to_watch", "editorial_latam_impact", "editorial_author", "editorial_updated_at"] as const;
 const EDITORIAL_DECISION_COLUMNS = ["region", "country", "countries", "category", "tags", "topic_slug", "section_slug", "editorial_status", "editorial_review_status", "editorial_reviewed_at", "editorial_review_notes"] as const;
 const MAX_FUTURE_RSS_PUBLICATION_MS = 15 * 60 * 1_000;
-const PUBLIC_READY_CLAUSE = "editorial_status = 'ready' AND editorial_review_status = 'approved' AND julianday(published_at) <= julianday('now', '+15 minutes')";
+const PUBLIC_READY_CLAUSE = "editorial_status = 'ready' AND editorial_review_status = 'approved' AND published_at <= ?";
 
 const RSS_CRON_SOURCES = [
   { id: "rss-rt", name: "RT Actualidad", feedUrl: "https://actualidad.rt.com/feeds/all.rss", tag: "rss-rt" },
@@ -39,6 +39,7 @@ function json(data: unknown, init: ResponseInit = {}) {
 function stringValue(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
 function boundedRssExcerpt(value: unknown) { return stringValue(value).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 280); }
 function parsePositiveInt(value: string | null, fallback: number, maximum: number) { const parsed = Number.parseInt(value ?? "", 10); return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, maximum) : fallback; }
+function publicPublicationCutoff() { return new Date(Date.now() + MAX_FUTURE_RSS_PUBLICATION_MS).toISOString(); }
 function asJson(value: unknown, fallback: unknown) { if (typeof value === "string") { JSON.parse(value); return value; } return JSON.stringify(value ?? fallback); }
 function parseJson(value: unknown) { if (typeof value !== "string") return value; try { return JSON.parse(value); } catch { return value; } }
 function plainText(value: unknown) { return stringValue(value).replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, "\"").replace(/&#39;/gi, "'").replace(/\s+/g, " ").trim(); }
@@ -230,8 +231,8 @@ async function listArticles(db: D1Database, url: URL, publicOnly: boolean) {
   const page = parsePositiveInt(url.searchParams.get("page"), 1, 1_000_000);
   const pageSize = parsePositiveInt(url.searchParams.get("pageSize"), 20, 100);
   const clauses: string[] = publicOnly ? [PUBLIC_READY_CLAUSE] : [];
-  const values: unknown[] = [];
-  for (const [query, column] of [["region", "region"], ["country", "country"], ["section_slug", "section_slug"], ["source_type", "source_type"], ["editorial_status", "editorial_status"], ["editorial_review_status", "editorial_review_status"]] as const) {
+  const values: unknown[] = publicOnly ? [publicPublicationCutoff()] : [];
+  for (const [query, column] of [["region", "region"], ["country", "country"], ["section_slug", "section_slug"], ["source_type", "source_type"], ["editorial_status", "editorial_status"], ["editorial_review_status", "editorial_review_status"], ["is_impact", "is_impact"], ["impact_format", "impact_format"]] as const) {
     const value = url.searchParams.get(query); if (value) { clauses.push(`${column} = ?`); values.push(value); }
   }
   const search = url.searchParams.get("q");
@@ -242,7 +243,9 @@ async function listArticles(db: D1Database, url: URL, publicOnly: boolean) {
 }
 async function getArticleBySlug(db: D1Database, slug: string, publicOnly: boolean) {
   const query = publicOnly ? `SELECT * FROM articles WHERE slug = ? AND ${PUBLIC_READY_CLAUSE} LIMIT 1` : "SELECT * FROM articles WHERE slug = ? LIMIT 1";
-  const article = await db.prepare(query).bind(slug).first<Row>();
+  const article = publicOnly
+    ? await db.prepare(query).bind(slug, publicPublicationCutoff()).first<Row>()
+    : await db.prepare(query).bind(slug).first<Row>();
   return article ? json({ data: serializeArticle(article) }) : json({ error: "Not found" }, { status: 404 });
 }
 
