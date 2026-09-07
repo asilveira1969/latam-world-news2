@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import worker from "../cloudflare/worker/src/index";
+import { editorialDayStart } from "../lib/editorial-dashboard/day-boundary";
 
 const ARTICLE_COLUMNS = ["id","title","slug","excerpt","content","image_url","source_name","source_url","region","category","tags","published_at","created_at","is_featured","is_impact","views","url","summary","source","source_type","country","language","raw","latamworldnews_summary","curated_news","editorial_status","editorial_generated_at","editorial_model","topic_slug","section_slug","countries","impact_format","editorial_sections","latam_angle","faq_items","seo_title","seo_description","possible_topic_duplicate","topic_duplicate_group","topic_duplicate_confidence","topic_duplicate_of_slug","editorial_origin","editorial_input_hash","editorial_prompt_version","editorial_validation","editorial_review_status","editorial_reviewed_at","editorial_review_notes"] as const;
 type Row = Record<string, unknown>;
@@ -26,6 +27,12 @@ function statement(query: string) {
       return null;
     },
     async run() {
+      if (query.startsWith("DELETE FROM articles WHERE editorial_status = 'pending_review'")) {
+        const cutoff = String(values[0]);
+        const deleted = rows.filter((row) => row.editorial_status === "pending_review" && row.editorial_review_status === "pending" && String(row.created_at) < cutoff);
+        for (const row of deleted) rows.splice(rows.indexOf(row), 1);
+        return { success: true, meta: { changes: deleted.length } };
+      }
       if (query.startsWith("INSERT INTO articles")) {
         const row = Object.fromEntries(ARTICLE_COLUMNS.map((column, index) => [column, values[index]]));
         rows.push(row);
@@ -45,15 +52,16 @@ globalThis.fetch = (async (input: RequestInfo | URL) => {
   return new Response(`<?xml version="1.0"?><rss><channel><item><title>Noticia ${id} sobre energía internacional</title><link>https://example.test/${id}</link><pubDate>${publishedAt}</pubDate><description><![CDATA[${longHtml}]]></description><content:encoded><![CDATA[${"CUERPO COMPLETO ".repeat(100)}]]></content:encoded></item></channel></rss>`, { status: 200, headers: { "content-type": "application/rss+xml" } });
 }) as typeof fetch;
 
-async function invokeScheduled() {
+async function invokeScheduled(controller: { cron?: string } = {}) {
   let pending: Promise<unknown> | null = null;
-  await worker.scheduled({}, env, { waitUntil(promise) { pending = promise; } });
+  await worker.scheduled(controller, env, { waitUntil(promise) { pending = promise; } });
   await pending;
 }
 
 async function main() {
   const wranglerConfig = readFileSync(resolve(process.cwd(), "cloudflare/worker/wrangler.toml"), "utf8");
-  assert.match(wranglerConfig, /crons = \["0 \*\/4 \* \* \*"\]/, "the RSS schedule is prepared for every four hours");
+  assert.match(wranglerConfig, /crons = \["0 \*\/4 \* \* \*", "0 3 \* \* \*"\]/, "the RSS schedule and daily Montevideo cleanup trigger are configured");
+  assert.equal(editorialDayStart(new Date("2026-09-07T12:00:00.000Z")), "2026-09-07T03:00:00.000Z", "the editorial day starts at midnight in Montevideo");
 
   await invokeScheduled();
   assert.equal(rows.length, 4, "first cron run inserts one new item from each configured source");
@@ -66,6 +74,13 @@ async function main() {
   }
   await invokeScheduled();
   assert.equal(rows.length, 4, "repeated cron run does not duplicate existing source URLs/slugs");
+  rows.push(
+    { id: "old-pending", slug: "old-pending", editorial_status: "pending_review", editorial_review_status: "pending", created_at: "2000-01-01T00:00:00.000Z" },
+    { id: "old-ready", slug: "old-ready", editorial_status: "ready", editorial_review_status: "approved", created_at: "2000-01-01T00:00:00.000Z" }
+  );
+  await invokeScheduled({ cron: "0 3 * * *" });
+  assert.equal(rows.some((row) => row.slug === "old-pending"), false, "the midnight cleanup permanently removes expired pending inbox items");
+  assert.equal(rows.some((row) => row.slug === "old-ready"), true, "the midnight cleanup never removes approved articles");
   rows.length = 0;
   useFuturePublicationDate = true;
   await invokeScheduled();

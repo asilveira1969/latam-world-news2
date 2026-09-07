@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import { editorialDayStart } from "../../../lib/editorial-dashboard/day-boundary";
 
 interface D1Result<T> { results: T[]; }
 interface D1RunResult { success: boolean; meta: { changes?: number }; }
@@ -13,6 +14,7 @@ interface D1Database {
   batch(statements: D1PreparedStatement[]): Promise<D1RunResult[]>;
 }
 interface Env { DB: D1Database; INTERNAL_API_SECRET?: string; }
+interface ScheduledController { cron?: string; }
 
 type Row = Record<string, unknown>;
 class RequestError extends Error {
@@ -25,6 +27,7 @@ const EDITORIAL_PATCH_COLUMNS = ["region", "country", "countries", "category", "
 const EDITORIAL_DECISION_COLUMNS = ["region", "country", "countries", "category", "tags", "topic_slug", "section_slug", "editorial_status", "editorial_review_status", "editorial_reviewed_at", "editorial_review_notes"] as const;
 const MAX_FUTURE_RSS_PUBLICATION_MS = 15 * 60 * 1_000;
 const PUBLIC_READY_CLAUSE = "editorial_status = 'ready' AND editorial_review_status = 'approved' AND published_at <= ?";
+const DAILY_EDITORIAL_CLEANUP_CRON = "0 3 * * *";
 
 const RSS_CRON_SOURCES = [
   { id: "rss-rt", name: "RT Actualidad", feedUrl: "https://actualidad.rt.com/feeds/all.rss", tag: "rss-rt" },
@@ -146,13 +149,19 @@ async function ingestRssSource(db: D1Database, source: typeof RSS_CRON_SOURCES[n
   }
   return { sourceId: source.id, created, skipped };
 }
+async function deleteExpiredPendingArticles(db: D1Database, now = new Date()) {
+  const cutoff = editorialDayStart(now);
+  const result = await db.prepare("DELETE FROM articles WHERE editorial_status = 'pending_review' AND editorial_review_status = 'pending' AND created_at < ?").bind(cutoff).run();
+  return { cutoff, deleted: result.meta.changes ?? 0 };
+}
 async function runScheduledRssIngestion(db: D1Database) {
+  const cleanup = await deleteExpiredPendingArticles(db);
   const results: Array<{ sourceId: string; created: number; skipped: number; error?: string }> = [];
   for (const source of RSS_CRON_SOURCES) {
     try { results.push(await ingestRssSource(db, source)); }
     catch (error) { const message = error instanceof Error ? error.message : "Unknown RSS error."; await recordError(db, { source_id: source.id, provider: "rss", message, context: { scheduled: true, source_name: source.name } }).catch(() => undefined); results.push({ sourceId: source.id, created: 0, skipped: 0, error: message }); }
   }
-  return { run_at: new Date().toISOString(), sources: results, created: results.reduce((total, result) => total + result.created, 0), skipped: results.reduce((total, result) => total + result.skipped, 0), failed: results.filter((result) => result.error).length };
+  return { run_at: new Date().toISOString(), cleanup, sources: results, created: results.reduce((total, result) => total + result.created, 0), skipped: results.reduce((total, result) => total + result.skipped, 0), failed: results.filter((result) => result.error).length };
 }
 async function upsertArticle(db: D1Database, input: Row) {
   const initial = normalizeArticle(input); const matches = await db.prepare("SELECT id FROM articles WHERE slug = ? OR source_url = ? OR url = ?").bind(initial.slug, initial.source_url, initial.url).all<{ id: string }>(); const ids = [...new Set(matches.results.map((row) => row.id))];
@@ -252,8 +261,8 @@ async function listArticles(db: D1Database, url: URL, publicOnly: boolean) {
   const pageSize = parsePositiveInt(url.searchParams.get("pageSize"), 20, 100);
   const clauses: string[] = publicOnly ? [PUBLIC_READY_CLAUSE] : [];
   const values: unknown[] = publicOnly ? [publicPublicationCutoff()] : [];
-  for (const [query, column] of [["region", "region"], ["country", "country"], ["section_slug", "section_slug"], ["source_type", "source_type"], ["editorial_status", "editorial_status"], ["editorial_review_status", "editorial_review_status"], ["is_impact", "is_impact"], ["impact_format", "impact_format"]] as const) {
-    const value = url.searchParams.get(query); if (value) { clauses.push(`${column} = ?`); values.push(value); }
+  for (const [query, column] of [["region", "region"], ["country", "country"], ["section_slug", "section_slug"], ["source_type", "source_type"], ["editorial_status", "editorial_status"], ["editorial_review_status", "editorial_review_status"], ["is_impact", "is_impact"], ["impact_format", "impact_format"], ["created_after", "created_at"]] as const) {
+    const value = url.searchParams.get(query); if (value) { clauses.push(`${column} ${query === "created_after" ? ">=" : "="} ?`); values.push(value); }
   }
   const search = url.searchParams.get("q");
   if (search) { clauses.push("(title LIKE ? OR excerpt LIKE ? OR summary LIKE ?)"); values.push(`%${search.slice(0, 120)}%`, `%${search.slice(0, 120)}%`, `%${search.slice(0, 120)}%`); }
@@ -296,7 +305,11 @@ export default {
       return internalWrite ? internalWriteJson({ error: message }, { status }) : json({ error: message }, { status });
     }
   },
-  async scheduled(_controller: unknown, env: Env, ctx: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
+  async scheduled(controller: ScheduledController, env: Env, ctx: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
+    if (controller.cron === DAILY_EDITORIAL_CLEANUP_CRON) {
+      ctx.waitUntil(deleteExpiredPendingArticles(env.DB).then((summary) => console.log("Editorial inbox cleanup completed", summary)).catch((error) => console.error("Editorial inbox cleanup failed", error)));
+      return;
+    }
     ctx.waitUntil(runScheduledRssIngestion(env.DB).then((summary) => console.log("RSS cron completed", summary)).catch((error) => console.error("RSS cron failed", error)));
   }
 };

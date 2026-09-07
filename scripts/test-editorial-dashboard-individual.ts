@@ -21,6 +21,7 @@ assert.equal(failed.error, "Fallo simulado");
 
 const inboxSource = readFileSync(resolve(process.cwd(), "app/editorial/editorial-inbox.tsx"), "utf8");
 const actionSource = readFileSync(resolve(process.cwd(), "app/editorial/actions.ts"), "utf8");
+const editorialPageSource = readFileSync(resolve(process.cwd(), "app/editorial/page.tsx"), "utf8");
 assert.match(inboxSource, /approveOne\(slug\)/);
 assert.match(inboxSource, /rejectOne\(slug\)/);
 assert.match(inboxSource, /type="button"/);
@@ -28,5 +29,6 @@ assert.doesNotMatch(actionSource, /formData\.get\("oneSlug"\)/);
 assert.match(actionSource, /deleteD1Articles\(unique\)/);
 assert.doesNotMatch(actionSource, /audit_note/);
 assert.doesNotMatch(inboxSource, /conservado para auditoría/i);
+assert.match(editorialPageSource, /createdAfter: editorialDayStart\(\)/);
 
 console.log("Editorial dashboard individual controls: PASS");
