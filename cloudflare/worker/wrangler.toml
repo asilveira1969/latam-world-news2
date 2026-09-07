@@ -2,10 +2,10 @@ name = "latam-world-news-d1-staging"
 main = "src/index.ts"
 compatibility_date = "2026-08-28"
 
-# One UTC cron trigger. The scheduled handler fetches only the four approved
-# RSS sources and writes new items as pending editorial review.
+# RSS runs every four hours. The daily trigger is 00:00 America/Montevideo
+# (03:00 UTC) and removes expired pending editorial inbox items only.
 [triggers]
-crons = ["0 */4 * * *"]
+crons = ["0 */4 * * *", "0 3 * * *"]
 
 # Staging database only. This Worker is not deployed by this configuration.
 [[d1_databases]]

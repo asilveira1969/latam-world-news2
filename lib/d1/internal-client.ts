@@ -83,12 +83,14 @@ export async function recordD1IngestionError(input: {
 export async function listD1InternalArticles(input: {
   editorialStatus?: string;
   editorialReviewStatus?: string;
+  createdAfter?: string;
   page?: number;
   pageSize?: number;
 } = {}): Promise<{ data: Array<Record<string, unknown>>; pagination: { page: number; pageSize: number } }> {
   const params = new URLSearchParams();
   if (input.editorialStatus) params.set("editorial_status", input.editorialStatus);
   if (input.editorialReviewStatus) params.set("editorial_review_status", input.editorialReviewStatus);
+  if (input.createdAfter) params.set("created_after", input.createdAfter);
   params.set("page", String(input.page ?? 1));
   params.set("pageSize", String(input.pageSize ?? 100));
   return internalGet(`/internal/articles?${params.toString()}`);

@@ -88,6 +88,10 @@ const internalList = await worker.fetch(request("/internal/articles", { headers:
 assert.equal(internalList.status, 200);
 assert.equal((await internalList.json() as { data: Row[] }).data.length, 3);
 
+await worker.fetch(request("/internal/articles?editorial_status=pending_review&editorial_review_status=pending&created_after=2026-09-07T03%3A00%3A00.000Z", { headers: { "x-internal-api-secret": "test-secret" } }), env);
+const editorialDayQuery = queryValues.find(({ query }) => query.includes("created_at >= ?"));
+assert.ok(editorialDayQuery, "internal editorial listings can be limited to articles created today");
+
 const protectedWrite = await worker.fetch(request("/internal/editorial/apply-batch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ changes: [] }) }), env);
 assert.equal(protectedWrite.status, 401);
 
