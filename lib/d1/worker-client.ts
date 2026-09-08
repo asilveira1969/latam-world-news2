@@ -24,14 +24,68 @@ function getBaseUrl(): string {
   return workerUrl.replace(/\/$/, "");
 }
 
-async function requestD1Worker<T>(path: string): Promise<T> {
+async function requestD1Worker<T>(path: string, revalidate = 600): Promise<T> {
   const response = await fetch(`${getBaseUrl()}${path}`, {
     // Public articles are editorially curated. Reusing each Worker response for
     // ten minutes prevents Vercel from repeatedly asking D1 for the same list.
-    next: { revalidate: 600 }
+    next: { revalidate }
   });
   if (!response.ok) throw new Error(`D1 Worker request failed (${response.status}).`);
   return (await response.json()) as T;
+}
+
+export interface D1WorkerNewsSitemapArticle {
+  slug: string;
+  title: string;
+  language?: string | null;
+  editorial_status?: string | null;
+  editorial_review_status?: string | null;
+  editorial_reviewed_at?: string | null;
+}
+
+interface D1WorkerNewsSitemapArticleList {
+  data: D1WorkerNewsSitemapArticle[];
+}
+
+/**
+ * Reads only from the existing public D1 Worker endpoint. The Worker remains
+ * the source of truth for public visibility; this second filter narrows that
+ * public set to Google News' 48-hour publication window.
+ */
+export async function getD1WorkerNewsSitemapArticles(
+  now = new Date()
+): Promise<D1WorkerNewsSitemapArticle[]> {
+  const pageSize = 100;
+  const earliestPublication = now.getTime() - 48 * 60 * 60 * 1_000;
+  const articles: D1WorkerNewsSitemapArticle[] = [];
+  let page = 1;
+
+  while (true) {
+    const result = await requestD1Worker<D1WorkerNewsSitemapArticleList>(
+      `/articles?page=${page}&pageSize=${pageSize}`,
+      300
+    );
+    articles.push(...result.data);
+    if (result.data.length < pageSize) break;
+    page += 1;
+  }
+
+  return articles.filter((article) => {
+    if (
+      article.editorial_status !== "ready" ||
+      article.editorial_review_status !== "approved" ||
+      !article.editorial_reviewed_at
+    ) {
+      return false;
+    }
+
+    const reviewedAt = Date.parse(article.editorial_reviewed_at);
+    return (
+      Number.isFinite(reviewedAt) &&
+      reviewedAt >= earliestPublication &&
+      reviewedAt <= now.getTime()
+    );
+  });
 }
 
 // This adapter is intentionally unused by the current Supabase repositories.
