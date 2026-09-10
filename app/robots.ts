@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { CRAWL_SITEMAPS } from "@/lib/crawl-policy";
 import { absoluteUrl } from "@/lib/seo";
 
 export default function robots(): MetadataRoute.Robots {
@@ -11,6 +12,6 @@ export default function robots(): MetadataRoute.Robots {
       }
     ],
     host: absoluteUrl("/"),
-    sitemap: absoluteUrl("/sitemap.xml")
+    sitemap: CRAWL_SITEMAPS.map((pathname) => absoluteUrl(pathname))
   };
 }

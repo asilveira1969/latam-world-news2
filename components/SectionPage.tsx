@@ -6,7 +6,6 @@ import StructuredData from "@/components/StructuredData";
 import TrackedExternalLink from "@/components/TrackedExternalLink";
 import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { buildBreadcrumbJsonLd, buildCollectionPageJsonLd } from "@/lib/jsonld";
-import { hasUsableRemoteImage, isImageLikelyFromSource } from "@/lib/images";
 import { formatSourceDisplayName } from "@/lib/sources";
 import { cleanExcerpt } from "@/lib/text/clean";
 import type { Article } from "@/lib/types/article";
@@ -43,29 +42,9 @@ export default function SectionPage({
   introParagraphs = [],
   quickLinks = []
 }: SectionPageProps) {
-  const imageUsageCount = new Map<string, number>();
-  const seenImages = new Set<string>();
-
-  for (const article of articles) {
-    if (!article.image_url) {
-      continue;
-    }
-    imageUsageCount.set(article.image_url, (imageUsageCount.get(article.image_url) ?? 0) + 1);
-  }
-
-  const displayArticles = articles.filter((article) => {
-    const imageRepeated = (imageUsageCount.get(article.image_url) ?? 0) > 1;
-    const imageMatchesSource = isImageLikelyFromSource(article.image_url, article.source_url);
-    const showImageCard =
-      hasUsableRemoteImage(article.image_url) && imageMatchesSource && !imageRepeated;
-
-    if (!showImageCard || seenImages.has(article.image_url)) {
-      return false;
-    }
-
-    seenImages.add(article.image_url);
-    return true;
-  });
+  // A missing or repeated remote image must not remove a valid article from
+  // the crawlable section graph. NewsImage supplies the visual fallback.
+  const displayArticles = articles;
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">

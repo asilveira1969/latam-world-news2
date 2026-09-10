@@ -37,6 +37,7 @@
     "test:editorial-dashboard-individual": "tsx scripts/test-editorial-dashboard-individual.ts",
     "test:editorial-ai-drafts": "tsx scripts/test-editorial-ai-drafts.ts",
     "test:d1-worker-rss-cron": "tsx scripts/test-d1-worker-rss-cron.ts",
+    "test:seo-crawl-policy": "tsx scripts/test-seo-crawl-policy.ts",
     "d1:ingest:rss-sample": "tsx scripts/d1-ingest-rss-sample.ts"
   },
   "dependencies": {

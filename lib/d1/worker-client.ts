@@ -1,5 +1,6 @@
 import "server-only";
 import type { Article } from "@/lib/types/article";
+import { isEligibleForNewsSitemap } from "@/lib/news-sitemap-policy";
 
 export interface D1WorkerPagination {
   page: number;
@@ -24,7 +25,7 @@ function getBaseUrl(): string {
   return workerUrl.replace(/\/$/, "");
 }
 
-async function requestD1Worker<T>(path: string, revalidate = 600): Promise<T> {
+async function requestD1Worker<T>(path: string, revalidate = 300): Promise<T> {
   const response = await fetch(`${getBaseUrl()}${path}`, {
     // Public articles are editorially curated. Reusing each Worker response for
     // ten minutes prevents Vercel from repeatedly asking D1 for the same list.
@@ -38,6 +39,7 @@ export interface D1WorkerNewsSitemapArticle {
   slug: string;
   title: string;
   language?: string | null;
+  published_at?: string | null;
   editorial_status?: string | null;
   editorial_review_status?: string | null;
   editorial_reviewed_at?: string | null;
@@ -56,7 +58,6 @@ export async function getD1WorkerNewsSitemapArticles(
   now = new Date()
 ): Promise<D1WorkerNewsSitemapArticle[]> {
   const pageSize = 100;
-  const earliestPublication = now.getTime() - 48 * 60 * 60 * 1_000;
   const articles: D1WorkerNewsSitemapArticle[] = [];
   let page = 1;
 
@@ -70,22 +71,7 @@ export async function getD1WorkerNewsSitemapArticles(
     page += 1;
   }
 
-  return articles.filter((article) => {
-    if (
-      article.editorial_status !== "ready" ||
-      article.editorial_review_status !== "approved" ||
-      !article.editorial_reviewed_at
-    ) {
-      return false;
-    }
-
-    const reviewedAt = Date.parse(article.editorial_reviewed_at);
-    return (
-      Number.isFinite(reviewedAt) &&
-      reviewedAt >= earliestPublication &&
-      reviewedAt <= now.getTime()
-    );
-  });
+  return articles.filter((article) => isEligibleForNewsSitemap(article, now));
 }
 
 // This adapter is intentionally unused by the current Supabase repositories.
