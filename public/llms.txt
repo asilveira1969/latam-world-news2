@@ -1,0 +1,30 @@
+# LATAM World News
+
+LATAM World News es un sitio de noticias en español sobre la agenda internacional, con contexto y relevancia para lectores de América Latina y del mundo.
+
+## Sitio y secciones
+
+- [Inicio](https://latamworldnews.com/)
+- [Mundo](https://latamworldnews.com/mundo)
+- [Latinoamérica](https://latamworldnews.com/latinoamerica)
+- [EE.UU.](https://latamworldnews.com/eeuu)
+- [Europa](https://latamworldnews.com/europa)
+- [Asia](https://latamworldnews.com/asia)
+- [Medio Oriente](https://latamworldnews.com/medio-oriente)
+- [Economía Global](https://latamworldnews.com/economia-global)
+- [Energía](https://latamworldnews.com/energia)
+- [Tecnología](https://latamworldnews.com/tecnologia)
+- [Impacto](https://latamworldnews.com/impacto)
+
+## Información editorial
+
+- [Acerca de LATAM World News](https://latamworldnews.com/acerca)
+- [Contacto](https://latamworldnews.com/contacto)
+- [Fuentes y política editorial](https://latamworldnews.com/fuentes)
+
+## Descubrimiento de contenido
+
+Los sitemaps son la fuente completa y actualizada para descubrir las noticias y las páginas públicas del sitio.
+
+- [Sitemap principal](https://latamworldnews.com/sitemap.xml)
+- [Google News sitemap](https://latamworldnews.com/sitemap-news.xml)
