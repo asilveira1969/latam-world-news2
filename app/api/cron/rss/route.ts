@@ -1,18 +1,11 @@
 import { NextResponse } from "next/server";
-import { isCronAuthorized } from "@/lib/ingest/execute";
-import { runMundoRssIngestion } from "@/lib/rss/ingest";
 
 export const dynamic = "force-dynamic";
 
-async function handleCron(request: Request) {
-  if (!isCronAuthorized(request)) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  }
-
-  const summary = await runMundoRssIngestion();
-  return NextResponse.json(summary);
+async function handleCron() {
+  return NextResponse.json({ ok: false, error: "This legacy RSS endpoint has been retired; use the Cloudflare Worker." }, { status: 410 });
 }
 
-export async function GET(request: Request) {
-  return handleCron(request);
+export async function GET() {
+  return handleCron();
 }

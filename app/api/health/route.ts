@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { constants as fsConstants } from "node:fs";
 import { NextResponse } from "next/server";
-import { hasSupabaseAnonEnv, hasSupabaseServiceEnv } from "@/lib/supabase/server";
+import { hasD1WorkerEnv } from "@/lib/d1/worker-client";
 
 async function fileExists(targetPath: string): Promise<boolean> {
   try {
@@ -21,11 +21,8 @@ export async function GET() {
     ok: true,
     timestamp: new Date().toISOString(),
     app: "latam-world-news",
-    data_source_mode: hasSupabaseAnonEnv ? "supabase" : "mock",
-    supabase: {
-      anonConfigured: hasSupabaseAnonEnv,
-      serviceConfigured: hasSupabaseServiceEnv
-    },
+    data_source_mode: "cloudflare-d1",
+    d1: { workerConfigured: hasD1WorkerEnv },
     openclaw: {
       ingestFileExists,
       ingestPath

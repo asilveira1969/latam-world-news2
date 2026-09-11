@@ -1,12 +1,12 @@
 # Cloudflare D1 development migration
 
-This directory is an isolated D1 staging pipeline. It does not replace the existing Supabase implementation, alter Vercel, migrate historical data, or deploy anything.
+This directory contains the Cloudflare Worker/D1 content pipeline. It does not alter Vercel, migrate historical data, or deploy anything.
 
 ## Contents
 
-- `migrations/`: SQLite/D1 translations of the eight Supabase migrations.
+- `migrations/`: SQLite/D1 schema migrations.
 - `worker/`: an API Worker with public read endpoints and internal protected write endpoints.
-- `lib/d1/`: unused D1 clients and RSS/NewsData ingestion routines. The existing Supabase repositories remain the live implementation.
+- `lib/d1/`: Worker clients and RSS/NewsData ingestion routines used by the site.
 
 ## Create a development D1 database
 
@@ -33,7 +33,7 @@ Remote development D1 database (do not run until the schema is reviewed):
 npx wrangler d1 migrations apply latam-world-news-staging --remote --config cloudflare/worker/wrangler.toml
 ```
 
-Neither command copies data from Supabase.
+Neither command copies data from another database.
 
 ## Local endpoint testing
 
@@ -85,7 +85,7 @@ $env:D1_WORKER_INTERNAL_SECRET = "<the temporary local value>"
 npm run d1:test:rss-local
 ```
 
-For a full new-content ingestion run (still independent from Supabase):
+For a full new-content ingestion run:
 
 ```powershell
 npm run d1:ingest:rss
@@ -116,7 +116,7 @@ RSS ingestion never persists a third-party article body. For every external RSS 
 - France 24 Español
 - El País España
 
-It does not call NewsData, OpenAI, Supabase, or the public Next.js site. Each run reads the latest 25 feed entries per source, normalizes them, skips duplicates by deterministic slug, `source_url`, and `url`, performs the existing non-blocking topic-duplicate check, and records feed failures in `ingestion_errors`.
+It does not call NewsData, OpenAI, or the public Next.js site. Each run reads the latest 25 feed entries per source, normalizes them, skips duplicates by deterministic slug, `source_url`, and `url`, performs the existing non-blocking topic-duplicate check, and records feed failures in `ingestion_errors`.
 
 New RSS records are explicitly stored with:
 
@@ -159,7 +159,7 @@ URL, `source_url`, and deterministic slug conflicts still prevent direct duplica
 
 ## D1 editorial enrichment (prepared, disabled)
 
-`lib/d1/editorial/` is a D1-only workflow. It does not import Supabase, fetch source article bodies, call OpenAI, or write anything unless a future caller explicitly invokes the protected Worker endpoint.
+`lib/d1/editorial/` is a D1-only workflow. It does not fetch source article bodies, call OpenAI, or write anything unless a future caller explicitly invokes the protected Worker endpoint.
 
 The only permitted input is the RSS metadata already stored in D1: title, bounded plain-text excerpt, publication date, source name, and original URL. `content` remains `NULL` for every RSS item. Source attribution stays in `source_name` and `source_url`; the generated editorial text is stored separately in `latamworldnews_summary` and never replaces source metadata.
 
@@ -205,4 +205,4 @@ To process the current staging records later: apply migration `0011` to staging,
 3. Deploy the Worker only after staging validation. Then set `D1_WORKER_URL` and `D1_WORKER_INTERNAL_SECRET` as server-only Vercel environment variables; Vercel reads the Worker over HTTPS while the D1 binding remains only in Cloudflare.
 4. Build parity tests for filters, upserts, editorial flows, counts, sitemap, and view increments.
 5. Plan export, reconciliation, rollback, and a separate data migration.
-6. Only then decide whether to switch Next.js repositories from Supabase to the D1 adapter.
+6. Verify that the Next.js public read path continues to use the D1 Worker adapter.

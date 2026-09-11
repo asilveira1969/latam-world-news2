@@ -19,7 +19,7 @@ export async function GET(): Promise<Response> {
   const articles = await getD1WorkerNewsSitemapArticles();
   const urls = articles
     .map((article) => {
-      const publicationDate = new Date(article.editorial_reviewed_at as string).toISOString();
+      const publicationDate = new Date(article.published_at as string).toISOString();
       const language = article.language?.trim() || "es";
 
       return [

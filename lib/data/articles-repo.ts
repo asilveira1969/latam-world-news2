@@ -1,22 +1,11 @@
 import { unstable_cache } from "next/cache";
-import { fallbackTickerHeadlines } from "@/lib/mock/ticker";
-import { manualFallbackArticles, mockArticles } from "@/lib/mock/articles";
 import {
   dedupeBySourceUrl,
   pickHero,
   sortByPublishedDesc,
   topTagsLastHours
 } from "@/lib/ranking";
-import {
-  REGION_ROUTE_MAP,
-  REGION_TITLE_MAP
-} from "@/lib/constants/nav";
-import {
-  getSupabaseServerClient,
-  getSupabaseServiceClient,
-  hasSupabaseAnonEnv,
-  hasSupabaseServiceEnv
-} from "@/lib/supabase/server";
+import { REGION_TITLE_MAP } from "@/lib/constants/nav";
 import {
   getAllD1WorkerArticles,
   getD1WorkerArticleBySlug,
@@ -44,8 +33,7 @@ import type {
   Article,
   EditorialSections,
   HomeData,
-  RegionKey,
-  SectionKey
+  RegionKey
 } from "@/lib/types/article";
 
 const LATAM_COUNTRIES = ["uy", "ar", "br", "mx", "cl"] as const;
@@ -61,33 +49,10 @@ const INTERNAL_TAGS = new Set([
   "rss-dw-es"
 ]);
 const GENERIC_TOPIC_TAGS = new Set(["internacional", "mundo", "latam", "america-latina"]);
-const ARTICLE_SELECT_FIELDS =
-  "id, title, slug, excerpt, summary, latamworldnews_summary, curated_news, editorial_status, editorial_generated_at, editorial_model, editorial_format, editorial_key_takeaway, editorial_what_to_watch, editorial_latam_impact, editorial_author, editorial_updated_at, seo_title, seo_description, latam_angle, faq_items, image_url, source_name, source_url, source_type, region, country, category, tags, countries, topic_slug, section_slug, impact_format, editorial_sections, published_at, created_at, is_featured, is_impact, views";
-const ARTICLE_DETAIL_SELECT_FIELDS = ARTICLE_SELECT_FIELDS;
-const SITEMAP_ARTICLE_SELECT_FIELDS =
-  "id, title, slug, excerpt, summary, latamworldnews_summary, curated_news, editorial_status, source_type, image_url, source_name, source_url, region, country, category, tags, countries, topic_slug, section_slug, impact_format, published_at, created_at, is_impact";
-
-function d1ReadsEnabled(): boolean {
-  return process.env.D1_READS_ENABLED === "true";
-}
-
 export interface MundoSourceSummary {
   sourceName: string;
   articleCount: number;
   latest: Article[];
-}
-
-function getFallbackImpactArticles(limit: number): Article[] {
-  return dedupeBySourceUrl(sortByPublishedDesc(mockArticles))
-    .filter((article) => article.is_impact && article.impact_format === "analysis")
-    .filter(isDisplayableArticle)
-    .slice(0, limit);
-}
-
-function mergeWithManualArticles(articles: Article[]): Article[] {
-  return dedupeBySourceUrl(sortByPublishedDesc([...articles, ...manualFallbackArticles])).filter(
-    isDisplayableArticle
-  );
 }
 
 function isLatamCountry(value: string): boolean {
@@ -166,15 +131,6 @@ function isDisplayableArticle(article: Article): boolean {
     return false;
   }
 
-  // D1 staging receives raw RSS first; editorial enrichment is intentionally not
-  // a prerequisite for the local D1 read path.
-  if (d1ReadsEnabled()) {
-    return true;
-  }
-
-  if (!article.is_impact && !hasPersistedEditorialCuration(article)) {
-    return false;
-  }
   return true;
 }
 
@@ -356,103 +312,10 @@ export function mapRecordToArticle(record: Record<string, unknown>): Article {
   };
 }
 
-function filterBySection(articles: Article[], section: SectionKey): Article[] {
-  if (section === "impacto") {
-    return articles.filter(
-      (article) => article.is_impact && article.impact_format === "analysis"
-    );
-  }
-  if (section === "economia-global") {
-    return articles.filter(
-      (article) => !article.is_impact && article.category.toLowerCase().includes("economia")
-    );
-  }
-  if (section === "energia") {
-    return articles.filter(
-      (article) => !article.is_impact && article.category.toLowerCase().includes("energia")
-    );
-  }
-  if (section === "tecnologia") {
-    return articles.filter(
-      (article) => !article.is_impact && article.category.toLowerCase().includes("tecnologia")
-    );
-  }
-
-  const regionValue = REGION_ROUTE_MAP[section as RegionKey];
-  return articles.filter((article) => !article.is_impact && article.region === regionValue);
-}
-
-async function fetchAllArticleRecords(selectFields = ARTICLE_SELECT_FIELDS): Promise<Record<string, unknown>[]> {
-  if (d1ReadsEnabled()) {
-    return (await getAllD1WorkerArticles()) as unknown as Record<string, unknown>[];
-  }
-
-  if (!hasSupabaseAnonEnv) {
-    return [];
-  }
-
-  const batchSize = 200;
-  const records: Record<string, unknown>[] = [];
-  let from = 0;
-
-  while (true) {
-    const supabase = getSupabaseServerClient();
-    const { data, error } = await supabase
-      .from("articles")
-      .select(selectFields)
-      .order("published_at", { ascending: false })
-      .range(from, from + batchSize - 1);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    const batch = (data ?? []) as unknown as Record<string, unknown>[];
-    if (batch.length === 0) {
-      break;
-    }
-
-    records.push(...batch);
-
-    if (batch.length < batchSize) {
-      break;
-    }
-
-    from += batchSize;
-  }
-
-  return records;
-}
-
 async function fetchAllArticlesFromSource(): Promise<Article[]> {
-  if (d1ReadsEnabled()) {
-    try {
-      return (await getAllD1WorkerArticles()).map((article) =>
-        mapRecordToArticle(article as unknown as Record<string, unknown>)
-      );
-    } catch (error) {
-      console.error("D1 read failed:", error);
-      return [];
-    }
-  }
-
-  if (!hasSupabaseAnonEnv) {
-    return mockArticles;
-  }
-
-  try {
-    const data = await fetchAllArticleRecords();
-    const mapped = data.map((record: Record<string, unknown>) =>
-      mapRecordToArticle(record)
-    );
-    if (mapped.length === 0) {
-      return mockArticles;
-    }
-    return mergeWithManualArticles(mapped);
-  } catch (error) {
-    console.error("Supabase read failed, using mock data:", error);
-    return mockArticles;
-  }
+  return (await getAllD1WorkerArticles()).map((article) =>
+    mapRecordToArticle(article as unknown as Record<string, unknown>)
+  );
 }
 
 const getCachedAllArticles = unstable_cache(
@@ -460,7 +323,7 @@ const getCachedAllArticles = unstable_cache(
     const all = await fetchAllArticlesFromSource();
     return dedupeBySourceUrl(sortByPublishedDesc(all)).filter(isDisplayableArticle);
   },
-  ["all-articles", d1ReadsEnabled() ? "d1" : "supabase"],
+  ["all-articles", "d1"],
   { revalidate: 300 }
 );
 
@@ -481,52 +344,19 @@ export function sortMundoArticlesForDisplay(articles: Article[]): Article[] {
   return sortMundoFeedForDisplay(articles);
 }
 
-async function fetchMundoRssArticlesFromSupabase(limit: number): Promise<Article[]> {
-  if (d1ReadsEnabled()) {
-    try {
-      const result = await listD1WorkerArticles({
-        page: 1,
-        pageSize: Math.min(Math.max(limit, 1), 100),
-        region: "Mundo",
-        sourceType: "rss"
-      });
-      return dedupeBySourceUrl(sortByPublishedDesc(result.data.map((article) => mapRecordToArticle(article as unknown as Record<string, unknown>))))
-        .filter((article) => article.tags.includes(MUNDO_RSS_TAG))
-        .filter(isDisplayableArticle);
-    } catch (error) {
-      console.error("D1 mundo-rss read failed:", error);
-      return [];
-    }
-  }
-
-  if (!hasSupabaseAnonEnv) {
-    return [];
-  }
-
-  try {
-    const supabase = getSupabaseServerClient();
-    const { data, error } = await supabase
-      .from("articles")
-      .select(ARTICLE_SELECT_FIELDS)
-      .eq("region", "Mundo")
-      .contains("tags", [MUNDO_RSS_TAG])
-      .order("published_at", { ascending: false })
-      .limit(limit);
-
-    if (error) {
-      console.error("Supabase mundo-rss read failed:", error.message);
-      return [];
-    }
-
-    const mapped = (data ?? []).map((record: Record<string, unknown>) => mapRecordToArticle(record));
-    return dedupeBySourceUrl(sortByPublishedDesc(mapped)).filter(isDisplayableArticle);
-  } catch (error) {
-    console.error("Supabase mundo-rss read failed:", error);
-    return [];
-  }
+async function fetchMundoRssArticles(limit: number): Promise<Article[]> {
+  const result = await listD1WorkerArticles({
+    page: 1,
+    pageSize: Math.min(Math.max(limit, 1), 100),
+    region: "Mundo",
+    sourceType: "rss"
+  });
+  return dedupeBySourceUrl(sortByPublishedDesc(result.data.map((article) => mapRecordToArticle(article as unknown as Record<string, unknown>))))
+    .filter((article) => article.tags.includes(MUNDO_RSS_TAG))
+    .filter(isDisplayableArticle);
 }
 
-async function fetchArticlesFromSupabaseQuery(input: {
+async function fetchArticlesFromD1Query(input: {
   limit: number;
   countries?: string[];
   country?: string;
@@ -537,74 +367,26 @@ async function fetchArticlesFromSupabaseQuery(input: {
   impactFormat?: string;
   displayFilter?: (article: Article) => boolean;
 }): Promise<Article[]> {
-  if (d1ReadsEnabled()) {
-    try {
-      const pageSize = Math.min(Math.max(input.limit, 1), 100);
-      const countries = input.country ? [input.country] : input.countries?.length ? input.countries : [undefined];
-      const responses = await Promise.all(countries.map((country) => listD1WorkerArticles({
-        page: 1,
-        pageSize,
-        country,
-        region: input.country || input.countries?.length ? undefined : input.region,
-        sectionSlug: input.sectionSlug,
-        isImpact: input.isImpact,
-        impactFormat: input.impactFormat
-      })));
-      let articles = responses.flatMap((response) => response.data).map((article) =>
-        mapRecordToArticle(article as unknown as Record<string, unknown>)
-      );
+  const pageSize = Math.min(Math.max(input.limit, 1), 100);
+  const countries = input.country ? [input.country] : input.countries?.length ? input.countries : [undefined];
+  const responses = await Promise.all(countries.map((country) => listD1WorkerArticles({
+    page: 1,
+    pageSize,
+    country,
+    region: input.country || input.countries?.length ? undefined : input.region,
+    sectionSlug: input.sectionSlug,
+    isImpact: input.isImpact,
+    impactFormat: input.impactFormat
+  })));
+  let articles = responses.flatMap((response) => response.data).map((article) =>
+    mapRecordToArticle(article as unknown as Record<string, unknown>)
+  );
 
-      if (input.onlyNewsdata) articles = articles.filter((article) => article.tags.includes("newsdata"));
+  if (input.onlyNewsdata) articles = articles.filter((article) => article.tags.includes("newsdata"));
 
-      return dedupeBySourceUrl(sortByPublishedDesc(articles))
-        .filter(input.displayFilter ?? isDisplayableArticle)
-        .slice(0, input.limit);
-    } catch (error) {
-      console.error("D1 filtered read failed:", error);
-      return [];
-    }
-  }
-
-  if (!hasSupabaseAnonEnv) {
-    return [];
-  }
-
-  try {
-    const supabase = getSupabaseServerClient();
-    let query = supabase
-      .from("articles")
-      .select(ARTICLE_SELECT_FIELDS)
-      .order("published_at", { ascending: false })
-      .limit(input.limit);
-
-    if (input.country) {
-      query = query.eq("country", input.country);
-    } else if (input.region) {
-      query = query.eq("region", input.region);
-    } else if (input.countries && input.countries.length > 0) {
-      query = query.in("country", input.countries);
-    }
-
-    if (input.sectionSlug) {
-      query = query.eq("section_slug", input.sectionSlug);
-    }
-
-    if (input.onlyNewsdata) {
-      query = query.contains("tags", ["newsdata"]);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      console.error("Supabase filtered read failed:", error.message);
-      return [];
-    }
-
-    const mapped = (data ?? []).map((record: Record<string, unknown>) => mapRecordToArticle(record));
-    return dedupeBySourceUrl(sortByPublishedDesc(mapped)).filter(input.displayFilter ?? isDisplayableArticle);
-  } catch (error) {
-    console.error("Supabase filtered read failed:", error);
-    return [];
-  }
+  return dedupeBySourceUrl(sortByPublishedDesc(articles))
+    .filter(input.displayFilter ?? isDisplayableArticle)
+    .slice(0, input.limit);
 }
 
 async function getListingArticles(input: {
@@ -617,7 +399,7 @@ async function getListingArticles(input: {
   displayFilter?: (article: Article) => boolean;
 }): Promise<Article[]> {
   const queryLimit = Math.max(input.limit, 1);
-  const queried = await fetchArticlesFromSupabaseQuery({
+  const queried = await fetchArticlesFromD1Query({
     limit: queryLimit,
     region: input.region,
     onlyNewsdata: input.onlyNewsdata,
@@ -666,7 +448,7 @@ export async function getMundoArticles(
 }
 
 export async function getMundoRssArticles(limit = 24): Promise<Article[]> {
-  const filtered = await fetchMundoRssArticlesFromSupabase(Math.max(limit, 30));
+  const filtered = await fetchMundoRssArticles(Math.max(limit, 30));
   if (filtered.length >= 3) {
     return sortMundoFeedForDisplay(filtered).slice(0, limit);
   }
@@ -681,7 +463,7 @@ export async function getMundoRssArticles(limit = 24): Promise<Article[]> {
 }
 
 export async function getMundoRssSourceSummaries(limitPerSource = 3): Promise<MundoSourceSummary[]> {
-  const filtered = await fetchMundoRssArticlesFromSupabase(30);
+  const filtered = await fetchMundoRssArticles(30);
   if (filtered.length === 0) {
     return [];
   }
@@ -706,7 +488,7 @@ export async function getLatinoamericaArticles(
   limit = 24,
   region?: Article["region"]
 ): Promise<Article[]> {
-  const filtered = await fetchArticlesFromSupabaseQuery({
+  const filtered = await fetchArticlesFromD1Query({
     limit: Math.max(limit * 4, 60),
     sectionSlug: "latinoamerica",
     displayFilter: isLatamDisplayableArticle
@@ -739,7 +521,7 @@ export async function getHomeData(input?: {
   region?: Article["region"];
   onlyNewsdata?: boolean;
 }): Promise<HomeData> {
-  const listingLimit = d1ReadsEnabled() ? 40 : input?.region ? 180 : 240;
+  const listingLimit = input?.region ? 180 : 240;
   const allArticles = await getListingArticles({ limit: listingLimit, region: input?.region, onlyNewsdata: input?.onlyNewsdata });
   const sourceScoped = input?.onlyNewsdata
     ? allArticles.filter((article) => article.tags.includes("newsdata"))
@@ -761,9 +543,9 @@ export async function getHomeData(input?: {
     "medio-oriente"
   ];
 
-  const regionItems = d1ReadsEnabled()
-    ? await Promise.all(regionKeys.map((regionKey) => getListingArticles({ limit: 4, sectionSlug: regionKey, isImpact: false })))
-    : regionKeys.map((regionKey) => filterBySection(nonImpact, regionKey).slice(0, 4));
+  const regionItems = await Promise.all(
+    regionKeys.map((regionKey) => getListingArticles({ limit: 4, sectionSlug: regionKey, isImpact: false }))
+  );
   const regionBlocks = regionKeys.map((regionKey, index) => ({
     key: regionKey,
     title: REGION_TITLE_MAP[regionKey],
@@ -776,14 +558,10 @@ export async function getHomeData(input?: {
   const impactArticles = all.filter((article) => article.is_impact);
   const editorialArticles = impactArticles.filter((article) => article.impact_format === "editorial");
   const analysisArticles = impactArticles.filter((article) => article.impact_format !== "editorial");
-  const fallbackImpact = analysisArticles.length > 0
-    ? analysisArticles
-    : d1ReadsEnabled()
-      ? []
-      : getFallbackImpactArticles(3);
+  const fallbackImpact = analysisArticles;
 
   return {
-    ticker: d1ReadsEnabled() ? ticker : ticker.length >= 6 ? ticker : fallbackTickerHeadlines,
+    ticker,
     heroLead: hero.lead,
     heroSecondary: hero.secondary,
     latestEditorial: editorialArticles[0] ?? null,
@@ -813,25 +591,7 @@ export async function getRegionArticles(
   // D1 editorial decisions persist the route's canonical section identifier.
   // Prefer it to presentation labels such as "Energía" or regional values so
   // the local D1 read path does not depend on accent-sensitive comparisons.
-  if (d1ReadsEnabled()) {
-    return getListingArticles({ limit, sectionSlug: section });
-  }
-
-  if (section === "latinoamerica") {
-    return getLatinoamericaArticles(limit);
-  }
-
-  if (section === "mundo") {
-    return getMundoArticles(limit, "Mundo");
-  }
-
-  const regionValue = REGION_ROUTE_MAP[section as RegionKey];
-  if (regionValue) {
-    return getListingArticles({ limit, region: regionValue });
-  }
-
-  const recent = await getListingArticles({ limit: Math.max(limit * 4, 120) });
-  return filterBySection(recent, section).slice(0, limit);
+  return getListingArticles({ limit, sectionSlug: section });
 }
 
 export async function getImpactArticles(limit = 3): Promise<Article[]> {
@@ -843,7 +603,7 @@ export async function getImpactArticles(limit = 3): Promise<Article[]> {
     return impactArticles;
   }
 
-  return d1ReadsEnabled() ? [] : getFallbackImpactArticles(limit);
+  return [];
 }
 
 export async function getEditorialArticles(limit = 12): Promise<Article[]> {
@@ -901,13 +661,7 @@ export async function getArticleBySlug(
 
   const all = await getAllArticles();
   const article = all.find((item) => item.slug === slug);
-  if (!article) {
-    if (kind === "impacto") {
-      const fallbackImpact = getFallbackImpactArticles(20).find((item) => item.slug === slug);
-      return fallbackImpact ?? null;
-    }
-    return null;
-  }
+  if (!article) return null;
   if (kind === "nota" && article.is_impact) {
     return null;
   }
@@ -929,40 +683,12 @@ export async function getArticleBySlug(
 const getCachedArticleBySlug = (slug: string) =>
   unstable_cache(
     async (): Promise<Article | null> => {
-      if (d1ReadsEnabled()) {
-        try {
-          const article = await getD1WorkerArticleBySlug(slug);
-          return article && passesBaseDisplayChecks(article) ? mapRecordToArticle(article as unknown as Record<string, unknown>) : null;
-        } catch (error) {
-          console.error("D1 slug lookup failed:", error);
-          return null;
-        }
-      }
-
-      if (!hasSupabaseAnonEnv) {
-        return null;
-      }
-
-      try {
-        const supabase = getSupabaseServerClient();
-        const { data, error } = await supabase
-          .from("articles")
-          .select(ARTICLE_DETAIL_SELECT_FIELDS)
-          .eq("slug", slug)
-          .maybeSingle();
-
-        if (error || !data) {
-          return null;
-        }
-
-        const article = mapRecordToArticle(data as Record<string, unknown>);
-        return passesBaseDisplayChecks(article) ? article : null;
-      } catch (error) {
-        console.error("Supabase slug lookup failed, falling back to in-memory scan:", error);
-        return null;
-      }
+      const article = await getD1WorkerArticleBySlug(slug);
+      return article && passesBaseDisplayChecks(article)
+        ? mapRecordToArticle(article as unknown as Record<string, unknown>)
+        : null;
     },
-    ["article-by-slug", d1ReadsEnabled() ? "d1" : "supabase", slug],
+    ["article-by-slug", "d1", slug],
     { revalidate: 3600 }
   )();
 
@@ -1016,36 +742,9 @@ export async function getAllArticleSlugs(): Promise<{
 }
 
 export async function incrementArticleViews(slug: string): Promise<boolean> {
-  if (d1ReadsEnabled()) {
-    // This local read-only phase deliberately does not use the internal write secret.
-    return false;
-  }
-
-  if (!hasSupabaseServiceEnv) {
-    return false;
-  }
-  try {
-    const supabase = getSupabaseServiceClient();
-    const { data, error } = await supabase
-      .from("articles")
-      .select("views")
-      .eq("slug", slug)
-      .maybeSingle();
-
-    if (error) {
-      return false;
-    }
-
-    const nextViews = Number(data?.views ?? 0) + 1;
-    const { error: updateError } = await supabase
-      .from("articles")
-      .update({ views: nextViews })
-      .eq("slug", slug);
-
-    return !updateError;
-  } catch {
-    return false;
-  }
+  void slug;
+  // Public reads use the Worker only. Views are intentionally not mutated from Vercel.
+  return false;
 }
 
 export async function getSitemapArticles(): Promise<
@@ -1147,23 +846,7 @@ export async function getSitemapHubs(): Promise<
 }
 
 async function getSitemapEligibleArticles(): Promise<Article[]> {
-  if (d1ReadsEnabled()) {
-    return getAllArticles();
-  }
-
-  if (!hasSupabaseAnonEnv) {
-    return getAllArticles();
-  }
-
-  try {
-    const data = await fetchAllArticleRecords(SITEMAP_ARTICLE_SELECT_FIELDS);
-    return data
-      .map((record: Record<string, unknown>) => mapRecordToArticle(record))
-      .filter(isDisplayableArticle);
-  } catch (error) {
-    console.error("Supabase sitemap read failed, falling back to full article loader:", error);
-    return getAllArticles();
-  }
+  return getAllArticles();
 }
 
 export async function getArticlesByTag(tag: string, limit = 24): Promise<Article[]> {
