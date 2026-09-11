@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isLegacySupabasePath } from "@/lib/crawl-policy";
+import { isLegacyServicePath } from "@/lib/crawl-policy";
 
 export function middleware(request: NextRequest) {
-  if (!isLegacySupabasePath(request.nextUrl.pathname)) {
+  if (!isLegacyServicePath(request.nextUrl.pathname)) {
     return NextResponse.next();
   }
 

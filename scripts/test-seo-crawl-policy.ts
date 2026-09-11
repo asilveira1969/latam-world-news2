@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { CRAWL_SITEMAPS, isLegacySupabasePath } from "../lib/crawl-policy";
+import { CRAWL_SITEMAPS, isLegacyServicePath } from "../lib/crawl-policy";
 import { isEligibleForNewsSitemap } from "../lib/news-sitemap-policy";
 
 for (const pathname of [
@@ -9,7 +9,7 @@ for (const pathname of [
   "/functions/v1/ingest",
   "/realtime/v1/websocket"
 ]) {
-  assert.equal(isLegacySupabasePath(pathname), true, `${pathname} should be retired with 410`);
+  assert.equal(isLegacyServicePath(pathname), true, `${pathname} should be retired with 410`);
 }
 
 for (const pathname of [
@@ -19,7 +19,7 @@ for (const pathname of [
   "/articles/legacy-slug",
   "/rest/articles"
 ]) {
-  assert.equal(isLegacySupabasePath(pathname), false, `${pathname} must retain normal routing`);
+  assert.equal(isLegacyServicePath(pathname), false, `${pathname} must retain normal routing`);
 }
 
 assert.deepEqual(CRAWL_SITEMAPS, ["/sitemap.xml", "/sitemap-news.xml"]);

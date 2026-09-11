@@ -17,6 +17,5 @@ docs/operations/*.pdf
 .vercel
 tmp_logs/
 .codex-dev*.log
-supabase/.temp/
 cloudflare/worker/.wrangler/
 cloudflare/worker/.dev.vars

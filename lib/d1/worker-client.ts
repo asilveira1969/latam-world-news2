@@ -74,8 +74,7 @@ export async function getD1WorkerNewsSitemapArticles(
   return articles.filter((article) => isEligibleForNewsSitemap(article, now));
 }
 
-// This adapter is intentionally unused by the current Supabase repositories.
-// It permits focused D1 development and later opt-in integration.
+// The Cloudflare Worker is the sole public article read path.
 export async function listD1WorkerArticles(input?: {
   page?: number;
   pageSize?: number;

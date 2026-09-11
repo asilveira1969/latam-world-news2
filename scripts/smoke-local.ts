@@ -11,8 +11,7 @@ type SmokeSummary = {
   timestamp: string;
   checks: {
     nextPublicSiteUrlConfigured: boolean;
-    supabaseAnonConfigured: boolean;
-    supabaseServiceConfigured: boolean;
+    d1WorkerConfigured: boolean;
     openclawIngestDirExists: boolean;
     openclawLatestJsonExists: boolean;
     openclawLatestJsonValid: boolean | null;
@@ -84,22 +83,19 @@ async function run() {
     notes.push("Missing NEXT_PUBLIC_SITE_URL.");
   }
 
-  const supabaseAnonConfigured = Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-  const supabaseServiceConfigured = Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
+  const d1WorkerConfigured = Boolean(process.env.D1_WORKER_URL?.trim());
+  if (!d1WorkerConfigured) {
+    notes.push("Missing D1_WORKER_URL.");
+  }
 
-  const ok = ingestDirExists && siteUrlConfigured && latestValid !== false;
+  const ok = ingestDirExists && siteUrlConfigured && d1WorkerConfigured && latestValid !== false;
 
   const summary: SmokeSummary = {
     ok,
     timestamp: new Date().toISOString(),
     checks: {
       nextPublicSiteUrlConfigured: siteUrlConfigured,
-      supabaseAnonConfigured,
-      supabaseServiceConfigured,
+      d1WorkerConfigured,
       openclawIngestDirExists: ingestDirExists,
       openclawLatestJsonExists: latestExists,
       openclawLatestJsonValid: latestValid

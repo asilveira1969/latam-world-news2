@@ -28,7 +28,7 @@
   the last 48 hours, and use `published_at` as `news:publication_date`.
 - Keep valid articles in the homepage latest feed and section listings even
   without a qualified remote image; `NewsImage` supplies the fallback.
-- Return `410 Gone` only for the exact same-origin Supabase service namespaces
+- Return `410 Gone` only for the exact same-origin retired service namespaces
   `/auth/v1`, `/functions/v1`, `/realtime/v1`, `/rest/v1`, and `/storage/v1`.
   The response has no redirect and includes `X-Robots-Tag: noindex, nofollow`.
   All article-like and unrecognized paths retain the normal 404 behavior.
@@ -36,9 +36,9 @@
 ## Important limitation
 
 This application cannot change responses served by a separate
-`*.supabase.co` hostname. If Search Console's 404 samples are on that external
-hostname rather than `latamworldnews.com`, retire or configure that Supabase
-project separately; do not map those requests to the site homepage.
+external legacy-service hostname. If Search Console's 404 samples are on that
+hostname rather than `latamworldnews.com`, retire it separately; do not map
+those requests to the site homepage.
 
 ## Post-release verification
 
