@@ -148,7 +148,6 @@ export function buildNewsArticleJsonLd(
     description: editorial.seoDescription,
     image: [imageUrl],
     datePublished: article.published_at,
-    dateModified: article.created_at,
     articleSection,
     keywords: [...new Set([displayMeta.topicLabel, ...(displayMeta.countryLabel ? [displayMeta.countryLabel] : []), ...article.tags])],
     inLanguage: "es",

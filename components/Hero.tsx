@@ -6,7 +6,7 @@ import { hasUsableRemoteImage, isImageLikelyFromSource } from "@/lib/images";
 import type { Article } from "@/lib/types/article";
 
 export interface HeroProps {
-  lead: Article;
+  lead: Article | null;
   secondary: Article[];
   editorial?: Article | null;
   formatMeta?: (article: Article) => string;
@@ -67,6 +67,9 @@ function ArticleCard({
 }
 
 export default function Hero({ lead, secondary, editorial, formatMeta }: HeroProps) {
+  if (!lead) {
+    return null;
+  }
   const candidates = [lead, ...secondary];
   const imageUsageCount = new Map<string, number>();
   const seenImages = new Set<string>();

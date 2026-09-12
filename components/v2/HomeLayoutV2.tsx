@@ -4,7 +4,7 @@ import CountryExplorerV2 from "@/components/v2/CountryExplorerV2";
 import type { Article } from "@/lib/types/article";
 
 export interface HomeLayoutV2Props {
-  heroLead: Article;
+  heroLead: Article | null;
   heroSecondary: Article[];
   latest: Article[];
 }
