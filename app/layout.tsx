@@ -59,6 +59,11 @@ export default async function RootLayout({
             gtag('config', 'G-0Q2589WZWE');
           `}
         </Script>
+        <script
+          type="module"
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token":"b524948baaa6479999fd1d603e6937db"}'
+        />
         {ADSENSE_ENABLED && ADSENSE_CLIENT_ID ? (
           <script
             async
