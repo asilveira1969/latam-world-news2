@@ -1,0 +1,5 @@
+.codex-dev*.log
+.next-dev.*
+.playwright-cli
+cloudflare/.wrangler
+tmp_logs
