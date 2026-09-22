@@ -37,9 +37,14 @@ assert.equal(
   "recently published, approved news belongs in the News sitemap"
 );
 assert.equal(
-  isEligibleForNewsSitemap({ ...approved, published_at: "2026-09-08T11:59:59.000Z" }, now),
+  isEligibleForNewsSitemap({ ...approved, published_at: "2026-09-08T12:00:00.000Z" }, now),
+  true,
+  "an approved article exactly 48 hours old remains in the News sitemap"
+);
+assert.equal(
+  isEligibleForNewsSitemap({ ...approved, published_at: "2026-09-08T11:59:59.999Z" }, now),
   false,
-  "News sitemap must not retain articles older than 48 hours"
+  "News sitemap must not retain articles older than 48 hours, even by one millisecond"
 );
 assert.equal(
   isEligibleForNewsSitemap({ ...approved, published_at: undefined }, now),
@@ -50,5 +55,10 @@ assert.equal(
   isEligibleForNewsSitemap({ ...approved, editorial_review_status: "pending", published_at: "2026-09-10T11:00:00.000Z" }, now),
   false,
   "unapproved articles must never be exposed in the News sitemap"
+);
+assert.equal(
+  isEligibleForNewsSitemap({ ...approved, published_at: "2026-09-10T12:00:00.001Z" }, now),
+  false,
+  "future publication dates must not be exposed in the News sitemap"
 );
 console.log("SEO crawl policy checks passed.");
