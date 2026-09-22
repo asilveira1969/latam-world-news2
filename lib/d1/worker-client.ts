@@ -1,6 +1,7 @@
 import "server-only";
 import type { Article } from "@/lib/types/article";
 import { isEligibleForNewsSitemap } from "@/lib/news-sitemap-policy";
+import { newsSitemapArticlesPath } from "@/lib/news-sitemap-query";
 
 export interface D1WorkerPagination {
   page: number;
@@ -63,7 +64,7 @@ export async function getD1WorkerNewsSitemapArticles(
 
   while (true) {
     const result = await requestD1Worker<D1WorkerNewsSitemapArticleList>(
-      `/articles?page=${page}&pageSize=${pageSize}`,
+      newsSitemapArticlesPath(page, pageSize),
       300
     );
     articles.push(...result.data);
