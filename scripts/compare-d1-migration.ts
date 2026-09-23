@@ -11,6 +11,10 @@ if (!source || !target || process.argv.includes("--help")) {
 }
 const wrangler = createRequire(import.meta.url).resolve("wrangler");
 const ignored = new Set(["sqlite_sequence", "_cf_KV"]);
+const configByDatabase: Record<string, string> = {
+  "latam-world-news-staging": "cloudflare/worker/wrangler.toml",
+  "latam-world-news-production": "cloudflare/worker/wrangler.production.toml"
+};
 const q = (name: string) => `"${name.replaceAll('"', '""')}"`;
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -19,9 +23,11 @@ function canonical(value: unknown): string {
 }
 const hash = (rows: Row[]) => createHash("sha256").update(rows.map(canonical).join("\n")).digest("hex");
 function sql(database: string, command: string): Row[] {
-  const run = spawnSync(process.execPath, [wrangler, "d1", "execute", database, "--remote", "--json", "--command", command], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  const config = configByDatabase[database];
+  if (!config) throw new Error(`No read-only Wrangler configuration is registered for ${database}.`);
+  const run = spawnSync(process.execPath, [wrangler, "d1", "execute", database, "--remote", "--config", config, "--json", "--command", command], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   const out = String(run.stdout ?? ""); const err = String(run.stderr ?? "");
-  if (run.error || run.status !== 0) throw new Error(`D1 query failed for ${database}: ${err.trim() || out.trim() || run.error?.message}`);
+  if (run.error || run.status !== 0) throw new Error(`D1 query failed for ${database}: ${err.trim() || run.error?.message || "Wrangler exited without a readable error."}`);
   const start = out.indexOf("["); const end = out.lastIndexOf("]");
   if (start < 0 || end < start) throw new Error(`D1 returned no JSON for ${database}.`);
   const result = JSON.parse(out.slice(start, end + 1)) as Result[];
@@ -43,7 +49,8 @@ function snapshot(database: string) {
     publicApproved: sql(database, "SELECT COUNT(*) AS count FROM articles WHERE editorial_status='ready' AND editorial_review_status='approved'")
   } : null };
 }
-const sourceSnapshot = snapshot(source); const targetSnapshot = snapshot(target);
+const sourceSnapshot = snapshot(source);
+const targetSnapshot = source === target ? sourceSnapshot : snapshot(target);
 const equal = canonical(sourceSnapshot) === canonical(targetSnapshot);
 console.log(JSON.stringify({ source, target, equal, sourceSnapshot, targetSnapshot }, null, 2));
 process.exitCode = equal ? 0 : 1;
