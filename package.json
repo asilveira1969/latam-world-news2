@@ -28,6 +28,7 @@
     "test:d1-worker-rss-cron": "tsx scripts/test-d1-worker-rss-cron.ts",
     "test:seo-crawl-policy": "tsx scripts/test-seo-crawl-policy.ts",
     "test:news-sitemap": "tsx scripts/test-news-sitemap-route.ts",
+    "test:d1-migration-comparator": "tsx scripts/test-d1-migration-comparator.ts",
     "d1:compare:production": "tsx scripts/compare-d1-migration.ts",
     "d1:ingest:rss-sample": "tsx scripts/d1-ingest-rss-sample.ts"
   },
