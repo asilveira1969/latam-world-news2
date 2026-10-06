@@ -7,6 +7,8 @@ dashboard, Worker change or migration is required.
 
 - `source_type`: `manual` (explicit; omission defaults to RSS in the Worker).
 - `is_impact`: true; `impact_format`: `editorial`.
+- `editorial_status`: `ready`.
+- `editorial_review_status`: `approved`.
 - `section_slug`: `impacto-editorial`, as returned by `deriveSectionSlug`.
 - `region`: `LatAm`; `country`: `brasil`; `countries`: [`brasil`].
 - `topic_slug`: `politica`; specific topic tag: `elecciones-brasil-2026`.
@@ -16,6 +18,10 @@ dashboard, Worker change or migration is required.
   in the header. Preserve paragraphs, Markdown headings and bold emphasis.
 - `raw.editorial_sources`: array of `{ name, url, reference? }` with specific
   HTTP(S) document URLs. The frontend reads this existing JSON field.
+
+Both `editorial_status: "ready"` and `editorial_review_status: "approved"`
+are required for the Worker's public article reads to include the record.
+Manual records do not receive these publication states by default.
 
 Manual editorials use `content` rather than the generated four-section display;
 they do not require `editorial_sections`. They show neither generated FAQs nor
