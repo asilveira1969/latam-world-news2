@@ -77,13 +77,20 @@ export interface ImpactoEditorialDraft {
   updated_at: string;
 }
 
+export interface EditorialSource {
+  name: string;
+  url: string;
+  reference?: string;
+}
+
 export interface Article {
   id: string;
   title: string;
   slug: string;
   excerpt: string;
   content: string | null;
-  source_type?: "api" | "rss" | null;
+  source_type?: "api" | "rss" | "manual" | null;
+  editorial_sources?: EditorialSource[];
   topic_slug?: string | null;
   section_slug?: string | null;
   latamworldnews_summary?: string | null;

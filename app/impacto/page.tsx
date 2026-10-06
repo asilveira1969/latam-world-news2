@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import AdSlot from "@/components/AdSlot";
 import NewsImage from "@/components/NewsImage";
+import { isManualEditorial } from "@/lib/manual-editorial";
 import RelatedCoverage from "@/components/RelatedCoverage";
 import StructuredData from "@/components/StructuredData";
 import { formatEditorialDate } from "@/lib/dates";
@@ -114,7 +115,7 @@ export default async function ImpactoPage() {
                   ))}
               </div>
 
-              {latestEditorial.editorial_sections ? (
+              {latestEditorial.editorial_sections && !isManualEditorial(latestEditorial) ? (
                 <div className="mt-8 grid gap-4 sm:grid-cols-2">
                   <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <h3 className="text-base font-black text-brand">¿Qué está pasando?</h3>
