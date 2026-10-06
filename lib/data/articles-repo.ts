@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { readEditorialSources } from "@/lib/manual-editorial";
 import {
   dedupeBySourceUrl,
   pickHero,
@@ -199,7 +200,8 @@ export function mapRecordToArticle(record: Record<string, unknown>): Article {
   const rawTitle = String(record.title ?? "");
   const title = cleanPlainText(rawTitle) || "Actualizacion internacional";
   const rawExcerpt = String(record.summary ?? record.excerpt ?? "");
-  const excerpt = cleanExcerpt(rawExcerpt, 280) || `${title}.`;
+  const manual = record.source_type === "manual" && Boolean(record.is_impact) && record.impact_format === "editorial";
+  const excerpt = manual ? String(record.excerpt ?? record.summary ?? "") : cleanExcerpt(rawExcerpt, 280) || `${title}.`;
   const rawContent = (record.content as string | null) ?? null;
   const country = normalizeCountry(String(record.country ?? ""));
   const regionInput = String(record.region ?? "").trim();
@@ -229,9 +231,10 @@ export function mapRecordToArticle(record: Record<string, unknown>): Article {
     title,
     slug: String(record.slug ?? ""),
     excerpt,
-    content: rawContent ? cleanPlainText(rawContent) : null,
+    content: manual ? rawContent : rawContent ? cleanPlainText(rawContent) : null,
+    editorial_sources: manual ? readEditorialSources(record.raw) : undefined,
     source_type:
-      record.source_type === "api" || record.source_type === "rss"
+      record.source_type === "api" || record.source_type === "rss" || record.source_type === "manual"
         ? (record.source_type as Article["source_type"])
         : null,
     topic_slug: topicSlug,

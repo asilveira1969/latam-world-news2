@@ -3,6 +3,7 @@ import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { getEditorialBlocks, type FaqItem } from "@/lib/article-seo";
 import { isValidHttpUrl, resolveCardImage } from "@/lib/images";
 import type { Article } from "@/lib/types/article";
+import { isManualEditorial } from "@/lib/manual-editorial";
 import { absoluteUrl } from "@/lib/seo";
 import { cleanPlainText } from "@/lib/text/clean";
 
@@ -124,7 +125,8 @@ export function buildNewsArticleJsonLd(
   pathname: string,
   relatedArticles: Article[] = []
 ) {
-  const editorial = getEditorialBlocks(article);
+  const manual = isManualEditorial(article);
+  const editorial = manual ? null : getEditorialBlocks(article);
   const displayMeta = getArticleDisplayMeta(article);
   const articleSection =
     article.impact_format === "editorial"
@@ -145,11 +147,11 @@ export function buildNewsArticleJsonLd(
     "@context": "https://schema.org",
     "@type": "NewsArticle",
     headline: article.title,
-    description: editorial.seoDescription,
+    description: manual ? article.seo_description || article.excerpt : editorial!.seoDescription,
     image: [imageUrl],
     datePublished: article.published_at,
     dateModified: article.editorial_updated_at || article.published_at || article.created_at,
-    articleBody: [article.latamworldnews_summary, article.editorial_key_takeaway, article.editorial_what_to_watch, article.editorial_latam_impact].filter(Boolean).join("\n\n") || undefined,
+    articleBody: manual ? article.content || undefined : [article.latamworldnews_summary, article.editorial_key_takeaway, article.editorial_what_to_watch, article.editorial_latam_impact].filter(Boolean).join("\n\n") || undefined,
     articleSection,
     keywords: [...new Set([displayMeta.topicLabel, ...(displayMeta.countryLabel ? [displayMeta.countryLabel] : []), ...article.tags])],
     inLanguage: "es",
@@ -166,7 +168,7 @@ export function buildNewsArticleJsonLd(
     ],
     author: {
       "@type": "Organization",
-      name: SITE_NAME
+      name: manual && article.editorial_author ? article.editorial_author : SITE_NAME
     },
     publisher: {
       "@type": "Organization",
@@ -176,7 +178,7 @@ export function buildNewsArticleJsonLd(
         url: absoluteUrl("/logo.svg")
       }
     },
-    isBasedOn: article.source_url,
+    isBasedOn: manual && article.editorial_sources?.length ? article.editorial_sources.map((source) => source.url) : article.source_url,
     mainEntityOfPage: absoluteUrl(pathname),
     mentions: relatedArticles.slice(0, 4).map((item) => ({
       "@type": "Article",
