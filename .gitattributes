@@ -1,0 +1,2 @@
+# Preserve the exact approved payload bytes, including on Windows checkouts.
+docs/operations/editorials/brasil-2026/impacto-brasil-payload-previsto-NO-ENVIAR.json -text
