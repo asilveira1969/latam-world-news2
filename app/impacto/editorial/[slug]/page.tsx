@@ -126,32 +126,32 @@ export default async function EditorialDetailPage({ params }: EditorialDetailPag
           <NewsImage src={article.image_url} alt={article.title} sizes="100vw" className="object-cover" />
         </div>
 
-        <section className="mt-8 space-y-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className={`mt-8 ${manual ? "space-y-8" : "space-y-6"} rounded-3xl border border-slate-200 bg-white p-6 shadow-sm`}>
           {manual ? <ManualEditorialBody content={article.content!} /> : <>
           <div>
             <h2 className="text-2xl font-black text-brand">Que esta pasando</h2>
-            <p className="mt-3 text-base leading-8 text-slate-800">
+            <p className="mt-2 text-base leading-[1.6] text-slate-800">
               {article.editorial_sections!.que_esta_pasando}
             </p>
           </div>
 
           <div>
             <h2 className="text-2xl font-black text-brand">Claves del dia</h2>
-            <p className="mt-3 text-base leading-8 text-slate-800">
+            <p className="mt-2 text-base leading-[1.6] text-slate-800">
               {article.editorial_sections!.claves_del_dia}
             </p>
           </div>
 
           <div>
             <h2 className="text-2xl font-black text-brand">Que significa para America Latina</h2>
-            <p className="mt-3 text-base leading-8 text-slate-800">
+            <p className="mt-2 text-base leading-[1.6] text-slate-800">
               {article.editorial_sections!.que_significa_para_america_latina}
             </p>
           </div>
 
           <div>
             <h2 className="text-2xl font-black text-brand">Por que importa</h2>
-            <p className="mt-3 text-base leading-8 text-slate-800">
+            <p className="mt-2 text-base leading-[1.6] text-slate-800">
               {article.editorial_sections!.por_que_importa}
             </p>
           </div>
