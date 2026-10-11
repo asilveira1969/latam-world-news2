@@ -2,7 +2,7 @@ import { XMLParser } from "fast-xml-parser";
 import { editorialDayStart } from "../../../lib/editorial-dashboard/day-boundary";
 
 interface D1Result<T> { results: T[]; }
-interface D1RunResult { success: boolean; meta: { changes?: number }; }
+interface D1RunResult { success: boolean; meta: { changes?: number }; results?: Row[]; }
 interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
   all<T>(): Promise<D1Result<T>>;
@@ -59,6 +59,21 @@ function normalizedText(value: string) { return plainText(value).normalize("NFD"
 function hasWholeTerm(text: string, term: string) { const normalized = normalizedText(term); return normalized ? ` ${text} `.includes(` ${normalized} `) : false; }
 function slugify(value: string) { return normalizedText(value).replace(/\s+/g, "-").slice(0, 80).replace(/-+$/g, "") || "nota"; }
 async function sha1(value: string) { const bytes = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(value)); return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join(""); }
+export function normalizeRejectionUrl(value: string) {
+  const url = new URL(value);
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("Source URL must use HTTP or HTTPS.");
+  url.hash = "";
+  for (const key of [...url.searchParams.keys()]) {
+    if (/^(utm_.*|at_medium|at_campaign|fbclid|gclid|dclid|msclkid)$/i.test(key)) url.searchParams.delete(key);
+  }
+  url.searchParams.sort();
+  return url.toString();
+}
+async function rejectionUrlHash(value: string) {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalizeRejectionUrl(value)));
+  return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+const STORED_ARTICLE_COLUMNS = [...ARTICLE_COLUMNS, "source_url_hash"];
 function rssCategory(title: string, excerpt: string) {
   const text = normalizedText(`${title} ${excerpt}`);
   if (["petroleo", "petrolero", "petrolera", "barril", "barriles", "gas", "energia", "energetico", "energetica"].some((term) => hasWholeTerm(text, term))) return { category: "Energía", section_slug: "energia", topic_slug: "energia" };
@@ -121,6 +136,24 @@ function normalizeArticle(input: Row, existingId?: string): Row {
   return { ...input, id: existingId || stringValue(input.id) || crypto.randomUUID(), title, slug, source_url: sourceUrl, url, excerpt: sourceType === "rss" ? boundedRssExcerpt(input.excerpt) : stringValue(input.excerpt) || title, content: sourceType === "rss" ? null : input.content ?? null, image_url: stringValue(input.image_url) || "https://picsum.photos/seed/d1-fallback/1200/675", source_name: stringValue(input.source_name) || stringValue(input.source) || "Fuente externa", source: stringValue(input.source) || stringValue(input.source_name) || "Fuente externa", region: stringValue(input.region) || "Mundo", category: stringValue(input.category) || "Internacional", source_type: sourceType, published_at: stringValue(input.published_at) || now, created_at: stringValue(input.created_at) || now, tags: asJson(input.tags, []), countries: asJson(input.countries, []), raw: asJson(input.raw, {}), faq_items: input.faq_items == null ? null : asJson(input.faq_items, []), editorial_sections: input.editorial_sections == null ? null : asJson(input.editorial_sections, {}), is_featured: input.is_featured ? 1 : 0, is_impact: input.is_impact ? 1 : 0, views: Number.isFinite(Number(input.views)) ? Number(input.views) : 0, possible_topic_duplicate: input.possible_topic_duplicate ? 1 : 0, topic_duplicate_group: stringValue(input.topic_duplicate_group) || null, topic_duplicate_confidence: Number.isFinite(Number(input.topic_duplicate_confidence)) ? Number(input.topic_duplicate_confidence) : null, topic_duplicate_of_slug: stringValue(input.topic_duplicate_of_slug) || null, editorial_status: stringValue(input.editorial_status) || (sourceType === "rss" ? "pending_review" : null), editorial_review_status: stringValue(input.editorial_review_status) || (sourceType === "rss" ? "pending" : null) };
 }
 
+// Permissions and their use/cleanup must never be separate D1 calls.
+async function writeArticle(db: D1Database, article: Row, statement: D1PreparedStatement) {
+  const operation = crypto.randomUUID();
+  const results = await db.batch([
+    db.prepare(`INSERT INTO article_write_permissions
+      (operation_id, kind, article_id, source_url, url, url_hash, old_source_url, old_url, old_hash)
+      VALUES (?, 'write', ?, ?, ?, ?,
+        (SELECT source_url FROM articles WHERE id = ?),
+        (SELECT url FROM articles WHERE id = ?),
+        (SELECT source_url_hash FROM articles WHERE id = ?))`)
+      .bind(operation, article.id, article.source_url, article.url, article.source_url_hash,
+        article.id, article.id, article.id),
+    statement,
+    db.prepare("DELETE FROM article_write_permissions WHERE operation_id = ?").bind(operation),
+  ]);
+  return results[1];
+}
+
 async function ingestRssSource(db: D1Database, source: typeof RSS_CRON_SOURCES[number]) {
   const response = await fetch(source.feedUrl, { headers: { "user-agent": "LatamWorldNewsRSS/1.0 (+https://latamworldnews.com/fuentes)", accept: "application/rss+xml, application/xml, text/xml" }, signal: AbortSignal.timeout(20_000) });
   if (!response.ok) throw new Error(`RSS request failed (${response.status}).`);
@@ -128,6 +161,8 @@ async function ingestRssSource(db: D1Database, source: typeof RSS_CRON_SOURCES[n
   for (const item of parseRssItems(await response.text()).slice(0, RSS_ITEM_LIMIT)) {
     if (!item.title || !item.sourceUrl || seen.has(item.sourceUrl)) { skipped += 1; continue; }
     seen.add(item.sourceUrl);
+    const sourceUrlHash = await rejectionUrlHash(item.sourceUrl);
+    if (await db.prepare("SELECT url_hash FROM rejected_article_urls WHERE url_hash = ?").bind(sourceUrlHash).first()) { skipped += 1; continue; }
     if (source.tag === "rss-elpais" && /\/(escaparate|opinion)\//i.test(new URL(item.sourceUrl).pathname)) { skipped += 1; continue; }
     const slug = `${slugify(item.title)}-${(await sha1(item.sourceUrl)).slice(0, 10)}`;
     const existing = await db.prepare("SELECT id FROM articles WHERE slug = ? OR source_url = ? OR url = ? LIMIT 1").bind(slug, item.sourceUrl, item.sourceUrl).first<{ id: string }>();
@@ -147,14 +182,25 @@ async function ingestRssSource(db: D1Database, source: typeof RSS_CRON_SOURCES[n
     const duplicate = await possibleTopicDuplicate(db, { slug, title: item.title, sourceUrl: item.sourceUrl, sourceName: source.name, publishedAt });
     const taxonomy = rssCategory(item.title, item.excerpt);
     const article = normalizeArticle({ title: item.title, slug, excerpt: item.excerpt, content: null, image_url: item.imageUrl, source_name: source.name, source_url: item.sourceUrl, url: item.sourceUrl, summary: item.excerpt, source: source.name, source_type: "rss", region: "Mundo", category: taxonomy.category, section_slug: taxonomy.section_slug, topic_slug: taxonomy.topic_slug, tags: ["rss", source.tag, taxonomy.topic_slug, "editorial-pendiente"], countries: [], language: "es", raw: { imported_via: "cloudflare-scheduled-rss", rss: true, source_id: source.id }, published_at: publishedAt, editorial_status: "pending_review", editorial_review_status: "pending", possible_topic_duplicate: Boolean(duplicate), topic_duplicate_group: duplicate?.group ?? null, topic_duplicate_confidence: duplicate?.confidence ?? null, topic_duplicate_of_slug: duplicate?.matchedSlug ?? null });
-    const inserted = await db.prepare(`INSERT INTO articles (${ARTICLE_COLUMNS.join(", ")}) VALUES (${ARTICLE_COLUMNS.map(() => "?").join(", ")}) ON CONFLICT DO NOTHING`).bind(...ARTICLE_COLUMNS.map((column) => article[column] ?? null)).run();
+    article.source_url_hash = sourceUrlHash;
+    const inserted = await writeArticle(db, article, db.prepare(`INSERT INTO articles (${STORED_ARTICLE_COLUMNS.join(", ")}) VALUES (${STORED_ARTICLE_COLUMNS.map(() => "?").join(", ")}) ON CONFLICT DO NOTHING`).bind(...STORED_ARTICLE_COLUMNS.map((column) => article[column] ?? null)));
     if ((inserted.meta.changes ?? 0) > 0) created += 1; else skipped += 1;
   }
   return { sourceId: source.id, created, skipped };
 }
 async function deleteExpiredPendingArticles(db: D1Database, now = new Date()) {
   const cutoff = editorialDayStart(now);
-  const result = await db.prepare("DELETE FROM articles WHERE editorial_status = 'pending_review' AND editorial_review_status = 'pending' AND created_at < ?").bind(cutoff).run();
+  const operation = crypto.randomUUID();
+  const results = await db.batch([
+    db.prepare(`INSERT INTO article_write_permissions
+      (operation_id, kind, article_id, source_url, url, cutoff)
+      SELECT ?, 'expire', id, source_url, url, ? FROM articles
+      WHERE editorial_status = 'pending_review' AND editorial_review_status = 'pending' AND created_at < ?`)
+      .bind(operation, cutoff, cutoff),
+    db.prepare("DELETE FROM articles WHERE editorial_status = 'pending_review' AND editorial_review_status = 'pending' AND created_at < ?").bind(cutoff),
+    db.prepare("DELETE FROM article_write_permissions WHERE operation_id = ?").bind(operation),
+  ]);
+  const result = results[1];
   return { cutoff, deleted: result.meta.changes ?? 0 };
 }
 async function runScheduledRssIngestion(db: D1Database) {
@@ -167,10 +213,15 @@ async function runScheduledRssIngestion(db: D1Database) {
   return { run_at: new Date().toISOString(), cleanup, sources: results, created: results.reduce((total, result) => total + result.created, 0), skipped: results.reduce((total, result) => total + result.skipped, 0), failed: results.filter((result) => result.error).length };
 }
 async function upsertArticle(db: D1Database, input: Row) {
+  const sourceUrlHash = await rejectionUrlHash(stringValue(input.source_url));
+  if (await db.prepare("SELECT url_hash FROM rejected_article_urls WHERE url_hash = ?").bind(sourceUrlHash).first()) throw new RequestError("Rejected source URL", 409);
   const initial = normalizeArticle(input); const matches = await db.prepare("SELECT id FROM articles WHERE slug = ? OR source_url = ? OR url = ?").bind(initial.slug, initial.source_url, initial.url).all<{ id: string }>(); const ids = [...new Set(matches.results.map((row) => row.id))];
   if (ids.length > 1 || (ids.length === 1 && stringValue(input.id) && ids[0] !== input.id)) throw new Error("Conflicting slug, source_url, or url belongs to another article.");
-  const article = normalizeArticle(input, ids[0]); const values = ARTICLE_COLUMNS.map((column) => article[column] ?? null); const assignments = ARTICLE_COLUMNS.filter((column) => column !== "id" && column !== "created_at").map((column) => `${column} = excluded.${column}`).join(", ");
-  await db.prepare(`INSERT INTO articles (${ARTICLE_COLUMNS.join(", ")}) VALUES (${ARTICLE_COLUMNS.map(() => "?").join(", ")}) ON CONFLICT(id) DO UPDATE SET ${assignments}`).bind(...values).run(); const saved = await db.prepare("SELECT * FROM articles WHERE id = ?").bind(article.id).first<Row>(); return { article: serializeArticle(saved ?? article), created: ids.length === 0 };
+  const article = normalizeArticle(input, ids[0]); article.source_url_hash = sourceUrlHash;
+  const values = STORED_ARTICLE_COLUMNS.map((column) => article[column] ?? null); const assignments = STORED_ARTICLE_COLUMNS.filter((column) => column !== "id" && column !== "created_at").map((column) => `${column} = excluded.${column}`).join(", ");
+  const written = await writeArticle(db, article, db.prepare(`INSERT INTO articles (${STORED_ARTICLE_COLUMNS.join(", ")}) VALUES (${STORED_ARTICLE_COLUMNS.map(() => "?").join(", ")}) ON CONFLICT(id) DO UPDATE SET ${assignments}`).bind(...values));
+  if (!(written.meta.changes ?? 0)) throw new RequestError("Rejected source URL", 409);
+  const saved = await db.prepare("SELECT * FROM articles WHERE id = ?").bind(article.id).first<Row>(); return { article: serializeArticle(saved ?? article), created: ids.length === 0 };
 }
 
 function rejectsSourceMutation(input: Row) {
@@ -239,10 +290,32 @@ async function deleteArticleBatch(db: D1Database, input: Row) {
   const slugs = rawSlugs.map(stringValue);
   if (slugs.some((slug) => !slug)) throw new Error("Every article identifier must be a non-empty slug.");
   if (new Set(slugs).size !== slugs.length) throw new Error("Duplicate slugs are not allowed in a deletion batch.");
-  const placeholders = slugs.map(() => "?").join(", ");
-  const deleted = await db.prepare(`DELETE FROM articles WHERE slug IN (${placeholders}) AND editorial_status = 'pending_review' AND editorial_review_status = 'pending' AND (SELECT COUNT(*) FROM articles WHERE slug IN (${placeholders})) = ? AND (SELECT COUNT(*) FROM articles WHERE slug IN (${placeholders}) AND editorial_status = 'pending_review' AND editorial_review_status = 'pending') = ? RETURNING slug`).bind(...slugs, ...slugs, slugs.length, ...slugs, slugs.length).all<{ slug: string }>();
-  if (deleted.results.length === slugs.length) return { requested: slugs.length, deleted: deleted.results.length, slugs };
-  const remaining = await db.prepare(`SELECT slug, editorial_status, editorial_review_status FROM articles WHERE slug IN (${placeholders})`).bind(...slugs).all<Row>();
+  const requested = JSON.stringify(slugs);
+  const candidates = await db.prepare("SELECT slug, source_url FROM articles WHERE slug IN (SELECT value FROM json_each(?))").bind(requested).all<Row>();
+  const references = await Promise.all(candidates.results.map(async (row) => ({ slug: stringValue(row.slug), sourceUrl: stringValue(row.source_url), hash: await rejectionUrlHash(stringValue(row.source_url)) })));
+  // Recheck source URLs inside the transaction: an intervening upsert must not
+  // cause us to delete a different article URL while remembering an old one.
+  const snapshot = JSON.stringify(references);
+  // JSON sets keep a 100-item legitimate batch within D1's bound-parameter limit.
+  const guard = `(SELECT COUNT(*) FROM articles WHERE slug IN (SELECT value FROM json_each(?))
+    AND editorial_status = 'pending_review' AND editorial_review_status = 'pending') = ?
+    AND NOT EXISTS (SELECT 1 FROM json_each(?) s LEFT JOIN articles a
+      ON a.slug = json_extract(s.value, '$.slug')
+      WHERE a.id IS NULL OR a.source_url IS NOT json_extract(s.value, '$.sourceUrl'))`;
+  const guardValues = [requested, slugs.length, snapshot];
+  const operation = crypto.randomUUID();
+  const results = await db.batch([
+    db.prepare(`INSERT INTO article_write_permissions (operation_id, kind, article_id, source_url, url, url_hash)
+      SELECT ?, 'reject', a.id, a.source_url, a.url, json_extract(s.value, '$.hash')
+      FROM articles a JOIN json_each(?) s ON a.slug = json_extract(s.value, '$.slug') WHERE ${guard}`)
+      .bind(operation, snapshot, ...guardValues),
+    db.prepare("INSERT OR IGNORE INTO rejected_article_urls (url_hash) SELECT url_hash FROM article_write_permissions WHERE operation_id = ? AND kind = 'reject'").bind(operation),
+    db.prepare(`DELETE FROM articles WHERE slug IN (SELECT value FROM json_each(?)) AND ${guard} RETURNING slug`).bind(requested, ...guardValues),
+    db.prepare("DELETE FROM article_write_permissions WHERE operation_id = ?").bind(operation),
+  ]);
+  const deleted = results[2].results ?? [];
+  if (deleted.length === slugs.length) return { requested: slugs.length, deleted: deleted.length, slugs };
+  const remaining = await db.prepare("SELECT slug, editorial_status, editorial_review_status FROM articles WHERE slug IN (SELECT value FROM json_each(?))").bind(requested).all<Row>();
   const existing = new Set(remaining.results.map((article) => stringValue(article.slug)));
   const missing = slugs.filter((slug) => !existing.has(slug));
   if (missing.length) throw new RequestError(`Article not found: ${missing.join(", ")}`, 404);

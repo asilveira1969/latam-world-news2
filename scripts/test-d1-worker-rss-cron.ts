@@ -41,7 +41,7 @@ function statement(query: string) {
     }
   };
 }
-const db = { prepare: statement, async batch() { return []; } };
+const db = { prepare: statement, async batch(statements: ReturnType<typeof statement>[]) { const results = []; for (const s of statements) results.push(await s.run()); return results; } };
 const env = { DB: db };
 const originalFetch = globalThis.fetch;
 const longHtml = `<p>${"Texto externo de prueba ".repeat(40)}</p>`;

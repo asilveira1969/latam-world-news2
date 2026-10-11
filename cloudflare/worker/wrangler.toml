@@ -7,7 +7,8 @@ compatibility_date = "2026-08-28"
 [triggers]
 crons = ["0 */4 * * *", "0 3 * * *"]
 
-# Staging database only. This Worker is not deployed by this configuration.
+# Revalidated production binding, 2026-10-11. Despite its staging name,
+# this Worker/database serves the public site and was deployed with this config.
 [[d1_databases]]
 binding = "DB"
 database_name = "latam-world-news-staging"

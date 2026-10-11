@@ -5,7 +5,7 @@ type Row = Record<string, unknown>;
 
 const ready: Row = { id: "ready-id", slug: "ready", title: "Ready", editorial_status: "ready", editorial_review_status: "approved", tags: "[]", countries: "[]" };
 const rejected: Row = { id: "rejected-id", slug: "rejected", title: "Rejected", editorial_status: "rejected", editorial_review_status: "rejected", tags: "[]", countries: "[]" };
-const pending: Row = { id: "pending-id", slug: "pending", title: "Pending", editorial_status: "pending_review", editorial_review_status: "pending", tags: "[]", countries: "[]" };
+const pending: Row = { id: "pending-id", slug: "pending", title: "Pending", source_url: "https://example.test/pending", editorial_status: "pending_review", editorial_review_status: "pending", tags: "[]", countries: "[]" };
 const queries: string[] = [];
 const preparedQueries: string[] = [];
 const queryValues: Array<{ query: string; values: unknown[] }> = [];
@@ -20,8 +20,11 @@ function statement(query: string) {
     async all<T>() {
       queries.push(query);
       queryValues.push({ query, values });
+      if (query.startsWith("SELECT slug, source_url FROM articles")) {
+        return { results: [ready, rejected, pending].filter((row) => presentSlugs.has(String(row.slug)) && JSON.parse(String(values[0])).includes(row.slug)).map((row) => ({ ...row, source_url: row.source_url || `https://example.test/${row.slug}` })) as T[] };
+      }
       if (query.startsWith("DELETE FROM articles")) {
-        const slug = String(values[0]);
+        const slug = JSON.parse(String(values[0]))[0];
         const row = ({ ready, rejected, pending } as Record<string, Row>)[slug];
         if (presentSlugs.has(slug) && row?.editorial_status === "pending_review" && row.editorial_review_status === "pending") {
           presentSlugs.delete(slug);
@@ -30,7 +33,7 @@ function statement(query: string) {
         return { results: [] as T[] };
       }
       if (query.startsWith("SELECT slug, editorial_status, editorial_review_status FROM articles")) {
-        const slug = String(values[0]);
+        const slug = JSON.parse(String(values[0]))[0];
         const row = ({ ready, rejected, pending } as Record<string, Row>)[slug];
         return { results: presentSlugs.has(slug) && row ? [row] as T[] : [] as T[] };
       }
@@ -62,7 +65,7 @@ function statement(query: string) {
 
 const db = {
   prepare: statement,
-  async batch(statements: Array<ReturnType<typeof statement>>) { batched = statements.length; return statements.map(() => ({ success: true, meta: { changes: 1 } })); }
+  async batch(statements: Array<ReturnType<typeof statement>>) { batched = statements.length; return Promise.all(statements.map(async (s) => ({ success: true, meta: { changes: 1 }, results: (await s.all<Row>()).results }))); }
 };
 const env = { DB: db, INTERNAL_API_SECRET: "test-secret" };
 const request = (path: string, init: RequestInit = {}) => new Request(`https://worker.test${path}`, init);
@@ -127,7 +130,7 @@ assert.deepEqual((await deletePending.json() as { data: { requested: number; del
   deleted: 1,
   slugs: ["pending"]
 });
-assert.ok(preparedQueries.some((query) => query.startsWith("DELETE FROM articles WHERE slug IN (?) AND editorial_status = 'pending_review' AND editorial_review_status = 'pending'")), "the delete itself requires a pending editorial-review status");
+assert.ok(preparedQueries.some((query) => query.startsWith("DELETE FROM articles") && query.includes("editorial_status = 'pending_review' AND editorial_review_status = 'pending'")), "the delete itself requires a pending editorial-review status");
 
 const originalConsoleError = console.error;
 console.error = () => undefined;
