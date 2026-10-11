@@ -43,10 +43,12 @@ export default async function RootLayout({
   const headlines = latest.map((article) => article.title);
   const orgJsonLd = buildOrganizationJsonLd();
   const websiteJsonLd = buildWebsiteJsonLd();
+  const externalScriptsEnabled = process.env.NODE_ENV === "production";
 
   return (
     <html lang="es">
       <head>
+        {externalScriptsEnabled ? <>
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-0Q2589WZWE"
           strategy="afterInteractive"
@@ -71,6 +73,7 @@ export default async function RootLayout({
             crossOrigin="anonymous"
           />
         ) : null}
+        </> : null}
       </head>
       <body>
         <StructuredData data={orgJsonLd} />
@@ -79,7 +82,7 @@ export default async function RootLayout({
         <Header />
         {children}
         <Footer />
-        <Analytics />
+        {externalScriptsEnabled ? <Analytics /> : null}
       </body>
     </html>
   );
