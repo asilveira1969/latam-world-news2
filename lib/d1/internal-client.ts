@@ -18,6 +18,24 @@ export type D1EditorialDecisionWrite = {
 const workerUrl = process.env.D1_WORKER_URL;
 const internalSecret = process.env.D1_WORKER_INTERNAL_SECRET;
 
+export async function importD1InfobaePilot(): Promise<{ status: "complete" | "disabled" | "uncertain"; created?: number; skipped?: number }> {
+  try {
+    const response = await fetch(`${baseUrl()}/internal/ingestion/infobae`, {
+      method: "POST", headers: { "content-type": "application/json", "x-internal-api-secret": internalSecret as string },
+      body: JSON.stringify({ limit: 5 }), cache: "no-store", signal: AbortSignal.timeout(60_000)
+    });
+    if (response.status === 503) {
+      const body = await response.json() as { error?: string };
+      return { status: body.error === "Infobae manual ingestion is disabled" ? "disabled" : "uncertain" };
+    }
+    if (!response.ok) return { status: "uncertain" };
+    const result = await response.json() as { data?: { created?: number; skipped?: number } };
+    const { created, skipped } = result.data ?? {};
+    if (!Number.isInteger(created) || !Number.isInteger(skipped) || created! < 0 || skipped! < 0 || created! + skipped! > 5) return { status: "uncertain" };
+    return { status: "complete", created, skipped };
+  } catch { return { status: "uncertain" }; }
+}
+
 function baseUrl(): string {
   if (!workerUrl || !internalSecret) {
     throw new Error("D1_WORKER_URL and D1_WORKER_INTERNAL_SECRET are required for D1 writes.");

@@ -37,6 +37,15 @@ No migración nueva, cambios de frontend ni infraestructura. Procedimiento y lí
 
 ## Despliegue autorizado Infobae: tanda bloqueada, fuente apagada
 
+Actualización posterior: entrada manual descartada por el propietario. El intento
+con credencial introducida falló al validar, antes de habilitar o enviar ingesta;
+lectura posterior confirmó cero Infobae, versión 36 apagada y aprobados intactos.
+Se autorizó preparar localmente una acción autenticada y botón editorial, usando
+la credencial Vercel solo en servidor. Cinco fijos, sin reintentos, bloqueo persistente
+ante incertidumbre y consulta de registros antes de continuar. Preparación para
+frontend en PR #19, sin merge/despliegue ni tanda real todavía. Detalles y pruebas:
+[infobae-accion-editorial-2026-10-11.md](infobae-accion-editorial-2026-10-11.md).
+
 11 de octubre, 19:17 Montevideo: Worker versión 36,
 `53657226-37a6-4e14-870e-4980e36add39`, desplegado con --keep-vars e
 INFOBAE_MANUAL_ENABLED=false. Misma D1, secreto conservado y ambos cron intactos.

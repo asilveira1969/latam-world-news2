@@ -1,11 +1,39 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { applyD1EditorialDecisions, deleteD1Articles, getD1InternalArticleBySlug, saveD1EditorialDraft } from "@/lib/d1/internal-client";
 import { classifyD1EditorialInput } from "@/lib/d1/editorial/classify";
 import { endEditorialSession, requireEditorialSession, startEditorialSession } from "@/lib/editorial-dashboard/auth";
 import { generateEditorialDraft, type EditorialDraftFields, type EditorialDraftFormat } from "@/lib/editorial-dashboard/ai-drafts";
+import { importD1InfobaePilot, listD1InternalArticles } from "@/lib/d1/internal-client";
+
+export async function importInfobaePilot() {
+  await requireEditorialSession();
+  const jar = await cookies();
+  if (jar.has("latam_infobae_pilot")) return { status: "uncertain" as const };
+  // Set before the request, so even a lost response leaves this browser blocked.
+  jar.set("latam_infobae_pilot", "attempted", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/editorial" });
+  // Existing pilot records also block a new browser/session from another batch.
+  try { if ((await inspectInfobaePilot()).length) return { status: "uncertain" as const }; }
+  catch { return { status: "uncertain" as const }; }
+  const result = await importD1InfobaePilot();
+  if (result.status === "disabled") jar.delete("latam_infobae_pilot");
+  revalidatePath("/editorial");
+  return result;
+}
+
+export async function inspectInfobaePilot() {
+  await requireEditorialSession();
+  const found: Array<{ slug: string; title: string; status: string }> = [];
+  for (let page = 1; ; page++) {
+    const response = await listD1InternalArticles({ page, pageSize: 100 });
+    for (const row of response.data) if (row.source_name === "Infobae") found.push({ slug: String(row.slug), title: String(row.title), status: `${row.editorial_status} / ${row.editorial_review_status}` });
+    if (response.data.length < 100) break;
+  }
+  return found;
+}
 
 type EditorialArticle = { id: string; slug: string; title: string; excerpt: string; source_name: string; source_url: string; published_at: string };
 
