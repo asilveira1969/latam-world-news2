@@ -37,6 +37,15 @@ No migración nueva, cambios de frontend ni infraestructura. Procedimiento y lí
 
 ## Despliegue autorizado Infobae: tanda bloqueada, fuente apagada
 
+Estado posterior vigente: PR #19 publicado en frontend, main
+04d4cfad238f9147953918f8c724d41550f6cad9, Vercel
+dpl_5GxCQCvftmWFbMips9oxMz7SEqok READY. Propietario pulsó piloto durante ventana
+Worker 37 habilitado. Tras resultado incierto se apagó con Worker 38,
+91a8686a-ee57-4fcc-9e82-9850a27e92be. D1 confirmó cero Infobae y aprobados intactos.
+El fallo anterior no puede reconstruirse con certeza. Se autorizó exclusivamente
+preparar diagnóstico mínimo local, sin reset ni nueva ingesta. Pruebas y siguiente paso:
+[infobae-diagnostico-2026-10-11.md](infobae-diagnostico-2026-10-11.md).
+
 Actualización posterior: entrada manual descartada por el propietario. El intento
 con credencial introducida falló al validar, antes de habilitar o enviar ingesta;
 lectura posterior confirmó cero Infobae, versión 36 apagada y aprobados intactos.

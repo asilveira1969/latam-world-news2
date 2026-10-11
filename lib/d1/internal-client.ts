@@ -1,4 +1,5 @@
 import "server-only";
+import { decodeInfobaePilotResponse, type InfobaePilotResult } from "@/lib/editorial-dashboard/infobae-pilot-result";
 
 export type D1ArticleWrite = Record<string, unknown>;
 export type D1EditorialDecisionWrite = {
@@ -18,22 +19,15 @@ export type D1EditorialDecisionWrite = {
 const workerUrl = process.env.D1_WORKER_URL;
 const internalSecret = process.env.D1_WORKER_INTERNAL_SECRET;
 
-export async function importD1InfobaePilot(): Promise<{ status: "complete" | "disabled" | "uncertain"; created?: number; skipped?: number }> {
+export async function importD1InfobaePilot(): Promise<InfobaePilotResult> {
   try {
     const response = await fetch(`${baseUrl()}/internal/ingestion/infobae`, {
       method: "POST", headers: { "content-type": "application/json", "x-internal-api-secret": internalSecret as string },
       body: JSON.stringify({ limit: 5 }), cache: "no-store", signal: AbortSignal.timeout(60_000)
     });
-    if (response.status === 503) {
-      const body = await response.json() as { error?: string };
-      return { status: body.error === "Infobae manual ingestion is disabled" ? "disabled" : "uncertain" };
-    }
-    if (!response.ok) return { status: "uncertain" };
-    const result = await response.json() as { data?: { created?: number; skipped?: number } };
-    const { created, skipped } = result.data ?? {};
-    if (!Number.isInteger(created) || !Number.isInteger(skipped) || created! < 0 || skipped! < 0 || created! + skipped! > 5) return { status: "uncertain" };
-    return { status: "complete", created, skipped };
-  } catch { return { status: "uncertain" }; }
+    const result = decodeInfobaePilotResponse(response.status, await response.json().catch(() => null));
+    return result;
+  } catch (error) { return { status: error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "timeout" : "uncertain", phase: "server_request" }; }
 }
 
 function baseUrl(): string {
@@ -64,7 +58,7 @@ async function internalGet<T>(path: string): Promise<T> {
     cache: "no-store"
   });
   const responseBody = (await response.json().catch(() => ({}))) as { error?: string } & T;
-  if (!response.ok) throw new Error(responseBody.error || `D1 Worker request failed (${response.status}).`);
+  if (!response.ok) throw Object.assign(new Error(responseBody.error || `D1 Worker request failed (${response.status}).`), { httpStatus: response.status });
   return responseBody;
 }
 

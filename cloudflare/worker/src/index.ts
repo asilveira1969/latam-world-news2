@@ -20,6 +20,9 @@ type Row = Record<string, unknown>;
 class RequestError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
+class InfobaeError extends Error {
+  constructor(readonly code: "feed_error" | "timeout" | "write_error", readonly phase: string, readonly created = 0, readonly skipped = 0, readonly httpStatus?: number) { super(code); }
+}
 const JSON_COLUMNS = ["tags", "countries", "raw", "faq_items", "editorial_sections", "editorial_validation"] as const;
 const ARTICLE_COLUMNS = ["id","title","slug","excerpt","content","image_url","source_name","source_url","region","category","tags","published_at","created_at","is_featured","is_impact","views","url","summary","source","source_type","country","language","raw","latamworldnews_summary","curated_news","editorial_status","editorial_generated_at","editorial_model","topic_slug","section_slug","countries","impact_format","editorial_sections","latam_angle","faq_items","seo_title","seo_description","possible_topic_duplicate","topic_duplicate_group","topic_duplicate_confidence","topic_duplicate_of_slug","editorial_origin","editorial_input_hash","editorial_prompt_version","editorial_validation","editorial_review_status","editorial_reviewed_at","editorial_review_notes","editorial_format","editorial_key_takeaway","editorial_what_to_watch","editorial_latam_impact","editorial_author","editorial_updated_at"] as const;
 const DRAFT_COLUMNS = ["id","slug","title","excerpt","seo_title","seo_description","editorial_context","editorial_sections","tags","countries","source_articles","source_count","status","review_email","email_sent_at","email_provider","email_message_id","model","generated_at","approved_at","published_article_slug","created_at","updated_at"] as const;
@@ -157,13 +160,22 @@ async function writeArticle(db: D1Database, article: Row, statement: D1PreparedS
 }
 
 async function ingestRssSource(db: D1Database, source: { id: string; name: string; feedUrl: string; tag: string }, limit = RSS_ITEM_LIMIT, manual = false) {
+  let phase = "feed_fetch"; let created = 0; let skipped = 0;
+  try {
   const response = await fetch(source.feedUrl, { headers: { "user-agent": "LatamWorldNewsRSS/1.0 (+https://latamworldnews.com/fuentes)", accept: "application/rss+xml, application/xml, text/xml" }, signal: AbortSignal.timeout(20_000) });
+  if (manual && !response.ok) throw new InfobaeError("feed_error", phase, 0, 0, response.status);
   if (!response.ok) throw new Error(`RSS request failed (${response.status}).`);
-  const seen = new Set<string>(); let created = 0; let skipped = 0;
-  for (const item of parseRssItems(await response.text(), !manual).slice(0, limit)) {
+  const seen = new Set<string>();
+  const xml = await response.text(); phase = "feed_parse";
+  const items = parseRssItems(xml, !manual).slice(0, limit);
+  if (manual && !items.length) throw new InfobaeError("feed_error", phase);
+  phase = "database";
+  for (const item of items) {
+    phase = "feed_parse";
     if (!item.title || !item.sourceUrl || seen.has(item.sourceUrl)) { skipped += 1; continue; }
     seen.add(item.sourceUrl);
     const sourceUrlHash = await rejectionUrlHash(item.sourceUrl);
+    phase = "database";
     if (await db.prepare("SELECT url_hash FROM rejected_article_urls WHERE url_hash = ?").bind(sourceUrlHash).first()) { skipped += 1; continue; }
     if (source.tag === "rss-elpais" && /\/(escaparate|opinion)\//i.test(new URL(item.sourceUrl).pathname)) { skipped += 1; continue; }
     const slug = `${slugify(item.title)}-${(await sha1(item.sourceUrl)).slice(0, 10)}`;
@@ -191,6 +203,12 @@ async function ingestRssSource(db: D1Database, source: { id: string; name: strin
     if ((inserted.meta.changes ?? 0) > 0) created += 1; else skipped += 1;
   }
   return { sourceId: source.id, created, skipped };
+  } catch (error) {
+    if (!manual) throw error;
+    if (error instanceof InfobaeError) throw error;
+    const timeout = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
+    throw new InfobaeError(timeout ? "timeout" : phase.startsWith("feed_") ? "feed_error" : "write_error", phase, created, skipped);
+  }
 }
 async function deleteExpiredPendingArticles(db: D1Database, now = new Date()) {
   const cutoff = editorialDayStart(now);
@@ -386,8 +404,17 @@ export default {
         const payload = await requestBody(request);
         const limit = payload.limit ?? 5;
         if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > 5) throw new RequestError("limit must be an integer between 1 and 5", 400);
-        const cleanup = await deleteExpiredPendingArticles(env.DB);
-        return internalWriteJson({ data: { cleanup, ...await ingestRssSource(env.DB, INFOBAE_SOURCE, limit, true) } });
+        let phase = "cleanup";
+        try {
+          const cleanup = await deleteExpiredPendingArticles(env.DB); phase = "ingestion";
+          return internalWriteJson({ data: { cleanup, ...await ingestRssSource(env.DB, INFOBAE_SOURCE, limit, true) } });
+        } catch (error) {
+          const diagnostic = error instanceof InfobaeError
+            ? { code: error.code, phase: error.phase, created: error.created, skipped: error.skipped, httpStatus: error.httpStatus }
+            : { code: "write_error", phase, created: 0, skipped: 0 };
+          console.warn("Infobae pilot failed", diagnostic);
+          return internalWriteJson({ error: "Infobae pilot failed", diagnostic }, { status: diagnostic.code === "timeout" ? 504 : 502 });
+        }
       }
       if (request.method === "POST" && /^\/internal\/articles\/[^/]+\/editorial$/.test(path)) { const slug = decodeURIComponent(path.split("/")[3]); const payload = await requestBody(request); return internalWriteJson({ data: await patchArticleEditorial(env.DB, slug, payload.editorial as Row) }); }
       if (request.method === "POST" && /^\/internal\/articles\/[^/]+\/views$/.test(path)) { const slug = decodeURIComponent(path.split("/")[3]); await env.DB.prepare("UPDATE articles SET views = views + 1 WHERE slug = ?").bind(slug).run(); return internalWriteJson({ ok: true }); }
