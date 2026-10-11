@@ -13,7 +13,7 @@ interface D1Database {
   prepare(query: string): D1PreparedStatement;
   batch(statements: D1PreparedStatement[]): Promise<D1RunResult[]>;
 }
-interface Env { DB: D1Database; INTERNAL_API_SECRET?: string; }
+interface Env { DB: D1Database; INTERNAL_API_SECRET?: string; INFOBAE_MANUAL_ENABLED?: string; }
 interface ScheduledController { cron?: string; }
 
 type Row = Record<string, unknown>;
@@ -38,6 +38,8 @@ const RSS_CRON_SOURCES = [
   { id: "rss-bbc-mundo", name: "BBC Mundo", feedUrl: "https://feeds.bbci.co.uk/mundo/rss.xml", tag: "rss-bbc-mundo" }
 ] as const;
 const RSS_ITEM_LIMIT = 25;
+// Manual pilot only: intentionally absent from RSS_CRON_SOURCES.
+const INFOBAE_SOURCE = { id: "rss-infobae", name: "Infobae", feedUrl: "https://www.infobae.com/arc/outboundfeeds/rss/", tag: "rss-infobae" };
 const TOPIC_WINDOW_MS = 48 * 60 * 60 * 1000;
 const TOPIC_STOP_WORDS = new Set(["a", "al", "ante", "con", "contra", "como", "desde", "del", "el", "en", "es", "la", "las", "lo", "los", "para", "por", "que", "se", "sin", "sobre", "tras", "un", "una", "unos", "unas", "y", "ya", "su", "sus", "the", "and", "of", "to", "in", "on", "for", "with"]);
 
@@ -87,7 +89,7 @@ function sourceEntryText(value: unknown): string {
   return "";
 }
 function firstEntry(value: unknown): unknown { return Array.isArray(value) ? value[0] : value; }
-function parseRssItems(xml: string) {
+export function parseRssItems(xml: string, allowDateFallback = true) {
   const parsed = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" }).parse(xml) as Row;
   const channel = (parsed.rss as Row | undefined)?.channel as Row | undefined;
   const rawItems = channel?.item;
@@ -97,7 +99,7 @@ function parseRssItems(xml: string) {
     const enclosure = firstEntry(raw.enclosure) as Row | undefined;
     const media = firstEntry(raw["media:content"]) as Row | undefined;
     const thumbnail = firstEntry(raw["media:thumbnail"]) as Row | undefined;
-    return { title: plainText(sourceEntryText(raw.title)), sourceUrl: sourceEntryText(raw.link), publishedAt: sourceEntryText(raw.pubDate) || new Date().toISOString(), excerpt: boundedRssExcerpt(sourceEntryText(raw.description) || sourceEntryText(raw.summary)), imageUrl: stringValue(enclosure?.["@_url"]) || stringValue(media?.["@_url"]) || stringValue(thumbnail?.["@_url"]) || null };
+    return { title: plainText(sourceEntryText(raw.title)), sourceUrl: sourceEntryText(raw.link), publishedAt: sourceEntryText(raw.pubDate) || (allowDateFallback ? new Date().toISOString() : ""), excerpt: boundedRssExcerpt(sourceEntryText(raw.description) || sourceEntryText(raw.summary)), imageUrl: stringValue(enclosure?.["@_url"]) || stringValue(media?.["@_url"]) || stringValue(thumbnail?.["@_url"]) || null };
   });
 }
 function topicTerms(title: string) { return [...new Set(normalizedText(title).split(" ").filter((term) => term.length >= 3 && !TOPIC_STOP_WORDS.has(term)))]; }
@@ -154,11 +156,11 @@ async function writeArticle(db: D1Database, article: Row, statement: D1PreparedS
   return results[1];
 }
 
-async function ingestRssSource(db: D1Database, source: typeof RSS_CRON_SOURCES[number]) {
+async function ingestRssSource(db: D1Database, source: { id: string; name: string; feedUrl: string; tag: string }, limit = RSS_ITEM_LIMIT, manual = false) {
   const response = await fetch(source.feedUrl, { headers: { "user-agent": "LatamWorldNewsRSS/1.0 (+https://latamworldnews.com/fuentes)", accept: "application/rss+xml, application/xml, text/xml" }, signal: AbortSignal.timeout(20_000) });
   if (!response.ok) throw new Error(`RSS request failed (${response.status}).`);
   const seen = new Set<string>(); let created = 0; let skipped = 0;
-  for (const item of parseRssItems(await response.text()).slice(0, RSS_ITEM_LIMIT)) {
+  for (const item of parseRssItems(await response.text(), !manual).slice(0, limit)) {
     if (!item.title || !item.sourceUrl || seen.has(item.sourceUrl)) { skipped += 1; continue; }
     seen.add(item.sourceUrl);
     const sourceUrlHash = await rejectionUrlHash(item.sourceUrl);
@@ -168,6 +170,7 @@ async function ingestRssSource(db: D1Database, source: typeof RSS_CRON_SOURCES[n
     const existing = await db.prepare("SELECT id FROM articles WHERE slug = ? OR source_url = ? OR url = ? LIMIT 1").bind(slug, item.sourceUrl, item.sourceUrl).first<{ id: string }>();
     if (existing) { skipped += 1; continue; }
     const parsedPublishedAt = Date.parse(item.publishedAt);
+    if (manual && !Number.isFinite(parsedPublishedAt)) { skipped += 1; continue; }
     const publishedAt = Number.isFinite(parsedPublishedAt) ? new Date(parsedPublishedAt).toISOString() : new Date().toISOString();
     if (Number.isFinite(parsedPublishedAt) && parsedPublishedAt > Date.now() + MAX_FUTURE_RSS_PUBLICATION_MS) {
       skipped += 1;
@@ -183,6 +186,7 @@ async function ingestRssSource(db: D1Database, source: typeof RSS_CRON_SOURCES[n
     const taxonomy = rssCategory(item.title, item.excerpt);
     const article = normalizeArticle({ title: item.title, slug, excerpt: item.excerpt, content: null, image_url: item.imageUrl, source_name: source.name, source_url: item.sourceUrl, url: item.sourceUrl, summary: item.excerpt, source: source.name, source_type: "rss", region: "Mundo", category: taxonomy.category, section_slug: taxonomy.section_slug, topic_slug: taxonomy.topic_slug, tags: ["rss", source.tag, taxonomy.topic_slug, "editorial-pendiente"], countries: [], language: "es", raw: { imported_via: "cloudflare-scheduled-rss", rss: true, source_id: source.id }, published_at: publishedAt, editorial_status: "pending_review", editorial_review_status: "pending", possible_topic_duplicate: Boolean(duplicate), topic_duplicate_group: duplicate?.group ?? null, topic_duplicate_confidence: duplicate?.confidence ?? null, topic_duplicate_of_slug: duplicate?.matchedSlug ?? null });
     article.source_url_hash = sourceUrlHash;
+    if (manual) article.raw = asJson({ imported_via: "cloudflare-manual-rss", rss: true, source_id: source.id }, {});
     const inserted = await writeArticle(db, article, db.prepare(`INSERT INTO articles (${STORED_ARTICLE_COLUMNS.join(", ")}) VALUES (${STORED_ARTICLE_COLUMNS.map(() => "?").join(", ")}) ON CONFLICT DO NOTHING`).bind(...STORED_ARTICLE_COLUMNS.map((column) => article[column] ?? null)));
     if ((inserted.meta.changes ?? 0) > 0) created += 1; else skipped += 1;
   }
@@ -377,6 +381,14 @@ export default {
       if (request.method === "POST" && path === "/internal/articles/delete-batch") return internalWriteJson({ data: await deleteArticleBatch(env.DB, await requestBody(request)) });
       if (request.method === "POST" && path === "/internal/articles/upsert") { const payload = await requestBody(request); const result = await upsertArticle(env.DB, payload.article as Row); return internalWriteJson({ data: result.article, created: result.created }, { status: result.created ? 201 : 200 }); }
       if (request.method === "POST" && path === "/internal/ingestion/rss") return internalWriteJson({ data: await runScheduledRssIngestion(env.DB) });
+      if (request.method === "POST" && path === "/internal/ingestion/infobae") {
+        if (env.INFOBAE_MANUAL_ENABLED !== "true") return internalWriteJson({ error: "Infobae manual ingestion is disabled" }, { status: 503 });
+        const payload = await requestBody(request);
+        const limit = payload.limit ?? 5;
+        if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > 5) throw new RequestError("limit must be an integer between 1 and 5", 400);
+        const cleanup = await deleteExpiredPendingArticles(env.DB);
+        return internalWriteJson({ data: { cleanup, ...await ingestRssSource(env.DB, INFOBAE_SOURCE, limit, true) } });
+      }
       if (request.method === "POST" && /^\/internal\/articles\/[^/]+\/editorial$/.test(path)) { const slug = decodeURIComponent(path.split("/")[3]); const payload = await requestBody(request); return internalWriteJson({ data: await patchArticleEditorial(env.DB, slug, payload.editorial as Row) }); }
       if (request.method === "POST" && /^\/internal\/articles\/[^/]+\/views$/.test(path)) { const slug = decodeURIComponent(path.split("/")[3]); await env.DB.prepare("UPDATE articles SET views = views + 1 WHERE slug = ?").bind(slug).run(); return internalWriteJson({ ok: true }); }
       if (request.method === "POST" && path === "/internal/impacto-drafts/upsert") { const payload = await requestBody(request); const result = await upsertDraft(env.DB, payload.draft as Row); return internalWriteJson({ data: result.draft, created: result.created }, { status: result.created ? 201 : 200 }); }

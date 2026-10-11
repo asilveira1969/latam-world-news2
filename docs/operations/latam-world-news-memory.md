@@ -10,13 +10,53 @@ a producción intacta, pausa de preparación y corrección exclusivamente local 
 históricas y quedan sustituidas por el resultado real siguiente. Infobae sigue fuera.
 Sincronización posterior con GitHub: código publicado registrado en el commit
 `382faf216e7bed49ad20ff01825e6c5a82b21458`, rama `fix/persistent-editorial-rejections`,
-PR https://github.com/asilveira1969/latam-world-news2/pull/18. Pendiente merge a main;
-puede iniciar otro despliegue automático de Vercel. No volver a aplicar 0014/0015.
+PR https://github.com/asilveira1969/latam-world-news2/pull/18 fusionado en main:
+`1d69bd59be92fb7d0b23cd94364699d449415c23`. Despliegue automático Vercel posterior
+`dpl_CAZQyfo4ShYsQyXyrfJd2yaB3Mx2` READY, asignado a latamworldnews.com;
+portada, noticia aprobada y acceso editorial 200. No se probó sesión autenticada.
+No hubo protección/reglas de rama ni checks obligatorios configurados; ambos checks
+disponibles pasaron, merge normal sin bypass. No volver a aplicar 0014/0015.
 Verificación de solo lectura: Worker activo y D1 coinciden con lo publicado,
 seis hashes de publicación iguales y 135 archivos del frontend coinciden con
 el archivo fuente subido a Vercel. Sin nuevas modificaciones funcionales.
 Las menciones posteriores de ausencia de push describen el cierre de publicación
 anterior a esta sincronización; este apartado actualiza ese estado.
+
+## Preparación local posterior: piloto manual Infobae
+
+Instrucción vigente: incorporar únicamente Infobae para una tanda manual de hasta
+cinco noticias, sin desplegar ni escribir en producción todavía. Preparación desde
+main posterior al PR #18, rama local `feat/infobae-manual-pilot`.
+Interruptor `INFOBAE_MANUAL_ENABLED=false`; ruta interna autenticada independiente.
+Infobae ausente de ambos cron. Parser real y D1 local efímera: cinco ítems del feed
+válidos/importados, repetición cero, rechazo solo sintético bloqueado con tracking,
+pendientes ocultos públicamente, cinco visibles internamente, permisos finales cero.
+Typecheck y regresión RSS/limpieza correctos. Sin decisiones sobre noticias reales.
+No migración nueva, cambios de frontend ni infraestructura. Procedimiento y límites:
+[infobae-piloto-local-2026-10-11.md](infobae-piloto-local-2026-10-11.md).
+
+## Despliegue autorizado Infobae: tanda bloqueada, fuente apagada
+
+Actualización posterior: entrada manual descartada por el propietario. El intento
+con credencial introducida falló al validar, antes de habilitar o enviar ingesta;
+lectura posterior confirmó cero Infobae, versión 36 apagada y aprobados intactos.
+Se autorizó preparar localmente una acción autenticada y botón editorial, usando
+la credencial Vercel solo en servidor. Cinco fijos, sin reintentos, bloqueo persistente
+ante incertidumbre y consulta de registros antes de continuar. Preparación para
+frontend en PR #19, sin merge/despliegue ni tanda real todavía. Detalles y pruebas:
+[infobae-accion-editorial-2026-10-11.md](infobae-accion-editorial-2026-10-11.md).
+
+11 de octubre, 19:17 Montevideo: Worker versión 36,
+`53657226-37a6-4e14-870e-4980e36add39`, desplegado con --keep-vars e
+INFOBAE_MANUAL_ENABLED=false. Misma D1, secreto conservado y ambos cron intactos.
+Respaldo privado previo fuera de Git: output/backups/pre-infobae-20261011.sql.
+Lecturas de verificación: 1186 aprobados, hash de filas íntegramente igual antes
+y después, permisos cero, cuatro feeds conservados, artículos Infobae cero.
+No se habilitó Infobae ni se envió ninguna petición manual: la credencial interna
+de Vercel es sensible/no recuperable y no está disponible localmente. Se solicitó
+acceso seguro al secreto existente o ejecución autenticada del operador; no
+rotarlo ni enviarlo al chat. La tanda autorizada permanece pendiente, nunca repetir
+automáticamente. No migraciones, cambios de frontend ni decisiones editoriales.
 
 # Publicación de rechazos persistentes — resultado real
 
