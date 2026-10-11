@@ -8,7 +8,15 @@ Nombre: MEMORIA_OPERATIVA_LATAM_WORLD_NEWS_2026-10-11.md.
 La autorización posterior permitió publicar la corrección. Las referencias previas
 a producción intacta, pausa de preparación y corrección exclusivamente local son
 históricas y quedan sustituidas por el resultado real siguiente. Infobae sigue fuera.
-No inferir publicación en GitHub: la memoria se actualizó localmente; no se hizo push.
+Sincronización posterior con GitHub: código publicado registrado en el commit
+`382faf216e7bed49ad20ff01825e6c5a82b21458`, rama `fix/persistent-editorial-rejections`,
+PR https://github.com/asilveira1969/latam-world-news2/pull/18. Pendiente merge a main;
+puede iniciar otro despliegue automático de Vercel. No volver a aplicar 0014/0015.
+Verificación de solo lectura: Worker activo y D1 coinciden con lo publicado,
+seis hashes de publicación iguales y 135 archivos del frontend coinciden con
+el archivo fuente subido a Vercel. Sin nuevas modificaciones funcionales.
+Las menciones posteriores de ausencia de push describen el cierre de publicación
+anterior a esta sincronización; este apartado actualiza ese estado.
 
 # Publicación de rechazos persistentes — resultado real
 
