@@ -4,6 +4,7 @@ compatibility_date = "2026-08-28"
 
 [vars]
 INFOBAE_MANUAL_ENABLED = "false"
+INFOBAE_SCHEDULED_ENABLED = "false"
 
 # RSS runs every four hours. The daily trigger is 00:00 America/Montevideo
 # (03:00 UTC) and removes expired pending editorial inbox items only.
