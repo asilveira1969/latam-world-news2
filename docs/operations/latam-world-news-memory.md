@@ -1,7 +1,19 @@
 # Memoria técnica y operativa vigente — LATAM World News
 
-Actualización: 11 de octubre de 2026, America/Montevideo.
-Nombre: MEMORIA_OPERATIVA_LATAM_WORLD_NEWS_2026-10-11.md.
+Actualización: 12 de octubre de 2026, America/Montevideo.
+Nombre: MEMORIA_OPERATIVA_LATAM_WORLD_NEWS_2026-10-12.md.
+
+## Instrucción vigente: Infobae programado, preparación local
+
+Se cambió el enfoque al mismo cron RSS de las cuatro fuentes. Nueva preparación
+desde main en feat/infobae-scheduled, independiente de PR #20, que no se fusiona.
+INFOBAE_SCHEDULED_ENABLED=false por defecto, cinco ítems por ejecución, revisión
+obligatoria y protecciones existentes. Piloto/bloqueo manual intactos y manual apagado.
+Pruebas locales del cron/deduplicación/rechazos/limpieza/privacidad correctas.
+Sin activación ni despliegue de producción. Último estado verificado: Worker38
+91a8686a-ee57-4fcc-9e82-9850a27e92be, Infobae manual apagado. No diagnosticar el
+error histórico por inferencia. Alcance, pruebas y operación futura:
+[infobae-cron-2026-10-12.md](infobae-cron-2026-10-12.md).
 
 ## Fuente de verdad vigente
 

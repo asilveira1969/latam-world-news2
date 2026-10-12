@@ -13,7 +13,7 @@ interface D1Database {
   prepare(query: string): D1PreparedStatement;
   batch(statements: D1PreparedStatement[]): Promise<D1RunResult[]>;
 }
-interface Env { DB: D1Database; INTERNAL_API_SECRET?: string; INFOBAE_MANUAL_ENABLED?: string; }
+interface Env { DB: D1Database; INTERNAL_API_SECRET?: string; INFOBAE_MANUAL_ENABLED?: string; INFOBAE_SCHEDULED_ENABLED?: string; }
 interface ScheduledController { cron?: string; }
 
 type Row = Record<string, unknown>;
@@ -38,7 +38,7 @@ const RSS_CRON_SOURCES = [
   { id: "rss-bbc-mundo", name: "BBC Mundo", feedUrl: "https://feeds.bbci.co.uk/mundo/rss.xml", tag: "rss-bbc-mundo" }
 ] as const;
 const RSS_ITEM_LIMIT = 25;
-// Manual pilot only: intentionally absent from RSS_CRON_SOURCES.
+// Infobae has independent manual and scheduled switches; the four-source registry stays unchanged.
 const INFOBAE_SOURCE = { id: "rss-infobae", name: "Infobae", feedUrl: "https://www.infobae.com/arc/outboundfeeds/rss/", tag: "rss-infobae" };
 const TOPIC_WINDOW_MS = 48 * 60 * 60 * 1000;
 const TOPIC_STOP_WORDS = new Set(["a", "al", "ante", "con", "contra", "como", "desde", "del", "el", "en", "es", "la", "las", "lo", "los", "para", "por", "que", "se", "sin", "sobre", "tras", "un", "una", "unos", "unas", "y", "ya", "su", "sus", "the", "and", "of", "to", "in", "on", "for", "with"]);
@@ -160,7 +160,7 @@ async function ingestRssSource(db: D1Database, source: { id: string; name: strin
   const response = await fetch(source.feedUrl, { headers: { "user-agent": "LatamWorldNewsRSS/1.0 (+https://latamworldnews.com/fuentes)", accept: "application/rss+xml, application/xml, text/xml" }, signal: AbortSignal.timeout(20_000) });
   if (!response.ok) throw new Error(`RSS request failed (${response.status}).`);
   const seen = new Set<string>(); let created = 0; let skipped = 0;
-  for (const item of parseRssItems(await response.text(), !manual).slice(0, limit)) {
+  for (const item of parseRssItems(await response.text(), !manual && source.id !== INFOBAE_SOURCE.id).slice(0, limit)) {
     if (!item.title || !item.sourceUrl || seen.has(item.sourceUrl)) { skipped += 1; continue; }
     seen.add(item.sourceUrl);
     const sourceUrlHash = await rejectionUrlHash(item.sourceUrl);
@@ -170,7 +170,7 @@ async function ingestRssSource(db: D1Database, source: { id: string; name: strin
     const existing = await db.prepare("SELECT id FROM articles WHERE slug = ? OR source_url = ? OR url = ? LIMIT 1").bind(slug, item.sourceUrl, item.sourceUrl).first<{ id: string }>();
     if (existing) { skipped += 1; continue; }
     const parsedPublishedAt = Date.parse(item.publishedAt);
-    if (manual && !Number.isFinite(parsedPublishedAt)) { skipped += 1; continue; }
+    if ((manual || source.id === INFOBAE_SOURCE.id) && !Number.isFinite(parsedPublishedAt)) { skipped += 1; continue; }
     const publishedAt = Number.isFinite(parsedPublishedAt) ? new Date(parsedPublishedAt).toISOString() : new Date().toISOString();
     if (Number.isFinite(parsedPublishedAt) && parsedPublishedAt > Date.now() + MAX_FUTURE_RSS_PUBLICATION_MS) {
       skipped += 1;
@@ -207,11 +207,12 @@ async function deleteExpiredPendingArticles(db: D1Database, now = new Date()) {
   const result = results[1];
   return { cutoff, deleted: result.meta.changes ?? 0 };
 }
-async function runScheduledRssIngestion(db: D1Database) {
+async function runScheduledRssIngestion(db: D1Database, infobaeEnabled = false) {
   const cleanup = await deleteExpiredPendingArticles(db);
   const results: Array<{ sourceId: string; created: number; skipped: number; error?: string }> = [];
-  for (const source of RSS_CRON_SOURCES) {
-    try { results.push(await ingestRssSource(db, source)); }
+  const sources = infobaeEnabled ? [...RSS_CRON_SOURCES, INFOBAE_SOURCE] : RSS_CRON_SOURCES;
+  for (const source of sources) {
+    try { results.push(await ingestRssSource(db, source, source.id === INFOBAE_SOURCE.id ? 5 : RSS_ITEM_LIMIT)); }
     catch (error) { const message = error instanceof Error ? error.message : "Unknown RSS error."; await recordError(db, { source_id: source.id, provider: "rss", message, context: { scheduled: true, source_name: source.name } }).catch(() => undefined); results.push({ sourceId: source.id, created: 0, skipped: 0, error: message }); }
   }
   return { run_at: new Date().toISOString(), cleanup, sources: results, created: results.reduce((total, result) => total + result.created, 0), skipped: results.reduce((total, result) => total + result.skipped, 0), failed: results.filter((result) => result.error).length };
@@ -380,7 +381,7 @@ export default {
       if (request.method === "POST" && path === "/internal/editorial/apply-batch") return internalWriteJson({ data: await applyEditorialDecisionBatch(env.DB, await requestBody(request)) });
       if (request.method === "POST" && path === "/internal/articles/delete-batch") return internalWriteJson({ data: await deleteArticleBatch(env.DB, await requestBody(request)) });
       if (request.method === "POST" && path === "/internal/articles/upsert") { const payload = await requestBody(request); const result = await upsertArticle(env.DB, payload.article as Row); return internalWriteJson({ data: result.article, created: result.created }, { status: result.created ? 201 : 200 }); }
-      if (request.method === "POST" && path === "/internal/ingestion/rss") return internalWriteJson({ data: await runScheduledRssIngestion(env.DB) });
+      if (request.method === "POST" && path === "/internal/ingestion/rss") return internalWriteJson({ data: await runScheduledRssIngestion(env.DB, env.INFOBAE_SCHEDULED_ENABLED === "true") });
       if (request.method === "POST" && path === "/internal/ingestion/infobae") {
         if (env.INFOBAE_MANUAL_ENABLED !== "true") return internalWriteJson({ error: "Infobae manual ingestion is disabled" }, { status: 503 });
         const payload = await requestBody(request);
@@ -406,6 +407,6 @@ export default {
       ctx.waitUntil(deleteExpiredPendingArticles(env.DB).then((summary) => console.log("Editorial inbox cleanup completed", summary)).catch((error) => console.error("Editorial inbox cleanup failed", error)));
       return;
     }
-    ctx.waitUntil(runScheduledRssIngestion(env.DB).then((summary) => console.log("RSS cron completed", summary)).catch((error) => console.error("RSS cron failed", error)));
+    ctx.waitUntil(runScheduledRssIngestion(env.DB, env.INFOBAE_SCHEDULED_ENABLED === "true").then((summary) => console.log("RSS cron completed", summary)).catch((error) => console.error("RSS cron failed", error)));
   }
 };

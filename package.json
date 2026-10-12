@@ -29,6 +29,7 @@
     "test:rejected-urls-local": "tsx scripts/test-rejected-urls-local.ts",
     "test:article-barrier-local": "tsx scripts/test-article-barrier-local.ts",
     "test:infobae-local": "tsx scripts/test-infobae-local.ts",
+    "test:infobae-scheduled-local": "tsx scripts/test-infobae-scheduled-local.ts",
     "test:seo-crawl-policy": "tsx scripts/test-seo-crawl-policy.ts",
     "test:news-sitemap": "tsx scripts/test-news-sitemap-route.ts",
     "d1:ingest:rss-sample": "tsx scripts/d1-ingest-rss-sample.ts"
