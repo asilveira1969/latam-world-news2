@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { importInfobaePilot, inspectInfobaePilot } from "./actions";
+import { infobaePilotMessage } from "@/lib/editorial-dashboard/infobae-pilot-result";
 
 export function InfobaePilot({ locked }: { locked: boolean }) {
   const sending = useRef(false);
@@ -9,14 +10,14 @@ export function InfobaePilot({ locked }: { locked: boolean }) {
   const [message, setMessage] = useState(locked ? "Piloto ya intentado. Comprueba los registros; no se permite otra tanda." : "");
   useEffect(() => { if (localStorage.getItem("latam_infobae_pilot")) { setBlocked(true); setMessage("Piloto ya intentado. Comprueba los registros; no se permite otra tanda."); } }, []);
   async function run() {
-    if (sending.current || blocked || localStorage.getItem("latam_infobae_pilot")) return;
+    if (sending.current) return;
+    if (blocked || localStorage.getItem("latam_infobae_pilot")) { setMessage(infobaePilotMessage({ status: "blocked" })); return; }
     localStorage.setItem("latam_infobae_pilot", "attempted");
     sending.current = true; setBusy(true); setBlocked(true);
     try {
       const result = await importInfobaePilot();
       if (result.status === "disabled") { localStorage.removeItem("latam_infobae_pilot"); setBlocked(false); setMessage("Infobae está apagado. No se importó ninguna noticia."); }
-      else if (result.status === "complete") setMessage(`Importadas: ${result.created}. Omitidas: ${result.skipped}. Continúan pendientes. Recarga la bandeja para revisarlas.`);
-      else setMessage("Resultado incierto. Comprueba los registros antes de decidir cómo continuar; no repitas la importación.");
+      else setMessage(infobaePilotMessage(result));
     } catch { setMessage("Resultado incierto. Comprueba los registros; no repitas la importación."); }
     finally { sending.current = false; setBusy(false); }
   }

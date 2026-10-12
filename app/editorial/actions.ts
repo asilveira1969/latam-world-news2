@@ -8,20 +8,24 @@ import { classifyD1EditorialInput } from "@/lib/d1/editorial/classify";
 import { endEditorialSession, requireEditorialSession, startEditorialSession } from "@/lib/editorial-dashboard/auth";
 import { generateEditorialDraft, type EditorialDraftFields, type EditorialDraftFormat } from "@/lib/editorial-dashboard/ai-drafts";
 import { importD1InfobaePilot, listD1InternalArticles } from "@/lib/d1/internal-client";
+import type { InfobaePilotResult } from "@/lib/editorial-dashboard/infobae-pilot-result";
 
 export async function importInfobaePilot() {
-  await requireEditorialSession();
+  const report = (result: InfobaePilotResult) => { console.info("Infobae pilot result", result); return result; };
+  try { await requireEditorialSession(); }
+  catch { return report({ status: "auth_error", phase: "session" }); }
   const jar = await cookies();
-  if (jar.has("latam_infobae_pilot")) return { status: "uncertain" as const };
+  if (jar.has("latam_infobae_pilot")) return report({ status: "blocked", phase: "prior_attempt" });
   // Set before the request, so even a lost response leaves this browser blocked.
   jar.set("latam_infobae_pilot", "attempted", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/editorial" });
   // Existing pilot records also block a new browser/session from another batch.
-  try { if ((await inspectInfobaePilot()).length) return { status: "uncertain" as const }; }
-  catch { return { status: "uncertain" as const }; }
+  try { if ((await inspectInfobaePilot()).length) return report({ status: "blocked", phase: "existing_records" }); }
+  catch (error) { const status = (error as { httpStatus?: number } | null)?.httpStatus; return report({ status: status === 401 || status === 403 ? "auth_error" : "uncertain", phase: "record_check", httpStatus: status }); }
   const result = await importD1InfobaePilot();
   if (result.status === "disabled") jar.delete("latam_infobae_pilot");
+  else jar.set("latam_infobae_pilot", JSON.stringify(result), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/editorial" });
   revalidatePath("/editorial");
-  return result;
+  return report(result);
 }
 
 export async function inspectInfobaePilot() {
