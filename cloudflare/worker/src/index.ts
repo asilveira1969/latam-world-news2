@@ -36,10 +36,11 @@ const RSS_CRON_SOURCES = [
   { id: "rss-rt", name: "RT Actualidad", feedUrl: "https://actualidad.rt.com/feeds/all.rss", tag: "rss-rt" },
   { id: "rss-elpais-ultimas", name: "El País España", feedUrl: "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/ultimas-noticias/portada", tag: "rss-elpais" },
   { id: "rss-france24-es", name: "France 24 Español", feedUrl: "https://www.france24.com/es/rss", tag: "rss-france24-es" },
-  { id: "rss-bbc-mundo", name: "BBC Mundo", feedUrl: "https://feeds.bbci.co.uk/mundo/rss.xml", tag: "rss-bbc-mundo" }
+  { id: "rss-bbc-mundo", name: "BBC Mundo", feedUrl: "https://feeds.bbci.co.uk/mundo/rss.xml", tag: "rss-bbc-mundo" },
+  { id: "rss-mercopress", name: "MercoPress", feedUrl: "https://es.mercopress.com/rss/america-latina", tag: "rss-mercopress" }
 ] as const;
 const RSS_ITEM_LIMIT = 25;
-// Infobae has independent manual and scheduled switches; the four-source registry stays unchanged.
+// Infobae keeps independent manual and scheduled switches outside the regular source registry.
 const INFOBAE_SOURCE = { id: "rss-infobae", name: "Infobae", feedUrl: "https://www.infobae.com/arc/outboundfeeds/rss/", tag: "rss-infobae" };
 const TOPIC_WINDOW_MS = 48 * 60 * 60 * 1000;
 const TOPIC_STOP_WORDS = new Set(["a", "al", "ante", "con", "contra", "como", "desde", "del", "el", "en", "es", "la", "las", "lo", "los", "para", "por", "que", "se", "sin", "sobre", "tras", "un", "una", "unos", "unas", "y", "ya", "su", "sus", "the", "and", "of", "to", "in", "on", "for", "with"]);

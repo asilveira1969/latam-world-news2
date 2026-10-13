@@ -18,7 +18,7 @@ export type EditorialDraftFields = {
 };
 
 type SourceArticle = { title: string; excerpt: string; source_name: string; source_url: string; published_at: string };
-const DEFAULT_HOSTS = ["actualidad.rt.com", "elpais.com", "www.france24.com", "feeds.bbci.co.uk", "www.bbc.com", "www.bbc.co.uk"];
+const DEFAULT_HOSTS = ["actualidad.rt.com", "elpais.com", "www.france24.com", "feeds.bbci.co.uk", "www.bbc.com", "www.bbc.co.uk", "es.mercopress.com"];
 const MAX_SOURCE_BYTES = 1_000_000;
 const MAX_SOURCE_CHARS = 12_000;
 const MAX_REDIRECTS = 3;
