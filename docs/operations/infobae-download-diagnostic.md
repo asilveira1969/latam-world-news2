@@ -39,13 +39,15 @@ Abrir la suscripción antes del próximo cron normal. Desde el repositorio, sust
 VERSION_PUBLICADA por el UUID real del Worker con este diagnóstico, no la versión 40:
 
 ```powershell
-node node_modules/wrangler/bin/wrangler.js tail latam-world-news-d1-staging --format json --search "Infobae download diagnostic" --sampling-rate 1 --version-id VERSION_PUBLICADA | node scripts/filter-infobae-download-diagnostic.mjs | Out-File -Encoding utf8 ../output/infobae-download-diagnostic.jsonl
+node node_modules/wrangler/bin/wrangler.js tail latam-world-news-d1-staging --format json --search "Infobae download diagnostic" --version-id VERSION_PUBLICADA | node scripts/filter-infobae-download-diagnostic.mjs | Out-File -Encoding utf8 ../output/infobae-download-diagnostic.jsonl
 ```
 
 El filtro procesa el evento completo solo en memoria y guarda exclusivamente el
 objeto de siete campos. No redirigir el stdout bruto de Wrangler ni usar transcripción
 de terminal. Confirmar el mensaje de conexión de Wrangler y mantener la sesión hasta
 que finalice la invocación normal; no ejecutar ingesta manual para generar logs.
+Se omite --sampling-rate: Wrangler 4.127.1 rechaza el valor 1 antes de conectar
+(exige un valor estrictamente entre 0 y 1). No aplicar muestreo adicional solicitado.
 Cerrar con Ctrl+C después de capturar el diagnóstico. Alternativa visual sin guardar
 eventos: Cloudflare > Workers & Pages > latam-world-news-d1-staging > Logs > Live.
 
