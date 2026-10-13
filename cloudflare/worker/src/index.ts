@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import { logInfobaeDownloadFailure } from "./infobae-download-diagnostic";
 import { editorialDayStart } from "../../../lib/editorial-dashboard/day-boundary";
 
 interface D1Result<T> { results: T[]; }
@@ -157,8 +158,17 @@ async function writeArticle(db: D1Database, article: Row, statement: D1PreparedS
 }
 
 async function ingestRssSource(db: D1Database, source: { id: string; name: string; feedUrl: string; tag: string }, limit = RSS_ITEM_LIMIT, manual = false) {
-  const response = await fetch(source.feedUrl, { headers: { "user-agent": "LatamWorldNewsRSS/1.0 (+https://latamworldnews.com/fuentes)", accept: "application/rss+xml, application/xml, text/xml" }, signal: AbortSignal.timeout(20_000) });
-  if (!response.ok) throw new Error(`RSS request failed (${response.status}).`);
+  let response: Response;
+  try {
+    response = await fetch(source.feedUrl, { headers: { "user-agent": "LatamWorldNewsRSS/1.0 (+https://latamworldnews.com/fuentes)", accept: "application/rss+xml, application/xml, text/xml" }, signal: AbortSignal.timeout(20_000) });
+  } catch (error) {
+    if (source.id === INFOBAE_SOURCE.id) await logInfobaeDownloadFailure(source.feedUrl, undefined, error);
+    throw error;
+  }
+  if (!response.ok) {
+    if (source.id === INFOBAE_SOURCE.id) await logInfobaeDownloadFailure(source.feedUrl, response);
+    throw new Error(`RSS request failed (${response.status}).`);
+  }
   const seen = new Set<string>(); let created = 0; let skipped = 0;
   for (const item of parseRssItems(await response.text(), !manual && source.id !== INFOBAE_SOURCE.id).slice(0, limit)) {
     if (!item.title || !item.sourceUrl || seen.has(item.sourceUrl)) { skipped += 1; continue; }
