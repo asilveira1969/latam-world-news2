@@ -1,0 +1,10 @@
+name = "latam-world-news-d1"
+main = "src/index.ts"
+compatibility_date = "2026-08-28"
+
+# Cron remains absent until the frozen data copy has passed parity validation.
+[[d1_databases]]
+binding = "DB"
+database_name = "latam-world-news-production"
+database_id = "fabed1c8-f39f-4ecf-89ed-9752f5aac15e"
+migrations_dir = "../migrations"
