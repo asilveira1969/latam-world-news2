@@ -47,7 +47,7 @@ const originalFetch = globalThis.fetch;
 const longHtml = `<p>${"Texto externo de prueba ".repeat(40)}</p>`;
 globalThis.fetch = (async (input: RequestInfo | URL) => {
   const url = String(input);
-  const id = url.includes("bbci") ? "bbc" : url.includes("france24") ? "france" : url.includes("elpais") ? "elpais" : "rt";
+  const id = url.includes("mercopress") ? "mercopress" : url.includes("bbci") ? "bbc" : url.includes("france24") ? "france" : url.includes("elpais") ? "elpais" : "rt";
   const publishedAt = useFuturePublicationDate ? "2099-01-01T10:00:00.000Z" : "2026-08-30T10:00:00.000Z";
   return new Response(`<?xml version="1.0"?><rss><channel><item><title>Noticia ${id} sobre energía internacional</title><link>https://example.test/${id}</link><pubDate>${publishedAt}</pubDate><description><![CDATA[${longHtml}]]></description><content:encoded><![CDATA[${"CUERPO COMPLETO ".repeat(100)}]]></content:encoded></item></channel></rss>`, { status: 200, headers: { "content-type": "application/rss+xml" } });
 }) as typeof fetch;
@@ -64,7 +64,7 @@ async function main() {
   assert.equal(editorialDayStart(new Date("2026-09-07T12:00:00.000Z")), "2026-09-07T03:00:00.000Z", "the editorial day starts at midnight in Montevideo");
 
   await invokeScheduled();
-  assert.equal(rows.length, 4, "first cron run inserts one new item from each configured source");
+  assert.equal(rows.length, 5, "first cron run inserts one new item from each configured source");
   for (const row of rows) {
     assert.equal(row.content, null, "RSS content is never persisted");
     assert.ok(String(row.excerpt).length <= 280, "RSS excerpt remains bounded");
@@ -73,7 +73,7 @@ async function main() {
     assert.equal(row.source_type, "rss");
   }
   await invokeScheduled();
-  assert.equal(rows.length, 4, "repeated cron run does not duplicate existing source URLs/slugs");
+  assert.equal(rows.length, 5, "repeated cron run does not duplicate existing source URLs/slugs");
   rows.push(
     { id: "old-pending", slug: "old-pending", editorial_status: "pending_review", editorial_review_status: "pending", created_at: "2000-01-01T00:00:00.000Z" },
     { id: "old-ready", slug: "old-ready", editorial_status: "ready", editorial_review_status: "approved", created_at: "2000-01-01T00:00:00.000Z" }

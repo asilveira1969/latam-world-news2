@@ -51,12 +51,12 @@ async function main() {
     globalThis.fetch=(async()=>new Response('Forbidden',{status:403})) as typeof fetch;
     let pending:Promise<unknown>=Promise.resolve();
     await worker.scheduled({cron:'0 */4 * * *'},{DB:db,INFOBAE_SCHEDULED_ENABLED:'true'} as never,{waitUntil(p){pending=p;}});await pending;
-    assert.equal(errors.length,5);assert.equal(sourceDiagnostics.length,1);
+    assert.equal(errors.length,6);assert.equal(sourceDiagnostics.length,1);
     assert.ok(errors.every(args=>args.includes('RSS request failed (403).')));
     sourceDiagnostics.length=0;
     globalThis.fetch=(async()=>new Response('<rss><channel/></rss>')) as typeof fetch;
     await worker.scheduled({cron:'0 */4 * * *'},{DB:db,INFOBAE_SCHEDULED_ENABLED:'true'} as never,{waitUntil(p){pending=p;}});await pending;
-    assert.equal(sourceDiagnostics.length,0);assert.equal(errors.length,5);
+    assert.equal(sourceDiagnostics.length,0);assert.equal(errors.length,6);
   } finally {globalThis.fetch=nativeFetch;console.warn=original;console.log=originalLog;}
 
   const fixture={event:{request:{headers:{authorization:'SECRET'}}},logs:[{message:['unrelated','SECRET']},{message:['Infobae download diagnostic',{utc:'2026-10-13T00:00:00.000Z',status:403,url:'https://www.infobae.com/arc/outboundfeeds/rss/',contentType:'text/html',server:'openresty',cfRay:null,fragment:'Forbidden',extra:'SECRET'}]}]};
