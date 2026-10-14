@@ -3,7 +3,7 @@ import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { getEditorialBlocks, type FaqItem } from "@/lib/article-seo";
 import { isValidHttpUrl, resolveCardImage } from "@/lib/images";
 import type { Article } from "@/lib/types/article";
-import { isManualEditorial } from "@/lib/manual-editorial";
+import { isManualImpactOriginal } from "@/lib/manual-editorial";
 import { absoluteUrl } from "@/lib/seo";
 import { cleanPlainText } from "@/lib/text/clean";
 
@@ -112,7 +112,7 @@ export function buildCollectionPageJsonLd(input: {
     inLanguage: "es",
     isPartOf: absoluteUrl("/"),
     hasPart: input.items.slice(0, 10).map((article) => ({
-      "@type": "NewsArticle",
+      "@type": isManualImpactOriginal(article) ? "Article" : "NewsArticle",
       headline: article.title,
       url: absoluteUrl(articlePath(article)),
       datePublished: article.published_at
@@ -125,7 +125,7 @@ export function buildNewsArticleJsonLd(
   pathname: string,
   relatedArticles: Article[] = []
 ) {
-  const manual = isManualEditorial(article);
+  const manual = isManualImpactOriginal(article);
   const editorial = manual ? null : getEditorialBlocks(article);
   const displayMeta = getArticleDisplayMeta(article);
   const articleSection =
@@ -145,7 +145,7 @@ export function buildNewsArticleJsonLd(
 
   return {
     "@context": "https://schema.org",
-    "@type": "NewsArticle",
+    "@type": manual ? "Article" : "NewsArticle",
     headline: article.title,
     description: manual ? article.seo_description || article.excerpt : editorial!.seoDescription,
     image: [imageUrl],
@@ -167,7 +167,7 @@ export function buildNewsArticleJsonLd(
       }
     ],
     author: {
-      "@type": "Organization",
+      "@type": manual && article.impact_format === "columnist" ? "Person" : "Organization",
       name: manual && article.editorial_author ? article.editorial_author : SITE_NAME
     },
     publisher: {

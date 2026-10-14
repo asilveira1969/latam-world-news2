@@ -36,8 +36,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const articleEntries: MetadataRoute.Sitemap = articles.map((article) => ({
     url: absoluteUrl(`/${article.kind}/${article.slug}`),
     lastModified: article.lastModified ? new Date(article.lastModified) : undefined,
-    changeFrequency: article.kind === "impacto" ? "weekly" : "daily",
-    priority: article.kind === "impacto" ? 0.85 : 0.72
+    changeFrequency: article.kind.startsWith("impacto") ? "weekly" : "daily",
+    priority: article.kind.startsWith("impacto") ? 0.85 : 0.72
   }));
 
   const hubEntries: MetadataRoute.Sitemap = hubs.map((hub) => ({

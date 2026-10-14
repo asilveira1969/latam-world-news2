@@ -2,55 +2,44 @@ import { Metadata } from "next";
 import Link from "next/link";
 import AdSlot from "@/components/AdSlot";
 import NewsImage from "@/components/NewsImage";
-import { isManualEditorial } from "@/lib/manual-editorial";
-import RelatedCoverage from "@/components/RelatedCoverage";
+import { notFound, redirect } from "next/navigation";
+import { impactOriginalPath } from "@/lib/manual-editorial";
+import { impactArchivePath, parseImpactArchivePage } from "@/lib/impacto-originals";
 import StructuredData from "@/components/StructuredData";
 import { formatEditorialDate } from "@/lib/dates";
-import {
-  getColumnistArticles,
-  getEditorialArticles,
-  getImpactArticles,
-  getLatestEditorial,
-  getOpinionArticles
-} from "@/lib/data/articles-repo";
+import { getImpactOriginalArchive } from "@/lib/data/articles-repo";
 import { getCountryLabel, normalizeCountry } from "@/lib/hubs";
 import { buildCollectionPageJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
 
 export const revalidate = 300;
 
-export const metadata: Metadata = buildMetadata({
-  title: "Impacto",
-  description:
-    "Vertical editorial de LATAM World News con editorial del día, opinión, columnas y análisis originales sobre el impacto regional de la agenda internacional.",
-  pathname: "/impacto",
-  keywords: [
-    "impacto en LATAM",
-    "editorial latinoamerica",
-    "opinion internacional",
-    "columnistas latam",
-    "analisis regional"
-  ]
-});
+type ImpactoPageProps = { searchParams?: Promise<{ pagina?: string | string[] }> };
 
-export default async function ImpactoPage() {
-  const [latestEditorial, editorialArchive, impactArticles, opinionArticles, columnistArticles] = await Promise.all([
-    getLatestEditorial(),
-    getEditorialArticles(6),
-    getImpactArticles(9),
-    getOpinionArticles(3),
-    getColumnistArticles(3)
-  ]);
+export async function generateMetadata({ searchParams }: ImpactoPageProps): Promise<Metadata> {
+  const page = parseImpactArchivePage((await searchParams)?.pagina);
+  return buildMetadata({
+    title: page === 1 ? "Impacto" : `Archivo Impacto — página ${page}`,
+    description:
+      "Vertical editorial de LATAM World News con editoriales, opinión, columnas y análisis originales sobre el impacto regional de la agenda internacional.",
+    pathname: impactArchivePath(page),
+    keywords: [
+      "impacto en LATAM", "editorial latinoamerica", "opinion internacional",
+      "columnistas latam", "analisis regional"
+    ]
+  });
+}
 
-  const olderEditorials = latestEditorial
-    ? editorialArchive.filter((article) => article.slug !== latestEditorial.slug)
-    : editorialArchive;
-
-  const collectionItems = [
-    ...(latestEditorial ? [latestEditorial] : []),
-    ...olderEditorials,
-    ...impactArticles.slice(0, 6)
-  ];
+export default async function ImpactoPage({ searchParams }: ImpactoPageProps) {
+  const rawPage = (await searchParams)?.pagina;
+  const page = parseImpactArchivePage(rawPage);
+  if (rawPage !== undefined && (page === 1 || rawPage !== String(page))) redirect(impactArchivePath(page));
+  const { featured, archive, hasNext } = await getImpactOriginalArchive(page);
+  if (page > 1 && archive.length === 0) notFound();
+  const latestEditorial = featured.editorial;
+  const opinionArticles = featured.opinion ? [featured.opinion] : [];
+  const columnistArticles = featured.columnist ? [featured.columnist] : [];
+  const collectionItems = [...Object.values(featured).filter((article) => article !== null), ...archive];
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
@@ -59,7 +48,7 @@ export default async function ImpactoPage() {
           title: "Impacto",
           description:
             "Hub editorial con el editorial del día, archivo reciente y análisis de impacto para América Latina.",
-          pathname: "/impacto",
+          pathname: impactArchivePath(page),
           items: collectionItems
         })}
       />
@@ -74,11 +63,11 @@ export default async function ImpactoPage() {
       </header>
 
       {latestEditorial ? (
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
+        <section aria-label="Editorial destacado" className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
           <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.24em] text-brand-accent">
-                Editorial del día
+                Editorial destacado
               </p>
               <h2 className="mt-3 text-3xl font-black tracking-tight text-brand lg:text-5xl">
                 <Link href={`/impacto/editorial/${latestEditorial.slug}`} className="hover:underline">
@@ -115,38 +104,6 @@ export default async function ImpactoPage() {
                   ))}
               </div>
 
-              {latestEditorial.editorial_sections && !isManualEditorial(latestEditorial) ? (
-                <div className="mt-8 grid gap-4 sm:grid-cols-2">
-                  <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <h3 className="text-base font-black text-brand">¿Qué está pasando?</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
-                      {latestEditorial.editorial_sections.que_esta_pasando}
-                    </p>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <h3 className="text-base font-black text-brand">Claves del día</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
-                      {latestEditorial.editorial_sections.claves_del_dia}
-                    </p>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <h3 className="text-base font-black text-brand">¿Qué significa para América Latina?</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
-                      {latestEditorial.editorial_sections.que_significa_para_america_latina}
-                    </p>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <h3 className="text-base font-black text-brand">¿Por qué importa?</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
-                      {latestEditorial.editorial_sections.por_que_importa}
-                    </p>
-                  </section>
-                </div>
-              ) : null}
-
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href={`/impacto/editorial/${latestEditorial.slug}`}
@@ -179,21 +136,20 @@ export default async function ImpactoPage() {
                   Lo que encontrarás en Impacto
                 </p>
                 <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-                  <li>Editorial del día con lectura propia para América Latina.</li>
-                  <li>Archivo reciente de editoriales y análisis.</li>
+                  <li>Editoriales originales con lectura propia para América Latina.</li>
+                  <li>Archivo permanente de editoriales, opiniones y columnas.</li>
                   <li>Opinión y columnas para desarrollar una voz editorial del sitio.</li>
                 </ul>
               </div>
 
               <div className="rounded-[1.5rem] border border-brand/15 bg-brand-soft/40 p-5">
                 <p className="text-[11px] font-black uppercase tracking-[0.22em] text-brand-accent">
-                  Estructura editorial
+                  Contenido original
                 </p>
                 <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-                  <p>1. ¿Qué está pasando?</p>
-                  <p>2. Claves del día</p>
-                  <p>3. ¿Qué significa para América Latina?</p>
-                  <p>4. ¿Por qué importa?</p>
+                  <p>Investigación y análisis propios.</p>
+                  <p>Revisión y aprobación humana.</p>
+                  <p>Autoría y fuentes documentales.</p>
                 </div>
               </div>
             </div>
@@ -205,7 +161,7 @@ export default async function ImpactoPage() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="text-xl font-black text-brand">Editoriales</h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            La pieza editorial principal del día y el archivo reciente de lecturas estratégicas para
+            El editorial original más reciente y el archivo de lecturas estratégicas para
             América Latina.
           </p>
           {latestEditorial ? (
@@ -260,110 +216,20 @@ export default async function ImpactoPage() {
 
       <AdSlot slotId="impacto-top" className="my-8" />
 
-      {olderEditorials.length > 0 ? (
-        <section id="editoriales" className="mt-10">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-brand-accent">
-                Archivo editorial
-              </p>
-              <h2 className="mt-2 text-2xl font-black text-brand">Editoriales recientes</h2>
-            </div>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {olderEditorials.map((article) => (
-              <article key={article.id} className="rounded-2xl border border-slate-200 bg-white p-5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                  {formatEditorialDate(article.published_at)}
-                </p>
-                <h3 className="mt-2 text-lg font-bold text-brand">
-                  <Link href={`/impacto/editorial/${article.slug}`} className="hover:underline">
-                    {article.title}
-                  </Link>
-                </h3>
-                <p className="mt-3 text-sm leading-6 text-slate-600">{article.excerpt}</p>
-                <Link
-                  href={`/impacto/editorial/${article.slug}`}
-                  className="mt-4 inline-block text-sm font-semibold text-brand-accent underline"
-                >
-                  Leer editorial
-                </Link>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {opinionArticles.length > 0 ? (
-        <section className="mt-12">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-brand-accent">Opinión</p>
-              <h2 className="mt-2 text-2xl font-black text-brand">Lecturas de opinión</h2>
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            {opinionArticles.map((article) => (
-              <article key={article.id} className="rounded-2xl border border-slate-200 bg-white p-5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                  {formatEditorialDate(article.published_at)}
-                </p>
-                <h3 className="mt-2 text-lg font-bold text-brand">
-                  <Link href={`/impacto/opinion/${article.slug}`} className="hover:underline">
-                    {article.title}
-                  </Link>
-                </h3>
-                <p className="mt-3 text-sm leading-6 text-slate-600">{article.excerpt}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {columnistArticles.length > 0 ? (
-        <section className="mt-12">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-brand-accent">
-                Columnistas
-              </p>
-              <h2 className="mt-2 text-2xl font-black text-brand">Firmas y columnas</h2>
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            {columnistArticles.map((article) => (
-              <article key={article.id} className="rounded-2xl border border-slate-200 bg-white p-5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                  {formatEditorialDate(article.published_at)}
-                </p>
-                <h3 className="mt-2 text-lg font-bold text-brand">
-                  <Link href={`/impacto/columnistas/${article.slug}`} className="hover:underline">
-                    {article.title}
-                  </Link>
-                </h3>
-                <p className="mt-3 text-sm leading-6 text-slate-600">{article.excerpt}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="mt-12">
+      <section id="editoriales" aria-label="Archivo de análisis Impacto" className="mt-12">
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-brand-accent">
-              Análisis complementario
+              Archivo histórico
             </p>
             <h2 className="mt-2 text-2xl font-black text-brand">Archivo de análisis Impacto</h2>
           </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {impactArticles.map((article) => (
+          {archive.map((article) => (
             <article key={article.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <Link href={`/impacto/${article.slug}`} className="block">
+              <Link href={impactOriginalPath(article)} className="block">
                 <div className="relative aspect-video">
                   <NewsImage
                     src={article.image_url}
@@ -376,7 +242,7 @@ export default async function ImpactoPage() {
               </Link>
               <div className="p-4">
                 <h3 className="text-lg font-bold text-brand">
-                  <Link href={`/impacto/${article.slug}`} className="hover:underline">
+                  <Link href={impactOriginalPath(article)} className="hover:underline">
                     {article.title}
                   </Link>
                 </h3>
@@ -390,7 +256,14 @@ export default async function ImpactoPage() {
         </div>
       </section>
 
-      {latestEditorial ? <RelatedCoverage items={impactArticles.slice(0, 4)} title="Lecturas complementarias" /> : null}
+      {archive.length === 0 ? <p className="mt-4 text-sm text-slate-600">Las publicaciones anteriores aparecerán aquí al incorporar nuevos originales.</p> : null}
+      {page > 1 || hasNext ? (
+        <nav aria-label="Paginación del archivo Impacto" className="mt-8 flex flex-wrap items-center gap-4">
+          {page > 1 ? <Link href={impactArchivePath(page - 1)} rel="prev" className="font-semibold text-brand-accent underline">Página anterior</Link> : null}
+          <span aria-current="page">Página {page}</span>
+          {hasNext ? <Link href={impactArchivePath(page + 1)} rel="next" className="font-semibold text-brand-accent underline">Página siguiente</Link> : null}
+        </nav>
+      ) : null}
     </main>
   );
 }

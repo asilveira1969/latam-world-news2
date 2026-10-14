@@ -32,6 +32,10 @@
     "test:infobae-scheduled-local": "tsx scripts/test-infobae-scheduled-local.ts",
     "test:seo-crawl-policy": "tsx scripts/test-seo-crawl-policy.ts",
     "test:news-sitemap": "tsx scripts/test-news-sitemap-route.ts",
+    "test:impacto-originals": "tsx scripts/test-impacto-originals.ts",
+    "test:impacto-protection-local": "tsx scripts/test-impacto-protection-local.ts",
+    "test:manual-editorial": "tsx scripts/test-manual-editorial.ts",
+    "test:structured-data": "tsx scripts/test-structured-data.ts",
     "d1:ingest:rss-sample": "tsx scripts/d1-ingest-rss-sample.ts"
   },
   "dependencies": {

@@ -41,7 +41,8 @@ export async function generateMetadata({ params }: EditorialDetailPageProps): Pr
     imageUrl: article.image_url,
     type: "article",
     publishedTime: article.published_at,
-    modifiedTime: article.created_at,
+    modifiedTime: manual ? article.editorial_updated_at || article.published_at : article.created_at,
+    author: manual ? article.editorial_author || article.source_name : undefined,
     keywords: article.tags
   });
 }
