@@ -23,12 +23,14 @@ async function main() {
   const { default: ImpactoPage } = await import("../app/impacto/page");
   const { deriveSectionSlug } = await import("../lib/article-taxonomy");
   const { normalizeCountry, normalizeTopicSlug } = await import("../lib/hubs");
-  const approved = readFileSync(process.argv[2], "utf8");
-  const body = approved.split(/\r?\n/).slice(4).join("\n");
+  const body = process.argv[2]
+    ? readFileSync(process.argv[2], "utf8").split(/\r?\n/).slice(4).join("\n")
+    : JSON.parse(readFileSync("docs/operations/editorials/brasil-2026/impacto-brasil-payload-previsto-NO-ENVIAR.json", "utf8")).article.content;
   const record = {
     id: "manual-test", slug: "manual-test", title: "Editorial manual de prueba",
     excerpt: "Bajada aprobada " + "íntegra ".repeat(50), summary: "No sustituir la bajada",
     content: body, source_type: "manual", is_impact: true, impact_format: "editorial",
+    editorial_status: "ready", editorial_review_status: "approved",
     editorial_author: "Redacción Latam World News", image_url: "/logo.svg",
     source_name: "Latam World News", source_url: "https://example.com/manual-test",
     region: "LatAm", country: "brasil", tags: ["elecciones-brasil-2026"], category: "Política",
@@ -49,7 +51,7 @@ async function main() {
   assert.equal(normalizeTopicSlug("politica"), "politica");
   const markup = renderToStaticMarkup(React.createElement(Body, { content: body }));
   assert.match(markup, /<h2[^>]*>Una elección brasileña nunca es solamente brasileña<\/h2>/);
-  assert.match(markup, /<strong>47,03% de los votos válidos y 56,1 millones de votos<\/strong>/);
+  assert.match(markup, /<strong>47,03% de los votos válidos y (?:56,1 millones de votos|56\.104\.268 votos)<\/strong>/);
   assert.match(markup, /Pero buena parte de Sudamérica sentirá las consecuencias\./);
   const escaped = renderToStaticMarkup(React.createElement(Body, { content: "<script>alert(1)</script>" }));
   assert.ok(!escaped.includes("<script>"));
@@ -86,10 +88,10 @@ async function main() {
   assert.match(legacyPage, /FAQPage/);
   assert.match(legacyPage, /Resumen histórico/);
   assert.ok(!legacyPage.includes("Informe 2025"));
-  const home = renderToStaticMarkup(await ImpactoPage());
+  const home = renderToStaticMarkup(await ImpactoPage({}));
   assert.ok(home.includes(record.title) && home.includes(record.excerpt));
   assert.match(home, /href="\/impacto\/editorial\/manual-test"/);
-  assert.match(home, /Editoriales recientes/);
+  assert.match(home, /Archivo de análisis Impacto/);
   assert.match(home, /Opinión/);
   assert.match(home, /Columnistas/);
   assert.ok(!home.includes("Resumen histórico"), "manual lead must not show generated four-block previews");

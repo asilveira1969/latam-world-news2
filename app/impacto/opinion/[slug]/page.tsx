@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import ArticleEngagementTracker from "@/components/ArticleEngagementTracker";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import NewsImage from "@/components/NewsImage";
+import ManualEditorialBody from "@/components/ManualEditorialBody";
+import ManualImpactSources from "@/components/ManualImpactSources";
+import { isManualImpactOriginal } from "@/lib/manual-editorial";
+import { formatEditorialDate } from "@/lib/dates";
 import RelatedCoverage from "@/components/RelatedCoverage";
 import StructuredData from "@/components/StructuredData";
 import ViewTracker from "@/components/ViewTracker";
@@ -28,15 +32,17 @@ export async function generateMetadata({ params }: OpinionDetailPageProps): Prom
     });
   }
 
-  const editorial = getEditorialBlocks(article);
+  const manual = isManualImpactOriginal(article);
+  const editorial = manual ? null : getEditorialBlocks(article);
   return buildMetadata({
-    title: editorial.seoTitle,
-    description: editorial.seoDescription,
+    title: manual ? article.seo_title || article.title : editorial!.seoTitle,
+    description: manual ? article.seo_description || article.excerpt : editorial!.seoDescription,
     pathname: `/impacto/opinion/${article.slug}`,
     imageUrl: article.image_url,
     type: "article",
     publishedTime: article.published_at,
-    modifiedTime: article.created_at,
+    modifiedTime: manual ? article.editorial_updated_at || article.published_at : article.created_at,
+    author: manual ? article.editorial_author || article.source_name : undefined,
     keywords: article.tags
   });
 }
@@ -44,11 +50,12 @@ export async function generateMetadata({ params }: OpinionDetailPageProps): Prom
 export default async function OpinionDetailPage({ params }: OpinionDetailPageProps) {
   const resolvedParams = await params;
   const article = await getArticleBySlug(resolvedParams.slug, "impacto-opinion");
-  if (!article || !article.editorial_sections) {
+  if (!article || (isManualImpactOriginal(article) ? !article.content?.trim() : !article.editorial_sections)) {
     notFound();
   }
 
-  const editorial = getEditorialBlocks(article);
+  const manual = isManualImpactOriginal(article);
+  const editorial = manual ? null : getEditorialBlocks(article);
   const related = await getRelatedArticles(article, 4);
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([
     { name: "Inicio", pathname: "/" },
@@ -56,7 +63,7 @@ export default async function OpinionDetailPage({ params }: OpinionDetailPagePro
     { name: "Opinion", pathname: `/impacto/opinion/${article.slug}` }
   ]);
   const jsonLd = buildNewsArticleJsonLd(article, `/impacto/opinion/${article.slug}`, related);
-  const faqJsonLd = buildFaqJsonLd(editorial.faqItems);
+  const faqJsonLd = editorial ? buildFaqJsonLd(editorial!.faqItems) : null;
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -81,7 +88,11 @@ export default async function OpinionDetailPage({ params }: OpinionDetailPagePro
             {getArticleKicker(article)}
           </p>
           <h1 className="mt-3 text-4xl font-black tracking-tight text-brand">{article.title}</h1>
-          <p className="mt-3 max-w-3xl text-lg leading-8 text-slate-700">{editorial.summary}</p>
+          <p className="mt-3 max-w-3xl text-lg leading-8 text-slate-700">{manual ? article.excerpt : editorial!.summary}</p>
+          {manual ? <>
+            <p className="mt-3 text-sm font-semibold text-slate-600">{article.editorial_author || article.source_name}</p>
+            <p className="mt-4 text-sm text-slate-400">{formatEditorialDate(article.published_at)}</p>
+          </> : null}
         </header>
 
         <div className="relative mt-6 aspect-video overflow-hidden rounded-3xl border border-slate-200 bg-slate-100">
@@ -89,30 +100,31 @@ export default async function OpinionDetailPage({ params }: OpinionDetailPagePro
         </div>
 
         <section className="mt-8 space-y-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          {manual ? <ManualEditorialBody content={article.content!} /> : <>
           <div>
             <h2 className="text-2xl font-black text-brand">Que esta pasando</h2>
-            <p className="mt-3 text-base leading-8 text-slate-800">{article.editorial_sections.que_esta_pasando}</p>
+            <p className="mt-3 text-base leading-8 text-slate-800">{article.editorial_sections!.que_esta_pasando}</p>
           </div>
           <div>
             <h2 className="text-2xl font-black text-brand">Claves del dia</h2>
-            <p className="mt-3 text-base leading-8 text-slate-800">{article.editorial_sections.claves_del_dia}</p>
+            <p className="mt-3 text-base leading-8 text-slate-800">{article.editorial_sections!.claves_del_dia}</p>
           </div>
           <div>
             <h2 className="text-2xl font-black text-brand">Que significa para America Latina</h2>
             <p className="mt-3 text-base leading-8 text-slate-800">
-              {article.editorial_sections.que_significa_para_america_latina}
+              {article.editorial_sections!.que_significa_para_america_latina}
             </p>
           </div>
           <div>
             <h2 className="text-2xl font-black text-brand">Por que importa</h2>
-            <p className="mt-3 text-base leading-8 text-slate-800">{article.editorial_sections.por_que_importa}</p>
+            <p className="mt-3 text-base leading-8 text-slate-800">{article.editorial_sections!.por_que_importa}</p>
           </div>
 
-          {editorial.faqItems.length > 0 ? (
+          {editorial!.faqItems.length > 0 ? (
             <div className="border-t border-slate-200 pt-8">
               <h2 className="text-2xl font-black text-brand">Preguntas frecuentes</h2>
               <div className="mt-4 space-y-4">
-                {editorial.faqItems.map((item) => (
+                {editorial!.faqItems.map((item) => (
                   <section key={item.question}>
                     <h3 className="text-sm font-semibold text-slate-900">{item.question}</h3>
                     <p className="mt-2 text-base leading-8 text-slate-800">{item.answer}</p>
@@ -121,6 +133,8 @@ export default async function OpinionDetailPage({ params }: OpinionDetailPagePro
               </div>
             </div>
           ) : null}
+          </>}
+          {manual ? <ManualImpactSources sources={article.editorial_sources} /> : null}
         </section>
       </article>
 

@@ -39,6 +39,7 @@ type MetadataInput = {
   type?: "website" | "article";
   publishedTime?: string;
   modifiedTime?: string;
+  author?: string;
   noindex?: boolean;
   keywords?: string[];
 };
@@ -82,6 +83,7 @@ export function buildMetadata(input: MetadataInput): Metadata {
     title: fullTitle,
     description,
     category: "news",
+    ...(input.author ? { authors: [{ name: input.author }] } : {}),
     keywords: input.keywords,
     alternates: { canonical },
     robots,

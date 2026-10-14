@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
-import { readEditorialSources } from "@/lib/manual-editorial";
+import { readEditorialSources, isManualImpactOriginal, isEligibleImpactOriginal, type OriginalImpactFormat } from "@/lib/manual-editorial";
+import { loadImpactOriginalArchive, loadImpactOriginalCategory } from "@/lib/impacto-originals";
 import {
   dedupeBySourceUrl,
   pickHero,
@@ -200,7 +201,7 @@ export function mapRecordToArticle(record: Record<string, unknown>): Article {
   const rawTitle = String(record.title ?? "");
   const title = cleanPlainText(rawTitle) || "Actualizacion internacional";
   const rawExcerpt = String(record.summary ?? record.excerpt ?? "");
-  const manual = record.source_type === "manual" && Boolean(record.is_impact) && record.impact_format === "editorial";
+  const manual = isManualImpactOriginal(record as unknown as Article);
   const excerpt = manual ? String(record.excerpt ?? record.summary ?? "") : cleanExcerpt(rawExcerpt, 280) || `${title}.`;
   const rawContent = (record.content as string | null) ?? null;
   const country = normalizeCountry(String(record.country ?? ""));
@@ -263,6 +264,11 @@ export function mapRecordToArticle(record: Record<string, unknown>): Article {
       record.editorial_status === "failed"
         ? (record.editorial_status as Article["editorial_status"])
         : null,
+    editorial_review_status:
+      record.editorial_review_status === "approved" || record.editorial_review_status === "pending" ||
+      record.editorial_review_status === "rejected" || record.editorial_review_status === "not_requested"
+        ? record.editorial_review_status : null,
+    editorial_reviewed_at: record.editorial_reviewed_at ? String(record.editorial_reviewed_at) : null,
     editorial_generated_at: record.editorial_generated_at
       ? String(record.editorial_generated_at)
       : null,
@@ -307,7 +313,7 @@ export function mapRecordToArticle(record: Record<string, unknown>): Article {
       !Array.isArray(record.editorial_sections)
         ? (record.editorial_sections as EditorialSections)
         : null,
-    published_at: String(record.published_at ?? new Date().toISOString()),
+    published_at: String(record.published_at ?? (manual ? "" : new Date().toISOString())),
     created_at: String(record.created_at ?? new Date().toISOString()),
     is_featured: Boolean(record.is_featured),
     is_impact: Boolean(record.is_impact),
@@ -525,7 +531,10 @@ export async function getHomeData(input?: {
   onlyNewsdata?: boolean;
 }): Promise<HomeData> {
   const listingLimit = input?.region ? 180 : 240;
-  const allArticles = await getListingArticles({ limit: listingLimit, region: input?.region, onlyNewsdata: input?.onlyNewsdata });
+  const [allArticles, latestEditorial] = await Promise.all([
+    getListingArticles({ limit: listingLimit, region: input?.region, onlyNewsdata: input?.onlyNewsdata }),
+    getLatestEditorial()
+  ]);
   const sourceScoped = input?.onlyNewsdata
     ? allArticles.filter((article) => article.tags.includes("newsdata"))
     : allArticles;
@@ -559,7 +568,6 @@ export async function getHomeData(input?: {
   const ticker = pool.slice(0, 10).map((article) => article.title);
 
   const impactArticles = all.filter((article) => article.is_impact);
-  const editorialArticles = impactArticles.filter((article) => article.impact_format === "editorial");
   const analysisArticles = impactArticles.filter((article) => article.impact_format !== "editorial");
   const fallbackImpact = analysisArticles;
 
@@ -567,7 +575,7 @@ export async function getHomeData(input?: {
     ticker,
     heroLead: hero.lead,
     heroSecondary: hero.secondary,
-    latestEditorial: editorialArticles[0] ?? null,
+    latestEditorial,
     impact: fallbackImpact.slice(0, 3),
     latest: pool.slice(0, 30),
     regionBlocks,
@@ -610,10 +618,16 @@ export async function getImpactArticles(limit = 3): Promise<Article[]> {
 }
 
 export async function getEditorialArticles(limit = 12): Promise<Article[]> {
-  const recent = await getListingArticles({ limit: Math.max(limit * 8, 48) });
-  return recent
-    .filter((article) => article.is_impact && article.impact_format === "editorial")
-    .slice(0, limit);
+  return loadImpactOriginalCategory(readImpactOriginalPage, "editorial", limit);
+}
+
+async function readImpactOriginalPage(format: OriginalImpactFormat, page: number, pageSize: number): Promise<Article[]> {
+  const result = await listD1WorkerArticles({ page, pageSize, sourceType: "manual", isImpact: true, impactFormat: format });
+  return result.data.map((article) => mapRecordToArticle(article as unknown as Record<string, unknown>));
+}
+
+export async function getImpactOriginalArchive(page = 1) {
+  return loadImpactOriginalArchive(readImpactOriginalPage, page);
 }
 
 export async function getLatestEditorial(): Promise<Article | null> {
@@ -622,17 +636,11 @@ export async function getLatestEditorial(): Promise<Article | null> {
 }
 
 export async function getOpinionArticles(limit = 6): Promise<Article[]> {
-  const recent = await getListingArticles({ limit: Math.max(limit * 8, 48) });
-  return recent
-    .filter((article) => article.is_impact && article.impact_format === "opinion")
-    .slice(0, limit);
+  return loadImpactOriginalCategory(readImpactOriginalPage, "opinion", limit);
 }
 
 export async function getColumnistArticles(limit = 6): Promise<Article[]> {
-  const recent = await getListingArticles({ limit: Math.max(limit * 8, 48) });
-  return recent
-    .filter((article) => article.is_impact && article.impact_format === "columnist")
-    .slice(0, limit);
+  return loadImpactOriginalCategory(readImpactOriginalPage, "columnist", limit);
 }
 
 export async function getArticleBySlug(
@@ -647,16 +655,17 @@ export async function getArticleBySlug(
     if (kind === "nota" && !isDisplayableArticle(cachedArticle) && !isPublishedLatamApiNote(cachedArticle)) {
       return null;
     }
-    if (kind === "impacto" && (!cachedArticle.is_impact || cachedArticle.impact_format === "editorial")) {
+    if (isManualImpactOriginal(cachedArticle) && !isEligibleImpactOriginal(cachedArticle)) return null;
+    if (kind === "impacto" && (!cachedArticle.is_impact || cachedArticle.impact_format !== "analysis")) {
       return null;
     }
-    if (kind === "impacto-editorial" && cachedArticle.impact_format !== "editorial") {
+    if (kind === "impacto-editorial" && (!cachedArticle.is_impact || cachedArticle.impact_format !== "editorial")) {
       return null;
     }
-    if (kind === "impacto-opinion" && cachedArticle.impact_format !== "opinion") {
+    if (kind === "impacto-opinion" && (!cachedArticle.is_impact || cachedArticle.impact_format !== "opinion")) {
       return null;
     }
-    if (kind === "impacto-columnista" && cachedArticle.impact_format !== "columnist") {
+    if (kind === "impacto-columnista" && (!cachedArticle.is_impact || cachedArticle.impact_format !== "columnist")) {
       return null;
     }
     return cachedArticle;
@@ -665,19 +674,20 @@ export async function getArticleBySlug(
   const all = await getAllArticles();
   const article = all.find((item) => item.slug === slug);
   if (!article) return null;
+  if (isManualImpactOriginal(article) && !isEligibleImpactOriginal(article)) return null;
   if (kind === "nota" && article.is_impact) {
     return null;
   }
-  if (kind === "impacto" && (!article.is_impact || article.impact_format === "editorial")) {
+  if (kind === "impacto" && (!article.is_impact || article.impact_format !== "analysis")) {
     return null;
   }
-  if (kind === "impacto-editorial" && article.impact_format !== "editorial") {
+  if (kind === "impacto-editorial" && (!article.is_impact || article.impact_format !== "editorial")) {
     return null;
   }
-  if (kind === "impacto-opinion" && article.impact_format !== "opinion") {
+  if (kind === "impacto-opinion" && (!article.is_impact || article.impact_format !== "opinion")) {
     return null;
   }
-  if (kind === "impacto-columnista" && article.impact_format !== "columnist") {
+  if (kind === "impacto-columnista" && (!article.is_impact || article.impact_format !== "columnist")) {
     return null;
   }
   return article;
@@ -849,7 +859,8 @@ export async function getSitemapHubs(): Promise<
 }
 
 async function getSitemapEligibleArticles(): Promise<Article[]> {
-  return getAllArticles();
+  const all = await getAllArticles();
+  return all.filter((article) => !isManualImpactOriginal(article) || isEligibleImpactOriginal(article));
 }
 
 export async function getArticlesByTag(tag: string, limit = 24): Promise<Article[]> {
