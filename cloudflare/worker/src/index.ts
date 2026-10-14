@@ -37,7 +37,7 @@ const RSS_CRON_SOURCES = [
   { id: "rss-elpais-ultimas", name: "El País España", feedUrl: "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/ultimas-noticias/portada", tag: "rss-elpais" },
   { id: "rss-france24-es", name: "France 24 Español", feedUrl: "https://www.france24.com/es/rss", tag: "rss-france24-es" },
   { id: "rss-bbc-mundo", name: "BBC Mundo", feedUrl: "https://feeds.bbci.co.uk/mundo/rss.xml", tag: "rss-bbc-mundo" },
-  { id: "rss-mercopress", name: "MercoPress", feedUrl: "https://es.mercopress.com/rss/america-latina", tag: "rss-mercopress" }
+  { id: "rss-mercopress", name: "MercoPress", feedUrl: "https://es.mercopress.com/rss/", tag: "rss-mercopress" }
 ] as const;
 const RSS_ITEM_LIMIT = 25;
 // Infobae keeps independent manual and scheduled switches outside the regular source registry.

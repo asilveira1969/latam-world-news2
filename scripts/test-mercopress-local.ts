@@ -42,7 +42,7 @@ async function main(){
     }) as typeof fetch;
     const cron=async(value='0 */4 * * *')=>{let p:Promise<unknown>=Promise.resolve();await worker.scheduled({cron:value},env,{waitUntil(next){p=next;}});await p;};
     const rows=async()=>(await db.prepare("SELECT * FROM articles WHERE source_name='MercoPress' ORDER BY source_url").all()).results;
-    await cron();assert.equal(requested.length,5);assert.equal(requested.filter(u=>u==='https://es.mercopress.com/rss/america-latina').length,1);
+    await cron();assert.equal(requested.length,5);assert.equal(requested.filter(u=>u==='https://es.mercopress.com/rss/').length,1);
     const imported=await rows();assert.equal(imported.length,25);
     for(const row of imported){assert.equal(row.editorial_status,'pending_review');assert.equal(row.editorial_review_status,'pending');assert.equal(row.content,null);assert.equal(row.source,'MercoPress');assert.equal(row.url,row.source_url);assert.equal(row.published_at,now);assert.ok(String(row.excerpt).length<=280);assert.doesNotMatch(String(row.excerpt),/<[^>]+>/);assert.ok(row.category);assert.equal((await worker.fetch(new Request('http://localhost/articles/'+row.slug),env)).status,404);}
     const publicRows=await(await worker.fetch(new Request('http://localhost/articles'),env)).json() as {data:{slug:string}[]};assert.deepEqual(publicRows.data.map(r=>r.slug),['approved']);
