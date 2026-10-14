@@ -1,7 +1,7 @@
 # MercoPress español: incorporación RSS
 
 Fuente regular rss-mercopress, nombre MercoPress, feed
-https://es.mercopress.com/rss/america-latina, tag rss-mercopress.
+https://es.mercopress.com/rss/, tag rss-mercopress.
 Comparte cron 0 */4 * * * y límite RSS_ITEM_LIMIT=25 con RT, El País,
 France24 y BBC. No tiene ruta, botón, tanda de piloto ni cron propio.
 Infobae queda con ambos interruptores false.
@@ -54,3 +54,12 @@ No ejecutar /internal/ingestion/rss ni acciones editoriales como prueba.
 Esperar el siguiente cron normal, capturar su resumen existente y consultar
 en solo lectura los registros MercoPress, bandeja del día y rutas públicas.
 No afirmar un número de noticias antes de esa primera ejecución real.
+
+## Cambio al feed principal — 14 de octubre de 2026
+
+El feed principal incluye noticias ausentes en la categoría América Latina.
+Se conserva el identificador rss-mercopress, cron, límite y revisión editorial.
+TypeScript y pruebas locales de parser y D1 pasaron. El XML se descargó desde
+este entorno, no desde Cloudflare; la validación remota del 13 de octubre
+corresponde al antiguo feed de categoría. Pendiente validar el nuevo feed desde
+Workers y desplegarlo con la sesión operativa, sin ingestas manuales.
