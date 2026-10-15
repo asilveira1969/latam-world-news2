@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.latamworldnews.app",
+      "sha256_cert_fingerprints": [
+        "83:74:57:9A:26:60:1E:D9:BD:E6:C6:77:A6:E7:76:F7:D1:E0:1D:D1:F8:E8:59:1C:AC:7F:13:15:73:31:97:75"
+      ]
+    }
+  }
+]
