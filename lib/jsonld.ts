@@ -1,4 +1,5 @@
 import { SITE_NAME } from "@/lib/constants/nav";
+import { publicDwArticle } from "@/lib/editorial/dw-summary";
 import { getArticleDisplayMeta } from "@/lib/editorial/article-display";
 import { getEditorialBlocks, type FaqItem } from "@/lib/article-seo";
 import { isValidHttpUrl, resolveCardImage } from "@/lib/images";
@@ -125,6 +126,7 @@ export function buildNewsArticleJsonLd(
   pathname: string,
   relatedArticles: Article[] = []
 ) {
+  article = publicDwArticle(article);
   const manual = isManualImpactOriginal(article);
   const editorial = manual ? null : getEditorialBlocks(article);
   const displayMeta = getArticleDisplayMeta(article);

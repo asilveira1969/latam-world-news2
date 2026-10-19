@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { isDwArticle } from "@/lib/editorial/dw-summary";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ArticleEngagementTracker from "@/components/ArticleEngagementTracker";
@@ -148,9 +149,9 @@ export default async function NotaPage({ params }: NotePageProps) {
           {article.editorial_updated_at ? <p className="mt-1 text-sm text-slate-600">Actualizado: {new Date(article.editorial_updated_at).toLocaleString("es-ES")}</p> : null}
         </header>
 
-        <div className="relative mt-6 aspect-video overflow-hidden rounded border border-slate-200 bg-slate-100">
+        {!isDwArticle(article) ? <div className="relative mt-6 aspect-video overflow-hidden rounded border border-slate-200 bg-slate-100">
           <NewsImage src={article.image_url} alt={article.title} sizes="100vw" className="object-cover" />
-        </div>
+        </div> : null}
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-stone-50/80 p-5 sm:p-6">
           <h2 className="text-lg font-bold text-brand">Resumen de LATAM World News / Qué pasó</h2>
@@ -179,8 +180,8 @@ export default async function NotaPage({ params }: NotePageProps) {
         </section>
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-          <h2 className="text-lg font-bold text-brand">Noticia curada por LatamWorldNews</h2>
-          <p className="mt-3 leading-7 text-slate-800">{persistedCurated}</p>
+          {!isDwArticle(article) ? <><h2 className="text-lg font-bold text-brand">Noticia curada por LatamWorldNews</h2>
+          <p className="mt-3 leading-7 text-slate-800">{persistedCurated}</p></> : null}
 
           <TrackedExternalLink
             href={article.source_url}

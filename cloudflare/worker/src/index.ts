@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import { isDwArticle, hasReviewedDwSummary, validateDwSummary, normalizeDwSummary, publicDwArticle } from "../../../lib/editorial/dw-summary";
 import { logInfobaeDownloadFailure } from "./infobae-download-diagnostic";
 import { editorialDayStart } from "../../../lib/editorial-dashboard/day-boundary";
 
@@ -14,7 +15,7 @@ interface D1Database {
   prepare(query: string): D1PreparedStatement;
   batch(statements: D1PreparedStatement[]): Promise<D1RunResult[]>;
 }
-interface Env { DB: D1Database; INTERNAL_API_SECRET?: string; INFOBAE_MANUAL_ENABLED?: string; INFOBAE_SCHEDULED_ENABLED?: string; }
+interface Env { DB: D1Database; INTERNAL_API_SECRET?: string; INFOBAE_MANUAL_ENABLED?: string; INFOBAE_SCHEDULED_ENABLED?: string; DW_RSS_ENABLED?: string; }
 interface ScheduledController { cron?: string; }
 
 type Row = Record<string, unknown>;
@@ -31,13 +32,16 @@ const PUBLIC_READY_CLAUSE = "editorial_status = 'ready' AND editorial_review_sta
 const NEWS_SITEMAP_WINDOW_MS = 48 * 60 * 60 * 1_000;
 const NEWS_SITEMAP_READY_CLAUSE = "editorial_status = 'ready' AND editorial_review_status = 'approved' AND editorial_reviewed_at IS NOT NULL AND published_at >= ? AND published_at <= ?";
 const DAILY_EDITORIAL_CLEANUP_CRON = "0 3 * * *";
+// Exclude historical DW approvals lacking a reviewed summary before pagination.
+const DW_PUBLIC_GUARD = `(NOT (lower(coalesce(source_name,'')) IN ('dw español','dw espanol','deutsche welle','deutsche welle (dw)') OR lower(coalesce(source_url,'')) LIKE '%://www.dw.com/%' OR lower(coalesce(source_url,'')) LIKE '%://dw.com/%') OR (length(trim(coalesce(latamworldnews_summary,''))) BETWEEN 1 AND 280 AND CASE WHEN json_valid(editorial_validation) THEN json_extract(editorial_validation,'$.dw_summary_reviewed') = 1 ELSE 0 END))`;
 
 const RSS_CRON_SOURCES = [
   { id: "rss-rt", name: "RT Actualidad", feedUrl: "https://actualidad.rt.com/feeds/all.rss", tag: "rss-rt" },
   { id: "rss-elpais-ultimas", name: "El País España", feedUrl: "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/ultimas-noticias/portada", tag: "rss-elpais" },
   { id: "rss-france24-es", name: "France 24 Español", feedUrl: "https://www.france24.com/es/rss", tag: "rss-france24-es" },
   { id: "rss-bbc-mundo", name: "BBC Mundo", feedUrl: "https://feeds.bbci.co.uk/mundo/rss.xml", tag: "rss-bbc-mundo" },
-  { id: "rss-mercopress", name: "MercoPress", feedUrl: "https://es.mercopress.com/rss/", tag: "rss-mercopress" }
+  { id: "rss-mercopress", name: "MercoPress", feedUrl: "https://es.mercopress.com/rss/", tag: "rss-mercopress" },
+  { id: "rss-dw-es", name: "DW Español", feedUrl: "https://rss.dw.com/xml/rss-sp-all", tag: "rss-dw-es" }
 ] as const;
 const RSS_ITEM_LIMIT = 25;
 // Infobae keeps independent manual and scheduled switches outside the regular source registry.
@@ -196,6 +200,7 @@ async function ingestRssSource(db: D1Database, source: { id: string; name: strin
     const duplicate = await possibleTopicDuplicate(db, { slug, title: item.title, sourceUrl: item.sourceUrl, sourceName: source.name, publishedAt });
     const taxonomy = rssCategory(item.title, item.excerpt);
     const article = normalizeArticle({ title: item.title, slug, excerpt: item.excerpt, content: null, image_url: item.imageUrl, source_name: source.name, source_url: item.sourceUrl, url: item.sourceUrl, summary: item.excerpt, source: source.name, source_type: "rss", region: "Mundo", category: taxonomy.category, section_slug: taxonomy.section_slug, topic_slug: taxonomy.topic_slug, tags: ["rss", source.tag, taxonomy.topic_slug, "editorial-pendiente"], countries: [], language: "es", raw: { imported_via: "cloudflare-scheduled-rss", rss: true, source_id: source.id }, published_at: publishedAt, editorial_status: "pending_review", editorial_review_status: "pending", possible_topic_duplicate: Boolean(duplicate), topic_duplicate_group: duplicate?.group ?? null, topic_duplicate_confidence: duplicate?.confidence ?? null, topic_duplicate_of_slug: duplicate?.matchedSlug ?? null });
+    if (source.id === "rss-dw-es") article.image_url = "";
     article.source_url_hash = sourceUrlHash;
     if (manual) article.raw = asJson({ imported_via: "cloudflare-manual-rss", rss: true, source_id: source.id }, {});
     const inserted = await writeArticle(db, article, db.prepare(`INSERT INTO articles (${STORED_ARTICLE_COLUMNS.join(", ")}) VALUES (${STORED_ARTICLE_COLUMNS.map(() => "?").join(", ")}) ON CONFLICT DO NOTHING`).bind(...STORED_ARTICLE_COLUMNS.map((column) => article[column] ?? null)));
@@ -218,10 +223,11 @@ async function deleteExpiredPendingArticles(db: D1Database, now = new Date()) {
   const result = results[1];
   return { cutoff, deleted: result.meta.changes ?? 0 };
 }
-async function runScheduledRssIngestion(db: D1Database, infobaeEnabled = false) {
+async function runScheduledRssIngestion(db: D1Database, infobaeEnabled = false, dwEnabled = false) {
   const cleanup = await deleteExpiredPendingArticles(db);
   const results: Array<{ sourceId: string; created: number; skipped: number; error?: string }> = [];
-  const sources = infobaeEnabled ? [...RSS_CRON_SOURCES, INFOBAE_SOURCE] : RSS_CRON_SOURCES;
+  const regularSources = RSS_CRON_SOURCES.filter(source => source.id !== "rss-dw-es" || dwEnabled);
+  const sources = infobaeEnabled ? [...regularSources, INFOBAE_SOURCE] : regularSources;
   for (const source of sources) {
     try { results.push(await ingestRssSource(db, source, source.id === INFOBAE_SOURCE.id ? 5 : RSS_ITEM_LIMIT)); }
     catch (error) { const message = error instanceof Error ? error.message : "Unknown RSS error."; await recordError(db, { source_id: source.id, provider: "rss", message, context: { scheduled: true, source_name: source.name } }).catch(() => undefined); results.push({ sourceId: source.id, created: 0, skipped: 0, error: message }); }
@@ -229,11 +235,17 @@ async function runScheduledRssIngestion(db: D1Database, infobaeEnabled = false) 
   return { run_at: new Date().toISOString(), cleanup, sources: results, created: results.reduce((total, result) => total + result.created, 0), skipped: results.reduce((total, result) => total + result.skipped, 0), failed: results.filter((result) => result.error).length };
 }
 async function upsertArticle(db: D1Database, input: Row) {
+  if (isDwArticle(input) && (input.editorial_status === "ready" || input.editorial_review_status === "approved")) throw new Error("DW must be approved through editorial review.");
   const sourceUrlHash = await rejectionUrlHash(stringValue(input.source_url));
   if (await db.prepare("SELECT url_hash FROM rejected_article_urls WHERE url_hash = ?").bind(sourceUrlHash).first()) throw new RequestError("Rejected source URL", 409);
   const initial = normalizeArticle(input); const matches = await db.prepare("SELECT id FROM articles WHERE slug = ? OR source_url = ? OR url = ?").bind(initial.slug, initial.source_url, initial.url).all<{ id: string }>(); const ids = [...new Set(matches.results.map((row) => row.id))];
   if (ids.length > 1 || (ids.length === 1 && stringValue(input.id) && ids[0] !== input.id)) throw new Error("Conflicting slug, source_url, or url belongs to another article.");
   const article = normalizeArticle(input, ids[0]); article.source_url_hash = sourceUrlHash;
+  if (ids.length) {
+    const previous = await db.prepare("SELECT * FROM articles WHERE id = ?").bind(ids[0]).first<Row>();
+    if (previous && isDwArticle(previous)) throw new Error("Existing DW articles must use the editorial endpoints.");
+  }
+  if (isDwArticle(article)) { article.editorial_status = "pending_review"; article.editorial_review_status = "pending"; article.latamworldnews_summary = null; article.editorial_validation = "{}"; article.content = null; article.image_url = ""; }
   const values = STORED_ARTICLE_COLUMNS.map((column) => article[column] ?? null); const assignments = STORED_ARTICLE_COLUMNS.filter((column) => column !== "id" && column !== "created_at").map((column) => `${column} = excluded.${column}`).join(", ");
   const written = await writeArticle(db, article, db.prepare(`INSERT INTO articles (${STORED_ARTICLE_COLUMNS.join(", ")}) VALUES (${STORED_ARTICLE_COLUMNS.map(() => "?").join(", ")}) ON CONFLICT(id) DO UPDATE SET ${assignments}`).bind(...values));
   if (!(written.meta.changes ?? 0)) throw new RequestError("Rejected source URL", 409);
@@ -255,9 +267,18 @@ function normalizeEditorialPatch(input: Row): Row {
   return { ...input, country: stringValue(input.country) || null, region: stringValue(input.region) || "Mundo", category: stringValue(input.category) || "Internacional", topic_slug: stringValue(input.topic_slug) || null, section_slug: stringValue(input.section_slug) || "mundo", tags: asJson(input.tags, []), countries: asJson(input.countries, []), latamworldnews_summary: summary, editorial_generated_at: stringValue(input.editorial_generated_at) || new Date().toISOString(), editorial_model: stringValue(input.editorial_model), editorial_origin: "generated_metadata_only", editorial_input_hash: stringValue(input.editorial_input_hash), editorial_prompt_version: stringValue(input.editorial_prompt_version), editorial_validation: asJson(input.editorial_validation, {}), editorial_format: format || null, editorial_key_takeaway: stringValue(input.editorial_key_takeaway) || null, editorial_what_to_watch: stringValue(input.editorial_what_to_watch) || null, editorial_latam_impact: stringValue(input.editorial_latam_impact) || null, editorial_author: stringValue(input.editorial_author) || "Redacción LATAM World News", editorial_updated_at: stringValue(input.editorial_updated_at) || new Date().toISOString(), editorial_status: "pending_review", editorial_review_status: "pending" };
 }
 async function patchArticleEditorial(db: D1Database, slug: string, input: Row) {
-  const existing = await db.prepare("SELECT id FROM articles WHERE slug = ?").bind(slug).first<{ id: string }>();
+  const existing = await db.prepare("SELECT * FROM articles WHERE slug = ?").bind(slug).first<Row>();
   if (!existing) throw new Error("Article not found.");
-  const patch = normalizeEditorialPatch(input); const values = EDITORIAL_PATCH_COLUMNS.map((column) => patch[column] ?? null);
+  const patch = normalizeEditorialPatch(input);
+  if (isDwArticle(existing)) {
+    const summary = validateDwSummary(input.latamworldnews_summary);
+    const validation = parseJson(input.editorial_validation) as Row | undefined;
+    if (validation?.dw_summary_reviewed !== true || input.editorial_model !== "editorial-manual-dw") throw new Error("Confirma la revisión humana del resumen DW.");
+    if ([existing.excerpt, existing.summary].some(text => normalizeDwSummary(text).toLowerCase() === summary.toLowerCase())) throw new Error("Redacta un resumen propio; no copies la descripción RSS.");
+    patch.latamworldnews_summary = summary;
+    patch.editorial_format = null;
+  }
+  const values = EDITORIAL_PATCH_COLUMNS.map((column) => patch[column] ?? null);
   await db.prepare(`UPDATE articles SET ${EDITORIAL_PATCH_COLUMNS.map((column) => `${column} = ?`).join(", ")} WHERE slug = ?`).bind(...values, slug).run(); const saved = await db.prepare("SELECT * FROM articles WHERE slug = ?").bind(slug).first<Row>(); return serializeArticle(saved ?? patch);
 }
 
@@ -288,7 +309,8 @@ async function applyEditorialDecisionBatch(db: D1Database, input: Row) {
   const missing = changes.filter((_, index) => !existing[index]).map((change) => change.slug);
   if (missing.length) throw new Error(`Unknown article slugs: ${missing.join(", ")}`);
   for (const change of changes.filter((item) => item.editorial_status === "ready")) {
-    const draft = await db.prepare("SELECT editorial_format, latamworldnews_summary, editorial_key_takeaway FROM articles WHERE slug = ?").bind(change.slug).first<Row>();
+    const draft = await db.prepare("SELECT * FROM articles WHERE slug = ?").bind(change.slug).first<Row>();
+    if (draft && isDwArticle(draft) && !hasReviewedDwSummary(draft)) throw new Error("DW requiere guardar un resumen propio revisado de hasta 280 caracteres antes de aprobar.");
     if (stringValue(draft?.editorial_format) && (!stringValue(draft?.latamworldnews_summary) || !stringValue(draft?.editorial_key_takeaway))) throw new Error("Articles using the AI editorial flow require a saved draft before approval.");
   }
   await db.batch(changes.map((change) => {
@@ -354,7 +376,7 @@ async function listArticles(db: D1Database, url: URL, publicOnly: boolean) {
   const newsSitemap = publicOnly && url.searchParams.get("news_sitemap") === "1";
   const now = new Date();
   const clauses: string[] = publicOnly
-    ? [newsSitemap ? NEWS_SITEMAP_READY_CLAUSE : PUBLIC_READY_CLAUSE]
+    ? [newsSitemap ? NEWS_SITEMAP_READY_CLAUSE : PUBLIC_READY_CLAUSE, DW_PUBLIC_GUARD]
     : [];
   const values: unknown[] = publicOnly
     ? newsSitemap
@@ -368,14 +390,16 @@ async function listArticles(db: D1Database, url: URL, publicOnly: boolean) {
   if (search) { clauses.push("(title LIKE ? OR excerpt LIKE ? OR summary LIKE ?)"); values.push(`%${search.slice(0, 120)}%`, `%${search.slice(0, 120)}%`, `%${search.slice(0, 120)}%`); }
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
   const result = await db.prepare(`SELECT * FROM articles ${where} ORDER BY published_at DESC LIMIT ? OFFSET ?`).bind(...values, pageSize, (page - 1) * pageSize).all<Row>();
-  return json({ data: result.results.map(serializeArticle), pagination: { page, pageSize } });
+  const visible = publicOnly ? result.results.filter(row => !isDwArticle(row) || hasReviewedDwSummary(row)).map(publicDwArticle) : result.results;
+  return json({ data: visible.map(serializeArticle), pagination: { page, pageSize } });
 }
 async function getArticleBySlug(db: D1Database, slug: string, publicOnly: boolean) {
   const query = publicOnly ? `SELECT * FROM articles WHERE slug = ? AND ${PUBLIC_READY_CLAUSE} LIMIT 1` : "SELECT * FROM articles WHERE slug = ? LIMIT 1";
   const article = publicOnly
     ? await db.prepare(query).bind(slug, publicPublicationCutoff()).first<Row>()
     : await db.prepare(query).bind(slug).first<Row>();
-  return article ? json({ data: serializeArticle(article) }) : json({ error: "Not found" }, { status: 404 });
+  if (publicOnly && article && isDwArticle(article) && !hasReviewedDwSummary(article)) return json({ error: "Not found" }, { status: 404 });
+  return article ? json({ data: serializeArticle(publicOnly ? publicDwArticle(article) : article) }) : json({ error: "Not found" }, { status: 404 });
 }
 
 export default {
@@ -392,7 +416,7 @@ export default {
       if (request.method === "POST" && path === "/internal/editorial/apply-batch") return internalWriteJson({ data: await applyEditorialDecisionBatch(env.DB, await requestBody(request)) });
       if (request.method === "POST" && path === "/internal/articles/delete-batch") return internalWriteJson({ data: await deleteArticleBatch(env.DB, await requestBody(request)) });
       if (request.method === "POST" && path === "/internal/articles/upsert") { const payload = await requestBody(request); const result = await upsertArticle(env.DB, payload.article as Row); return internalWriteJson({ data: result.article, created: result.created }, { status: result.created ? 201 : 200 }); }
-      if (request.method === "POST" && path === "/internal/ingestion/rss") return internalWriteJson({ data: await runScheduledRssIngestion(env.DB, env.INFOBAE_SCHEDULED_ENABLED === "true") });
+      if (request.method === "POST" && path === "/internal/ingestion/rss") return internalWriteJson({ data: await runScheduledRssIngestion(env.DB, env.INFOBAE_SCHEDULED_ENABLED === "true", env.DW_RSS_ENABLED === "true") });
       if (request.method === "POST" && path === "/internal/ingestion/infobae") {
         if (env.INFOBAE_MANUAL_ENABLED !== "true") return internalWriteJson({ error: "Infobae manual ingestion is disabled" }, { status: 503 });
         const payload = await requestBody(request);
@@ -418,6 +442,6 @@ export default {
       ctx.waitUntil(deleteExpiredPendingArticles(env.DB).then((summary) => console.log("Editorial inbox cleanup completed", summary)).catch((error) => console.error("Editorial inbox cleanup failed", error)));
       return;
     }
-    ctx.waitUntil(runScheduledRssIngestion(env.DB, env.INFOBAE_SCHEDULED_ENABLED === "true").then((summary) => console.log("RSS cron completed", summary)).catch((error) => console.error("RSS cron failed", error)));
+    ctx.waitUntil(runScheduledRssIngestion(env.DB, env.INFOBAE_SCHEDULED_ENABLED === "true", env.DW_RSS_ENABLED === "true").then((summary) => console.log("RSS cron completed", summary)).catch((error) => console.error("RSS cron failed", error)));
   }
 };
