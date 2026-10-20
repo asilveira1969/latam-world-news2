@@ -478,3 +478,103 @@ Resultado exit=0, 29/29 páginas estáticas generadas, sin acceder a producción
 El fallo preexistente de test-editorial-ai-drafts y la incertidumbre legal
 se mantienen documentados. DW_RSS_ENABLED y ambos indicadores Infobae siguen
 false; no hay migraciones ni cambios de cron.
+
+## Corrección local de paginación del PR #27 — 20/10/2026
+
+Base local: `codex/dw-espanol-rss`, commit `1339883`. Se conservaron los 19
+archivos de la integración y los cambios locales encontrados al comenzar.
+Esta etapa no consulta ni modifica servicios remotos y no publica cambios.
+
+La guarda SQL anterior aproximaba las reglas TypeScript: no rechazaba HTML,
+confundía `true` con el número `1`, contaba caracteres de modo distinto a
+JavaScript y reconocía menos variantes de identidad DW. Tampoco normalizaba
+los espacios como `normalizeDwSummary`. El filtro TypeScript posterior a
+`LIMIT/OFFSET` ocultaba esas filas, pero sus posiciones ya habían desplazado
+noticias válidas; la aproximación SQL también podía excluir resúmenes válidos.
+
+Se elimina esa segunda definición de validez. Antes de paginar, una consulta
+de solo lectura obtiene exclusivamente metadatos de visibilidad de los
+candidatos, con los mismos filtros y parámetros de la consulta final.
+`isDwArticle` y `hasReviewedDwSummary`, compartidas con el detalle público,
+identifican los IDs no publicables. La consulta paginada los excluye mediante
+`id NOT IN (SELECT value FROM json_each(?))` antes de `LIMIT/OFFSET`.
+El JSON se pasa como un único parámetro enlazado, sin interpolar IDs.
+Después solo se proyectan y serializan resultados; no se filtran filas DW.
+El orden público incorpora `id DESC` para desempatar fechas iguales; el
+orden de la bandeja interna se conserva. No hay migraciones ni escrituras.
+
+Coste explícito: cada listado público añade una lectura de metadatos de todos
+los candidatos que satisfacen sus filtros, incluso si no hay DW inválida.
+No se descargan cuerpos completos en esa lectura. La prueba funcional local
+no constituye una medición de capacidad sobre un archivo de producción grande.
+
+`test:dw-pagination-local` utiliza D1 efímera, `remote:false`, migraciones ya
+existentes y noticias sintéticas. Contrasta 109 registros publicables con un
+conjunto esperado independiente, intercalando DW históricas inválidas.
+Cubre RT detrás de DW inválida, las cinco fuentes, DW válidas de 280 caracteres,
+normalización de espacios, HTML, Unicode, revisión numérica/falsa, JSON roto,
+alias de nombre/URL, empates de fecha, páginas primera/segunda/última/vacía,
+tamaños 1/7/25/100, búsqueda y filtros combinados, listado público, consulta
+de sitemap y coherencia con HTTP200/404 de los detalles. Compara la base antes
+y después de las lecturas para demostrar que no se reparan datos históricos.
+
+La misma regresión ejecutada contra una copia temporal de `1339883` falla en
+el caso inicial: devuelve `[]` en vez de `['rt-first']`. Las copias temporales
+se eliminan al acabar; no se sobrescribe el Worker ni la prueba en desarrollo.
+
+La expectativa antigua de `test:editorial-dedup` usaba una DW histórica para
+exigir generación pública genérica. Ahora exige que todos sus bloques públicos
+permanezcan vacíos, y conserva las comprobaciones de curación genérica con una
+copia sintética identificada como BBC. Se corrige además una referencia a un
+slug de editorial de Irán ausente de los fixtures actuales usando un editorial
+existente, sin quitar aserciones de separación de resumen/cuerpo/conclusión.
+No cambian los mecanismos de deduplicación ni rechazo permanente.
+
+Verificación final local: PASS en TypeScript sin emisión, compilación Next
+con fixture HTTP local de solo lectura (29/29 páginas), bundle del Worker con
+esbuild y estas 14 pruebas: `test:dw-pagination-local`, `test:editorial-dedup`,
+`test:d1-worker-rss-cron`, `test:dw-summary-local`, `test:dw-local`,
+`scripts/test-mercopress-local.ts`, `test:infobae-scheduled-local`,
+`test:editorial-dashboard-individual`, `test:d1-editorial`, `test:parse-rss`,
+`test:normalize-rss`, `test:news-sitemap`, `test:structured-data` y
+`test:rejected-urls-local`. No se detectaron fallos nuevos. Los HTTP400/401
+provocados por las pruebas negativas de revisión son resultados esperados.
+El fallo preexistente de `test:editorial-ai-drafts` no se ejecuta ni se corrige.
+
+La configuración conserva `DW_RSS_ENABLED=false`, ambos indicadores Infobae
+en false y los cron `0 */4 * * *` y `0 3 * * *`. Sin activación, ingestas
+remotas, escrituras D1 remotas, cambios de infraestructura, despliegue, commit,
+push, nuevo PR, merge ni auto-merge. Lista para incorporar al PR #27 después
+de autorización de publicación; esto no autoriza activar DW ni resuelve la
+cuestión de derechos de reutilización que ya estaba documentada.
+
+### Revisión de rendimiento previa a publicar la corrección
+
+Análisis estático local del Worker, sus índices y `lib/d1/worker-client.ts`:
+
+- Cada petición pública ejecuta dos consultas secuenciales en vez de una.
+  La primera devuelve siete columnas de todos los candidatos, de cualquier
+  fuente, sin `LIMIT`; el trabajo de validación y la transferencia al Worker
+  crecen con ese conjunto, incluso con DW deshabilitada o sin DW inválida.
+- `getAllD1WorkerArticles` recorre páginas de 100 hasta una página corta.
+  Con N candidatos y P páginas no almacenadas en caché, la nueva fase procesa
+  aproximadamente N × P registros de metadatos. Por ejemplo, 10.000 candidatos
+  todos publicables requieren 101 peticiones, incluida la última vacía:
+  1.010.000 registros de metadatos devueltos, además de las consultas paginadas.
+  Es un ejemplo aritmético, no una medición ni un cómputo de filas facturadas.
+- Los índices de revisión/estado/fecha y los filtros pueden reducir candidatos
+  examinados; no evitan recorrer todos los candidatos coincidentes de cada
+  página. El JSON de IDs excluidos y la memoria de validación también crecen
+  con el archivo. El desempate por ID puede añadir trabajo de ordenación.
+- El cliente usa `next: { revalidate: 300 }`; una respuesta reutilizada en
+  caché evita esa llamada al Worker. Las llamadas directas, las variantes de
+  filtros y las renovaciones de caché mantienen el coste descrito. El sitemap
+  de noticias limita candidatos a 48 horas; el listado general no lo hace.
+
+Pendiente antes de cualquier puesta en producción: medir con volumen
+representativo en un entorno aislado las filas leídas reportadas, latencia,
+CPU, memoria y tamaño de respuesta de metadatos/JSON. No se afirma que las
+pruebas funcionales de 109 noticias demuestren capacidad suficiente para un
+archivo grande. No se añaden índices, cachés, migraciones ni cambios de
+infraestructura en este commit. La publicación del Draft no activa el cambio
+en el Worker productivo ni autoriza su despliegue.

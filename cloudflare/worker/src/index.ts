@@ -32,8 +32,6 @@ const PUBLIC_READY_CLAUSE = "editorial_status = 'ready' AND editorial_review_sta
 const NEWS_SITEMAP_WINDOW_MS = 48 * 60 * 60 * 1_000;
 const NEWS_SITEMAP_READY_CLAUSE = "editorial_status = 'ready' AND editorial_review_status = 'approved' AND editorial_reviewed_at IS NOT NULL AND published_at >= ? AND published_at <= ?";
 const DAILY_EDITORIAL_CLEANUP_CRON = "0 3 * * *";
-// Exclude historical DW approvals lacking a reviewed summary before pagination.
-const DW_PUBLIC_GUARD = `(NOT (lower(coalesce(source_name,'')) IN ('dw español','dw espanol','deutsche welle','deutsche welle (dw)') OR lower(coalesce(source_url,'')) LIKE '%://www.dw.com/%' OR lower(coalesce(source_url,'')) LIKE '%://dw.com/%') OR (length(trim(coalesce(latamworldnews_summary,''))) BETWEEN 1 AND 280 AND CASE WHEN json_valid(editorial_validation) THEN json_extract(editorial_validation,'$.dw_summary_reviewed') = 1 ELSE 0 END))`;
 
 const RSS_CRON_SOURCES = [
   { id: "rss-rt", name: "RT Actualidad", feedUrl: "https://actualidad.rt.com/feeds/all.rss", tag: "rss-rt" },
@@ -376,7 +374,7 @@ async function listArticles(db: D1Database, url: URL, publicOnly: boolean) {
   const newsSitemap = publicOnly && url.searchParams.get("news_sitemap") === "1";
   const now = new Date();
   const clauses: string[] = publicOnly
-    ? [newsSitemap ? NEWS_SITEMAP_READY_CLAUSE : PUBLIC_READY_CLAUSE, DW_PUBLIC_GUARD]
+    ? [newsSitemap ? NEWS_SITEMAP_READY_CLAUSE : PUBLIC_READY_CLAUSE]
     : [];
   const values: unknown[] = publicOnly
     ? newsSitemap
@@ -388,9 +386,21 @@ async function listArticles(db: D1Database, url: URL, publicOnly: boolean) {
   }
   const search = url.searchParams.get("q");
   if (search) { clauses.push("(title LIKE ? OR excerpt LIKE ? OR summary LIKE ?)"); values.push(`%${search.slice(0, 120)}%`, `%${search.slice(0, 120)}%`, `%${search.slice(0, 120)}%`); }
+  if (publicOnly) {
+    // Use the same URL/name, Unicode, HTML and human-review rules as detail views.
+    // Only inspect visibility metadata, never bodies, then exclude in SQL BEFORE
+    // LIMIT/OFFSET. A second, approximate SQL validator can silently shorten pages.
+    const candidates = await db.prepare(`SELECT id, source_name, source, source_url, url, latamworldnews_summary, editorial_validation FROM articles WHERE ${clauses.join(" AND ")}`).bind(...values).all<Row>();
+    const hiddenIds = candidates.results.filter(row => isDwArticle(row) && !hasReviewedDwSummary(row)).map(row => row.id);
+    if (hiddenIds.length) {
+      clauses.push("id NOT IN (SELECT value FROM json_each(?))");
+      values.push(JSON.stringify(hiddenIds));
+    }
+  }
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-  const result = await db.prepare(`SELECT * FROM articles ${where} ORDER BY published_at DESC LIMIT ? OFFSET ?`).bind(...values, pageSize, (page - 1) * pageSize).all<Row>();
-  const visible = publicOnly ? result.results.filter(row => !isDwArticle(row) || hasReviewedDwSummary(row)).map(publicDwArticle) : result.results;
+  const orderBy = publicOnly ? "published_at DESC, id DESC" : "published_at DESC";
+  const result = await db.prepare(`SELECT * FROM articles ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).bind(...values, pageSize, (page - 1) * pageSize).all<Row>();
+  const visible = publicOnly ? result.results.map(publicDwArticle) : result.results;
   return json({ data: visible.map(serializeArticle), pagination: { page, pageSize } });
 }
 async function getArticleBySlug(db: D1Database, slug: string, publicOnly: boolean) {
