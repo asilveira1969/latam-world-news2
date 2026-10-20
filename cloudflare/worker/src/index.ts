@@ -386,21 +386,49 @@ async function listArticles(db: D1Database, url: URL, publicOnly: boolean) {
   }
   const search = url.searchParams.get("q");
   if (search) { clauses.push("(title LIKE ? OR excerpt LIKE ? OR summary LIKE ?)"); values.push(`%${search.slice(0, 120)}%`, `%${search.slice(0, 120)}%`, `%${search.slice(0, 120)}%`); }
-  if (publicOnly) {
-    // Use the same URL/name, Unicode, HTML and human-review rules as detail views.
-    // Only inspect visibility metadata, never bodies, then exclude in SQL BEFORE
-    // LIMIT/OFFSET. A second, approximate SQL validator can silently shorten pages.
-    const candidates = await db.prepare(`SELECT id, source_name, source, source_url, url, latamworldnews_summary, editorial_validation FROM articles WHERE ${clauses.join(" AND ")}`).bind(...values).all<Row>();
-    const hiddenIds = candidates.results.filter(row => isDwArticle(row) && !hasReviewedDwSummary(row)).map(row => row.id);
-    if (hiddenIds.length) {
-      clauses.push("id NOT IN (SELECT value FROM json_each(?))");
-      values.push(JSON.stringify(hiddenIds));
-    }
-  }
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-  const orderBy = publicOnly ? "published_at DESC, id DESC" : "published_at DESC";
-  const result = await db.prepare(`SELECT * FROM articles ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).bind(...values, pageSize, (page - 1) * pageSize).all<Row>();
-  const visible = publicOnly ? result.results.map(publicDwArticle) : result.results;
+  if (!publicOnly) {
+    const result = await db.prepare(`SELECT * FROM articles ${where} ORDER BY published_at DESC LIMIT ? OFFSET ?`).bind(...values, pageSize, (page - 1) * pageSize).all<Row>();
+    return json({ data: result.results.map(serializeArticle), pagination: { page, pageSize } });
+  }
+  // SQL selects ordered candidate batches, not public pages. Count OFFSET only
+  // after the shared DW validator, and continue until the public page is full.
+  // Full-row batches: 32..256, with 25% headroom for rejected candidates.
+  // A deep offset can skip up to 1024 slim metadata rows per round trip;
+  // these never include bodies and never scan beyond the remaining offset.
+  let remaining = (page - 1) * pageSize;
+  let cursor: Row | undefined;
+  const visible: Row[] = [];
+  while (visible.length < pageSize) {
+    const metadataOnly = remaining >= 256;
+    const limit = metadataOnly
+      ? Math.min(1024, remaining)
+      : Math.min(256, Math.max(32, Math.ceil((remaining + pageSize - visible.length) * 1.25)));
+    const batchClauses = [...clauses];
+    const params = [...values];
+    if (cursor) {
+      // The cursor is already below the original publication cutoff. Its tuple
+      // replaces that upper bound; keeping both can make SQLite rescan from now.
+      batchClauses[0] = batchClauses[0].replace(" AND published_at <= ?", "");
+      params.splice(newsSitemap ? 1 : 0, 1);
+      batchClauses.push("(published_at, id) < (?, ?)");
+      params.push(cursor.published_at, cursor.id);
+    }
+    // If even an all-valid batch cannot reach the public offset, bodies and
+    // presentation fields are unnecessary. Keep only validation/cursor fields.
+    const columns = metadataOnly
+      ? "id, published_at, source_name, source, source_url, url, latamworldnews_summary, editorial_validation"
+      : "*";
+    const result = await db.prepare(`SELECT ${columns} FROM articles WHERE ${batchClauses.join(" AND ")} ORDER BY published_at DESC, id DESC LIMIT ?`).bind(...params, limit).all<Row>();
+    for (const row of result.results) {
+      if (isDwArticle(row) && !hasReviewedDwSummary(row)) continue;
+      if (remaining) { remaining -= 1; continue; }
+      visible.push(publicDwArticle(row));
+      if (visible.length === pageSize) break;
+    }
+    if (result.results.length < limit) break;
+    cursor = result.results[result.results.length - 1];
+  }
   return json({ data: visible.map(serializeArticle), pagination: { page, pageSize } });
 }
 async function getArticleBySlug(db: D1Database, slug: string, publicOnly: boolean) {

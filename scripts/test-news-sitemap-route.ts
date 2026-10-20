@@ -39,10 +39,12 @@ async function verifyWorkerQuery() {
   assert.match(captured.query, /published_at >= \?/);
   assert.match(captured.query, /published_at <= \?/);
   assert.match(captured.query, /ORDER BY published_at DESC/);
+  assert.match(captured.query, /id DESC LIMIT \?/);
+  assert.doesNotMatch(captured.query, /OFFSET/, "public positions are counted after validation, not in the candidate query");
 
-  const [earliest, latest, pageSize, offset] = captured.values;
-  assert.equal(pageSize, 100);
-  assert.equal(offset, 0);
+  const [earliest, latest, candidateLimit, offset] = captured.values;
+  assert.equal(candidateLimit, 125, "a public page of 100 has 25% candidate headroom");
+  assert.equal(offset, undefined);
   assert.equal(Date.parse(String(latest)) - Date.parse(String(earliest)), 48 * 60 * 60 * 1_000);
 }
 

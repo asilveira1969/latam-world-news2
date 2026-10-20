@@ -578,3 +578,304 @@ pruebas funcionales de 109 noticias demuestren capacidad suficiente para un
 archivo grande. No se añaden índices, cachés, migraciones ni cambios de
 infraestructura en este commit. La publicación del Draft no activa el cambio
 en el Worker productivo ni autoriza su despliegue.
+
+## Optimización local de lecturas — 20/10/2026
+
+Continúa sobre `8a3e8c4`, sin modificar el PR remoto. La lectura global de
+metadatos se elimina: antes cada página clasificaba todos los candidatos y
+añadía una segunda consulta con JSON de IDs excluidos. Eso repetía trabajo
+proporcional al archivo, incluso con DW deshabilitada.
+
+Se evaluó primero SQL directo. Una guarda aproximada no reproduce las reglas
+actuales de JavaScript: SQLite cuenta 141 caracteres para 141 emojis, mientras
+el límite existente cuenta 282 unidades UTF-16; `lower()` no convierte Ñ como
+JavaScript y las URLs con hosts escapados o Unicode requieren la normalización
+de `new URL`. `json_type` sí permite distinguir booleanos de números, pero no
+resuelve lo anterior. No se añade otra definición incompleta de visibilidad
+ni se cambian las reglas del resumen para adaptarlas a SQL.
+
+La solución seleccionada es una única lectura incremental:
+
+- SQL conserva estados, ventana de publicación y filtros. Los lotes se ordenan
+  por `published_at DESC, id DESC`; el mismo validador DW del detalle decide
+  qué filas cuentan para el OFFSET público. Una fila inválida no consume una
+  posición y un lote inválido completo no termina el recorrido.
+- El cursor es la última pareja fecha/ID candidata procesada. En las
+  continuaciones sustituye el límite superior de fecha original, pues ya
+  está dentro de ese límite. Mantener ambos hacía que SQLite eligiera el
+  límite original y reexaminara lotes anteriores. El sitemap conserva su
+  límite inferior de 48 horas y todos los parámetros de filtros.
+- Lotes de filas completas entre 32 y 256, con 25% de margen respecto a las
+  posiciones todavía necesarias: reduce viajes extra cuando hay algunas DW
+  inválidas y acota los cuerpos que pueden materializarse de una vez.
+- Cuando quedan al menos 256 posiciones públicas por omitir, se leen solo
+  ocho campos de identidad, revisión y cursor, hasta 1.024 filas por lote.
+  El límite nunca supera el OFFSET pendiente: aun si todas fueran válidas,
+  no podrían pertenecer a la página de salida. Son metadatos acotados del
+  prefijo necesario, no una lectura global previa de todas las fuentes.
+  Esta proyección permite avanzar páginas profundas con menos viajes y
+  menor volumen que usar lotes de 1.024 cuerpos completos.
+- Se prepara `20261020_0016_public_article_seek_index.sql`, con índice por
+  revisión, estado, fecha e ID. Evita ordenar adicionalmente y permite buscar
+  desde el cursor. No se elimina ningún índice anterior. Añade almacenamiento
+  y mantenimiento de índice en futuras escrituras; esos costes no se midieron.
+  **Solo se aplicó en D1 efímera local.** La futura activación del código debe
+  incluir esta migración tras autorización; no se ha aplicado remotamente.
+- El listado interno conserva su SQL original. No hay caché nueva, cursor en
+  la API pública, escrituras durante lecturas ni alteración de los resúmenes,
+  aprobación, deduplicación o rechazos permanentes.
+
+### Comparación local final
+
+Mismos datos del ensayo anterior (hashes idénticos), 100 y 1.000 filas, dos
+calentamientos y cinco muestras por consulta, procesos y bases efímeras
+independientes. Main `2f3b9e0` y PR `8a3e8c4` usan sus migraciones de Git;
+solo la optimizada usa el nuevo índice. Los tiempos excluyen preparación.
+La carga agrupada SQL acelera únicamente esa preparación respecto al ensayo
+previo; consultas, datos, calentamientos e instrumentación no cambian.
+
+| Primera página, 20 noticias | Main | PR anterior | Optimizada |
+| --- | ---: | ---: | ---: |
+| 100 filas, mediana | 151,35 ms | 348,09 ms | 139,86 ms |
+| 100 filas, lecturas D1 local | 20 | 165 | 32 |
+| 1.000 filas, mediana | 157,40 ms | 318,22 ms | 148,28 ms |
+| 1.000 filas, lecturas D1 local | 20 | 1.065 | 32 |
+
+Con 1.000 filas: página 25, main/PR/optimizada = 500/2.559/538 lecturas y
+140,65/320,92/310,35 ms. Página 45 = 900/3.802/952 lecturas y
+151,80/367,36/299,57 ms. Las páginas profundas necesitan contar el prefijo
+publicable; en esta muestra usan dos consultas en vez de una de main. No se
+afirma igualdad de latencia con main en esas páginas. La primera y segunda
+páginas, filtros iniciales y sitemap usan una consulta. Las 32 lecturas de
+primera página se mantienen constantes de 100 a 1.000 filas: −97,0% respecto
+al PR previo de 1.000, con sobrelectura fija de 12 candidatos frente a main.
+
+Integridad: main publica 95/950 filas, incluidas 5/50 DW inválidas; ambas
+versiones DW publican las 90/900 correctas. Las tres conservan todas las
+noticias válidas y no duplican posiciones. La optimizada mantiene las cinco
+fuentes y los controles DW, incluidos los filtros y el sitemap.
+
+Memoria máxima RSS del arnés Node entre escenarios: main 157,63 MiB, PR
+158,26 MiB, optimizada 158,05 MiB. No se observó un aumento significativo en
+ese proceso; **no se mide el pico del proceso workerd ni del Worker real**.
+`rows_read` son métricas del emulador, no facturación de producción. Solo
+cinco muestras por consulta, máquina local, sin concurrencia ni caché/CDN:
+los tiempos no son una garantía de latencia de producción. Hay variabilidad
+local y no se probaron volúmenes mayores. En páginas profundas se transfieren
+más filas que las 20 devueltas porque debe contarse su prefijo; la memoria
+queda acotada por lote, no por todo el archivo.
+
+Evidencia reproducible fuera de Git:
+`output/dw-performance-optimized-final-20261020/benchmark.cjs`, `README.md`,
+`results.json`, seis JSON con muestras y planes SQL, `manifest.json` y
+`report.md`. Las mediciones exploratorias previas no forman parte de la
+comparación final de la optimizada. No se ejecutaron pruebas de 5.000 o
+20.000 filas ni se descargaron noticias o datos de producción.
+
+### Cierre de validación local
+
+PASS final: TypeScript sin emisión, bundle del Worker, paginación DW ampliada,
+cron RSS Worker, deduplicación editorial, DW local, resúmenes DW, MercoPress,
+Infobae programada local, controles editoriales individuales, workflow D1,
+rechazos persistentes, datos estructurados, sitemap, parser y normalizador.
+Next compiló con la fixture local (29/29 páginas); no hubo cambios de frontend.
+Las pruebas incluyen SQL/JS Unicode, hosts escapados/Unicode, fechas iguales,
+lotes inválidos completos, OFFSET agotado en metadatos y continuaciones del
+sitemap. Los rechazos HTTP esperados son pruebas negativas, no fallos nuevos.
+
+Una comparación AST, normalizando saltos de línea Windows, confirma que todas
+las funciones del Worker salvo `listArticles` permanecen idénticas a HEAD.
+Wrangler, fuentes y validador manual DW no tienen cambios: cron de cuatro
+horas y limpieza intactos, DW false e Infobae manual/programado false.
+`test:editorial-ai-drafts` sigue fuera de alcance, sin cambios ni ejecución.
+
+Lista técnicamente para actualizar el Draft PR #27, incluyendo el índice y
+las limitaciones de páginas profundas documentadas. Esta conclusión no es
+autorización de fusionar ni desplegar. Cambios exclusivamente locales, sin
+commit nuevo, push, modificación del PR, ingesta remota, escritura D1 remota,
+activación o despliegue. Producción permanece intacta.
+
+## Plan de migración y despliegue posterior — preparado, NO ejecutado
+
+Esta sección solo documenta una futura operación. Publicar el Draft PR no
+autoriza migrar, fusionar, desplegar ni activar fuentes. La migración 0016
+**no se ha aplicado en ninguna D1 remota durante estas tareas**. Los datos de
+destino provienen de la configuración y evidencia anterior; su estado actual
+debe revalidarse al ejecutar una etapa expresamente autorizada.
+
+### Destino exacto y revisión del cambio
+
+| Recurso | Identificación esperada |
+| --- | --- |
+| Cuenta documentada | `b2918a3c8b4a885ffa2f0211e2b70662` |
+| Worker que sirve producción, pese al nombre staging | `latam-world-news-d1-staging` |
+| Binding del Worker | `DB` |
+| D1 | `latam-world-news-staging` |
+| UUID D1 | `5f0f9b93-a6d2-470b-b719-2bb066cda8da` |
+| Configuración | `cloudflare/worker/wrangler.toml` |
+| Migración nueva | `20261020_0016_public_article_seek_index.sql` |
+| Índice | `idx_articles_public_seek` |
+| Columnas, en orden | `editorial_review_status`, `editorial_status`, `published_at DESC`, `id DESC` |
+
+El SQL contiene una sola sentencia `CREATE INDEX IF NOT EXISTS`. Las cuatro
+columnas existen en las migraciones anteriores. No hay INSERT, UPDATE,
+DELETE, ALTER TABLE, DROP, cambios de columnas editoriales ni de triggers.
+`IF NOT EXISTS` no corrige un índice homónimo con otra definición: ese caso
+debe detener el procedimiento, no darse por validado.
+
+Prueba local adicional en D1 efímera: retirar solo el índice nuevo, provocar
+un CREATE INDEX fallido con una columna sintética inexistente y verificar
+páginas públicas/sitemap sin el índice; recrearlo dos veces y comparar todas
+las noticias, columnas y triggers. El Worker no usa `INDEXED BY` ni exige la
+existencia del índice para funcionar. Sin él los resultados y controles son
+iguales, pero no se garantizan las lecturas medidas ni la misma latencia:
+SQLite puede usar otros índices y ordenar o examinar más candidatos. No debe
+usarse esa compatibilidad para saltarse el orden índice → Worker.
+
+### A. Puerta previa, solo tras autorización futura
+
+1. Acordar alcance, commit exacto aprobado y ventana de bajo tráfico, evitando
+   proximidad al cron RSS habitual. Identificar operador y umbrales de parada
+   de errores/latencia según la línea base real. No modificar ni suspender cron.
+2. Confirmar autenticación/cuenta y que el nombre D1 resuelve al UUID esperado;
+   comprobar el binding del Worker realmente activo y su dominio productivo.
+   Si cualquier identificación difiere, parar antes de escribir. No elegir una
+   base por el texto `staging` ni usar un preview como sustituto del destino.
+3. Capturar versión/despliegue activos, configuración, cron y flags actuales,
+   sin copiar valores de secretos. Guardar como evidencia el identificador de
+   versión al que se podría regresar; no asumir que la versión histórica del
+   19/10 sigue siendo la actual.
+4. Inspeccionar esquema y estado real de migraciones. Solo puede estar pendiente
+   `20261020_0016_public_article_seek_index.sql`; las 0001–0015 deben estar
+   reconciliadas. Si falta `d1_migrations`, el historial no coincide con el
+   esquema o aparecen otras pendientes, detenerse: no ejecutar ciegamente
+   todo el directorio ni fabricar entradas de historial.
+5. Verificar las cuatro columnas, definición de los índices previos y del
+   índice nuevo si existe. Capturar definiciones de triggers de rechazo y
+   barreras de escritura; registrar conteos/estados editoriales como referencia,
+   sin exportar noticias. Entre capturas pueden existir cambios legítimos por
+   el cron/editor; no exigir conteos congelados ni reparar datos por diferencias.
+
+Ejemplos para esa etapa futura, **no ejecutados aquí**, desde la raíz del repo:
+
+```powershell
+node node_modules/wrangler/bin/wrangler.js d1 info latam-world-news-staging --config cloudflare/worker/wrangler.toml
+node node_modules/wrangler/bin/wrangler.js d1 migrations list latam-world-news-staging --remote --config cloudflare/worker/wrangler.toml
+node node_modules/wrangler/bin/wrangler.js d1 time-travel info latam-world-news-staging --config cloudflare/worker/wrangler.toml
+```
+
+Consultas de inspección, siempre dirigidas al UUID verificado:
+
+```sql
+PRAGMA table_info(articles);
+PRAGMA index_list(articles);
+PRAGMA index_xinfo(idx_articles_public_seek);
+SELECT type, name, sql FROM sqlite_schema
+WHERE tbl_name='articles' AND type IN ('index','trigger') ORDER BY type,name;
+SELECT name FROM sqlite_schema WHERE type='table' AND name='d1_migrations';
+-- Solo si la consulta anterior confirma que existe:
+SELECT name, applied_at FROM d1_migrations ORDER BY id;
+```
+
+Si no existe la tabla de historial, no ejecutar la última consulta ni crearla
+para superar la puerta: resolver la discrepancia en una etapa separada.
+
+### B. Respaldo y recuperación preparados antes de la escritura
+
+Comprobar soporte y disponibilidad real de Time Travel mediante `d1 info` y
+capturar un bookmark inmediatamente anterior a la migración, con hora UTC,
+UUID, versión activa y esquema. Guardar esa evidencia fuera de Git, sin
+credenciales, y comprobar la ventana de recuperación disponible en esa cuenta.
+No se capturó bookmark ni respaldo remoto en esta tarea.
+
+Un export SQL completo es una alternativa únicamente si el operador autoriza
+otra ventana y confirma su impacto: la documentación indica que exportar
+bloquea otras peticiones a la base. No se usa como prueba automática ni se
+descarga producción para ensayar. Si no hay una vía de recuperación verificada
+aceptable para el operador, se detiene la operación antes del índice.
+
+La recuperación normal de un problema de índice no restaura toda la D1:
+mantener el Worker anterior y, si el índice se creó correctamente, dejarlo
+instalado. Es compatible con el código previo. Un restore Time Travel es un
+último recurso con nueva autorización, porque sobrescribe la base, puede
+revertir escrituras RSS/editoriales posteriores y cancela consultas en curso.
+No forma parte de la parada ordinaria ni puede prometerse sin impacto en RSS.
+Si se autorizara ese caso excepcional, primero registrar el bookmark actual
+para poder deshacer el restore, evaluar escrituras posteriores al respaldo y
+acordar su preservación/reconciliación. Restaurar al bookmark validado mediante
+Time Travel, registrar el bookmark de deshacer que devuelve la operación y
+volver a inspeccionar esquema, historial y versión activa antes de reanudar
+el rollout. No ejecutar una importación SQL sobre la D1 viva como recuperación
+automática, ni intentar preservar RSS fingiendo que un restore es inocuo.
+
+### C. Orden de ejecución futura
+
+1. Con las puertas y respaldo aceptados, aplicar **solo la migración 0016**
+   mediante el flujo de migraciones. El comando siguiente aplica todas las
+   pendientes: no usarlo salvo que la inspección confirme que 0016 es la única.
+   Revisar la confirmación interactiva; no suprimirla ni delegarlo a CI.
+
+   ```powershell
+   node node_modules/wrangler/bin/wrangler.js d1 migrations apply latam-world-news-staging --remote --config cloudflare/worker/wrangler.toml
+   ```
+
+2. Antes de tocar el Worker, comprobar índice exacto con `index_xinfo`: dos
+   primeras columnas ascendentes y fecha/ID descendentes; confirmar la entrada
+   0016 del historial, columnas y triggers intactos. Inspeccionar con EXPLAIN
+   las consultas de primera página y continuación para comprobar el índice
+   elegido. No convertir las métricas sintéticas en umbrales remotos garantizados.
+3. Si falla creación/verificación, **no desplegar el Worker**. Wrangler documenta
+   rollback de la migración que falla, pero conserva las anteriores exitosas;
+   verificar índice e historial antes de reintentar, sin asumir éxito por un
+   timeout ni ejecutar DDL correctivo automáticamente.
+4. Solo después de validar el índice y obtener autorización específica de
+   despliegue, publicar la versión del Worker correspondiente al commit
+   aprobado. Preservar el binding/secretos existentes y conservar explícitamente
+   DW e Infobae manual/programado en false, cron RSS `0 */4 * * *` y limpieza
+   `0 3 * * *`. No sustituir el Worker por un entorno de pruebas ni desplegar
+   otra versión mediante un merge automático. La fusión del PR también requiere
+   autorización propia y revisar cualquier automatización de frontend asociada.
+5. Verificar versión activa y configuración después del despliegue; comprobar
+   en solo lectura primeras/segundas/intermedias/últimas páginas, filtros,
+   sitemap y detalles: estados correctos, atribución, DW inválidas ocultas,
+   ausencia de duplicados/omisiones en una muestra estable y cinco fuentes
+   conservadas. Usar publicaciones existentes; no crear, aprobar ni ingerir
+   noticias como prueba. Considerar la caché pública vigente sin purgas globales.
+6. Observar lecturas/errores/latencia reales y el siguiente cron ordinario con
+   sus registros existentes. No invocar `/internal/ingestion/rss`, otros endpoints
+   de ingesta ni handlers scheduled para validar. No se agregan notificaciones.
+
+### D. Parada y recuperación sin alterar el cron RSS
+
+- Antes del índice o si la migración falla: cancelar los pasos restantes y
+  dejar el Worker activo, sus flags y horarios intactos. No reejecutar ingestas.
+- Índice creado, Worker todavía no desplegado: detenerse ahí; dejar el índice
+  compatible y la versión activa sin cambios. No retirarlo por rutina.
+- Fallo del despliegue o regresión posterior: comprobar qué versión está
+  realmente sirviendo. Si hace falta regresar, solicitar/usar la autorización
+  específica de recuperación y volver a la versión operativa capturada en A,
+  manteniendo bindings, flags apagados y ambos cron. El rollback del Worker no
+  deshace la D1; no se necesita deshacer este índice para volver al código previo.
+- Cualquier retirada del índice requeriría nueva autorización y una migración
+  compensatoria, no borrar historial ni modificar el archivo 0016 ya aplicado.
+- No se promete impacto cero durante DDL: la creación del índice puede consumir
+  recursos o retrasar consultas. Si esa incertidumbre no cabe en la ventana,
+  posponer antes de escribir. Detener el rollout no requiere apagar RSS ni
+  modificar sus cron; restaurar toda la base sí sería una intervención aparte.
+
+Fuentes oficiales consultadas para preparar este plan, 20/10/2026:
+[migraciones](https://developers.cloudflare.com/d1/reference/migrations/),
+[Wrangler y errores de migración](https://developers.cloudflare.com/d1/wrangler-commands/#d1-migrations-apply),
+[Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/),
+[exportación y bloqueo de consultas](https://developers.cloudflare.com/d1/best-practices/import-export-data/#known-limitations),
+[rollback de Workers](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/).
+
+### Verificación previa a publicar este plan
+
+PASS: TypeScript, bundle, sitemap, deduplicación editorial y regresiones del
+cron y cinco fuentes. La prueba ampliada de paginación pasó con y sin índice,
+incluyendo DDL fallido, reintento doble idempotente y comparación exacta de
+noticias, columnas y triggers. No cambió el SQL de la migración ni el Worker
+medidos en el ensayo de rendimiento. Solo se publican los cinco archivos
+previstos; no se incluyen bundles, datos de prueba, logs, backups ni secretos.
+Los comandos remotos de este plan se documentan, pero no se ejecutaron.
