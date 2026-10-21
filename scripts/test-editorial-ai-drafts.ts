@@ -8,6 +8,8 @@ import {
   isEditorialAutomationEnabled
 } from "../lib/editorial-dashboard/automation";
 import type { Article } from "../lib/types/article";
+import { GET as editorialGet } from "../app/api/cron/editorial/route";
+import { GET as impactoGet, POST as impactoPost } from "../app/api/cron/impacto/route";
 
 const drafts = readFileSync(resolve(process.cwd(), "lib/editorial-dashboard/ai-drafts.ts"), "utf8");
 const actions = readFileSync(resolve(process.cwd(), "app/editorial/actions.ts"), "utf8");
@@ -39,15 +41,14 @@ try {
 }
 assert.equal(EDITORIAL_AUTOMATION_DISABLED_MESSAGE, "Automatización editorial desactivada.");
 
-for (const [name, route, generator, mutation] of [
-  ["editorial", editorialCron, "generateEditorialWithAgent", ".update("],
-  ["impacto", impactoCron, "generateImpactoEditorialDraft", "insertImpactoEditorialDraft"]
+// These legacy routes were retired before DW. Keep them inert rather than
+// requiring a guard around automation which must no longer exist here.
+for (const [name, route] of [
+  ["editorial", editorialCron],
+  ["impacto", impactoCron]
 ] as const) {
-  const guard = route.indexOf("if (!isEditorialAutomationEnabled())");
-  assert.ok(guard >= 0, `${name} cron must have an automation guard`);
-  assert.ok(route.indexOf(generator, guard) > guard, `${name} cron guard must run before OpenAI generation`);
-  assert.ok(route.indexOf(mutation, guard) > guard, `${name} cron guard must run before article mutation`);
-  assert.match(route, /EDITORIAL_AUTOMATION_DISABLED_MESSAGE/);
+  assert.match(route, /status: 410/, `${name} legacy cron must stay retired`);
+  assert.doesNotMatch(route, /generateEditorialWithAgent|generateImpactoEditorialDraft|insertImpactoEditorialDraft|\.update\(|\bfetch\(/);
 }
 assert.doesNotMatch(vercelConfig, /\/api\/cron\/(editorial|impacto)/);
 assert.match(actions, /export async function generateDraft/);
@@ -67,4 +68,14 @@ const article = { id: "1", title: "Titular", slug: "titular", excerpt: "Extracto
 const jsonLd = buildNewsArticleJsonLd(article, "/nota/titular");
 assert.equal(jsonLd.dateModified, article.editorial_updated_at);
 assert.match(String(jsonLd.articleBody), /Impacto LATAM/);
-console.log("editorial-ai-drafts: PASS");
+async function assertRetiredRoutes() {
+  for (const handler of [editorialGet, impactoGet, impactoPost]) {
+    const response = await handler();
+    assert.equal(response.status, 410);
+    const body = await response.json();
+    assert.equal(body.ok, false);
+    assert.match(body.error, /retired/);
+  }
+  console.log("editorial-ai-drafts: PASS (legacy GET/POST routes remain retired)");
+}
+assertRetiredRoutes().catch(error => { console.error(error); process.exitCode = 1; });

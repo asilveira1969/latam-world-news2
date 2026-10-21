@@ -45,7 +45,15 @@ async function main(){
     // Only synthetic local records are rejected; no real article is touched.
     assert.equal((await post('/internal/articles/delete-batch',{slugs:[imported[0].slug]})).status,200);tracking=true;await cron();assert.equal((await rows()).length,24);
     assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM rejected_article_urls').first<{n:number}>())!.n,1);
-    const current=await rows();requested=[];await cron('0 3 * * *');assert.equal(requested.length,0);assert.deepEqual(await rows(),current);
+    const current=await rows();
+    // The existing daily cleanup must also expire yesterday's unreviewed DW,
+    // while keeping today's inbox and approved articles intact. Expiry is not
+    // an editorial rejection and must not add a permanent URL rejection.
+    assert.equal((await post('/internal/articles/upsert',{article:{title:'Expired DW fixture',slug:'expired-dw',source_name:'DW Español',source_url:'https://www.dw.com/es/expired-fixture/a-999',published_at:old,created_at:old,source_type:'rss'}})).status,201);
+    assert.ok(await db.prepare("SELECT id FROM articles WHERE slug='expired-dw'").first());
+    requested=[];await cron('0 3 * * *');assert.equal(requested.length,0);assert.deepEqual(await rows(),current);
+    assert.equal(await db.prepare("SELECT id FROM articles WHERE slug='expired-dw'").first(),null);
+    assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM rejected_article_urls').first<{n:number}>())!.n,1);
     assert.deepEqual(await db.prepare("SELECT * FROM articles WHERE slug='approved'").first(),approvedBefore);
     fail=true;requested=[];await cron();assert.equal(requested.length,6);assert.deepEqual(await rows(),current);assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM ingestion_errors WHERE source_id='rss-dw-es'").first<{n:number}>())!.n,1);
     fail=false;empty=true;requested=[];await cron();assert.equal(requested.length,6);assert.deepEqual(await rows(),current);

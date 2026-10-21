@@ -1,5 +1,99 @@
 # DW Español: integración preparada, pendiente de activación
 
+## Estado actual de la revisión — 21/10/2026
+
+Esta sección prevalece sobre los estados históricos de las etapas inferiores.
+La revisión se compara con `origin/main` / base remota del PR en
+`2f3b9e04d4b7ca0283eb50a764c83e16dc638198`, no con la rama local `main`,
+que está atrasada. El Draft PR #27 permanece abierto en
+`bcdbe782fc0ac0d4af70376db9869fb50e4ca2a8`. La consulta de GitHub de esta
+revisión no encontró reviews ni hilos de revisión; solo el comentario de
+preview de Vercel. Los dos controles publicados están aprobados para ese HEAD,
+no para las modificaciones locales posteriores de esta revisión.
+
+**0016 ya está aplicada. No volver a ejecutarla.** Se consultó el cierre local
+`output/dw-0016-isolated/remote-evidence-20261021-095826/CIERRE.md` y su evidencia,
+sin nuevas consultas ni escrituras remotas D1. El historial documenta
+`20261020_0016_public_article_seek_index.sql`, id 16, aplicada a las
+2026-10-21 13:00:57 UTC en `latam-world-news-staging`, UUID
+`5f0f9b93-a6d2-470b-b719-2bb066cda8da`. El índice es
+`articles(editorial_review_status, editorial_status, published_at DESC, id DESC)`.
+El cierre conserva 1.460 artículos y los triggers anteriores. Es evidencia de
+esa operación, no una nueva medición del estado remoto actual. El plan de
+migración de más abajo queda como registro histórico; su fase de aplicación
+está cerrada. La descripción publicada del PR todavía debe actualizarse para
+reflejarlo, en una próxima etapa autorizada.
+
+### Alcance de una futura publicación
+
+- Worker: feed DW condicionado a `DW_RSS_ENABLED === "true"`, ingreso
+  `pending_review` / `pending`, sin cuerpo completo ni imágenes; guardas de
+  resumen propio, revisión humana y aprobación explícita; visibilidad pública
+  y paginación incremental con orden `published_at DESC, id DESC`.
+- Frontend: editor manual DW de hasta 280 caracteres, sanitización de campos
+  públicos, metadatos SEO/JSON-LD y exclusión de DW históricas inválidas. El
+  sitemap comparte los controles públicos.
+- Biblioteca RSS: corrección del feed DW y `enabled: false`; se incorpora
+  MercoPress a este registro para reflejar la quinta fuente ya existente en el
+  Worker. Esto también cambia ese registro de biblioteca respecto de main;
+  no es una nueva fuente en el cron productivo.
+- Pruebas, fixture sintética y documentación. La única migración añadida al PR
+  es 0016, ya aplicada; no hay 0017 ni otra migración que ejecutar. El código
+  utiliza el esquema editorial y las barreras/rechazos de 0001–0015, ya
+  existentes en el destino documentado.
+
+Publicar esta preparación requeriría actualizar la rama/PR y posteriormente
+autorizar por separado la integración y publicación del frontend y Worker.
+Se deben conservar `DW_RSS_ENABLED=false`, ambos flags Infobae en `false`,
+el binding actual y los cron `0 */4 * * *` y `0 3 * * *`. La activación de DW
+es una decisión posterior, condicionada también a resolver el alcance de
+reutilización documentado. No se considera permiso legal el resumen propio.
+No hay cambio en el algoritmo de limpieza, deduplicación, rechazos persistentes
+ni cron. Los listados internos conservan su paginación anterior; los públicos
+incorporan los lotes y filtros editoriales DW.
+
+### Correcciones y validación de esta revisión
+
+No se encontró un defecto nuevo que exigiera cambiar el código productivo.
+Se amplió `test-dw-local.ts` para caducar una DW pendiente del día anterior,
+preservar la bandeja actual y aprobados, y comprobar que la caducidad no
+registra un rechazo permanente. Las cinco fuentes se comparan campo por campo.
+
+Se corrigió la expectativa obsoleta de `test-editorial-ai-drafts.ts`: las
+rutas heredadas editorial/Impacto ya estaban retiradas con HTTP 410 también
+en la base remota. La prueba verifica ahora su respuesta real GET/POST y la
+ausencia de llamadas de generación/escritura, manteniendo las guardas del
+generador manual, aprobación, autenticación y automatización apagada. No se
+reactiva ningún endpoint ni se cambia la limpieza editorial.
+
+`test-infobae-local.ts` también conservaba una expectativa de cuatro fuentes,
+anterior a MercoPress (ya presente en el Worker de la base remota). Ahora
+comprueba las cinco URL exactas, DW e Infobae programada apagadas por defecto,
+y que el cron de limpieza no descarga feeds. Su fixture predeterminada es
+sintética y autocontenida, sin depender de un XML no versionado del directorio
+de salida. Se mantiene la opción de pasar un XML local explícito. No se cambian
+los mecanismos de ingesta ni de aprobación de Infobae.
+
+Resultado final: 22 pruebas locales aprobadas (RSS parse/normalize, deduplicación,
+seguridad RSS, flujo editorial, dashboard individual, borradores editoriales,
+cron Worker, DW ingesta/resúmenes/paginación, rechazos persistentes, barreras
+de escritura, Infobae manual/programada, MercoPress, SEO, sitemap, originales
+Impacto, protección Impacto, editorial manual y datos estructurados).
+TypeScript sin emisión aprobado; bundle del Worker aprobado; build Next.js
+aprobado, 29/29 páginas con fixture local. Los dos fallos iniciales fueron las
+expectativas obsoletas de pruebas descritas arriba, corregidas y vueltas a
+ejecutar satisfactoriamente. El build avisa que los datos de Browserslist están
+desactualizados; no bloquea la compilación y no se actualizaron dependencias.
+
+La validación usa exclusivamente D1 efímera y respuestas RSS sintéticas.
+Aplicar archivos SQL a esas bases desechables no implica repetir 0016 en
+producción. El build del frontend utiliza un Worker/D1 local con credenciales
+sintéticas y flags apagados; no lee la base productiva. Los resultados
+completos se conservan en la carpeta local de revisión
+`output/dw-pr27-final-review-20261021` del espacio de trabajo.
+
+Las siguientes secciones conservan las decisiones y resultados históricos.
+
 Evaluación: 19 de octubre de 2026. Rama local `codex/dw-espanol-rss`, base
 `origin/main` en `2f3b9e0`. Sin push, despliegue, merge, ingesta de producción,
 escrituras remotas ni contacto con DW.
