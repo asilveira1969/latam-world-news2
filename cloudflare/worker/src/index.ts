@@ -14,7 +14,7 @@ interface D1Database {
   prepare(query: string): D1PreparedStatement;
   batch(statements: D1PreparedStatement[]): Promise<D1RunResult[]>;
 }
-interface Env { DB: D1Database; INTERNAL_API_SECRET?: string; INFOBAE_MANUAL_ENABLED?: string; INFOBAE_SCHEDULED_ENABLED?: string; }
+interface Env { DB: D1Database; INTERNAL_API_SECRET?: string; INFOBAE_MANUAL_ENABLED?: string; INFOBAE_SCHEDULED_ENABLED?: string; DW_RSS_ENABLED?: string; }
 interface ScheduledController { cron?: string; }
 
 type Row = Record<string, unknown>;
@@ -37,7 +37,8 @@ const RSS_CRON_SOURCES = [
   { id: "rss-elpais-ultimas", name: "El País España", feedUrl: "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/ultimas-noticias/portada", tag: "rss-elpais" },
   { id: "rss-france24-es", name: "France 24 Español", feedUrl: "https://www.france24.com/es/rss", tag: "rss-france24-es" },
   { id: "rss-bbc-mundo", name: "BBC Mundo", feedUrl: "https://feeds.bbci.co.uk/mundo/rss.xml", tag: "rss-bbc-mundo" },
-  { id: "rss-mercopress", name: "MercoPress", feedUrl: "https://es.mercopress.com/rss/", tag: "rss-mercopress" }
+  { id: "rss-mercopress", name: "MercoPress", feedUrl: "https://es.mercopress.com/rss/", tag: "rss-mercopress" },
+  { id: "rss-dw-es", name: "DW Español", feedUrl: "https://rss.dw.com/xml/rss-sp-all", tag: "rss-dw-es" }
 ] as const;
 const RSS_ITEM_LIMIT = 25;
 // Infobae keeps independent manual and scheduled switches outside the regular source registry.
@@ -218,10 +219,11 @@ async function deleteExpiredPendingArticles(db: D1Database, now = new Date()) {
   const result = results[1];
   return { cutoff, deleted: result.meta.changes ?? 0 };
 }
-async function runScheduledRssIngestion(db: D1Database, infobaeEnabled = false) {
+async function runScheduledRssIngestion(db: D1Database, infobaeEnabled = false, dwEnabled = false) {
   const cleanup = await deleteExpiredPendingArticles(db);
   const results: Array<{ sourceId: string; created: number; skipped: number; error?: string }> = [];
-  const sources = infobaeEnabled ? [...RSS_CRON_SOURCES, INFOBAE_SOURCE] : RSS_CRON_SOURCES;
+  const regularSources = RSS_CRON_SOURCES.filter(source => source.id !== "rss-dw-es" || dwEnabled);
+  const sources = infobaeEnabled ? [...regularSources, INFOBAE_SOURCE] : regularSources;
   for (const source of sources) {
     try { results.push(await ingestRssSource(db, source, source.id === INFOBAE_SOURCE.id ? 5 : RSS_ITEM_LIMIT)); }
     catch (error) { const message = error instanceof Error ? error.message : "Unknown RSS error."; await recordError(db, { source_id: source.id, provider: "rss", message, context: { scheduled: true, source_name: source.name } }).catch(() => undefined); results.push({ sourceId: source.id, created: 0, skipped: 0, error: message }); }
@@ -392,7 +394,7 @@ export default {
       if (request.method === "POST" && path === "/internal/editorial/apply-batch") return internalWriteJson({ data: await applyEditorialDecisionBatch(env.DB, await requestBody(request)) });
       if (request.method === "POST" && path === "/internal/articles/delete-batch") return internalWriteJson({ data: await deleteArticleBatch(env.DB, await requestBody(request)) });
       if (request.method === "POST" && path === "/internal/articles/upsert") { const payload = await requestBody(request); const result = await upsertArticle(env.DB, payload.article as Row); return internalWriteJson({ data: result.article, created: result.created }, { status: result.created ? 201 : 200 }); }
-      if (request.method === "POST" && path === "/internal/ingestion/rss") return internalWriteJson({ data: await runScheduledRssIngestion(env.DB, env.INFOBAE_SCHEDULED_ENABLED === "true") });
+      if (request.method === "POST" && path === "/internal/ingestion/rss") return internalWriteJson({ data: await runScheduledRssIngestion(env.DB, env.INFOBAE_SCHEDULED_ENABLED === "true", env.DW_RSS_ENABLED === "true") });
       if (request.method === "POST" && path === "/internal/ingestion/infobae") {
         if (env.INFOBAE_MANUAL_ENABLED !== "true") return internalWriteJson({ error: "Infobae manual ingestion is disabled" }, { status: 503 });
         const payload = await requestBody(request);
@@ -418,6 +420,6 @@ export default {
       ctx.waitUntil(deleteExpiredPendingArticles(env.DB).then((summary) => console.log("Editorial inbox cleanup completed", summary)).catch((error) => console.error("Editorial inbox cleanup failed", error)));
       return;
     }
-    ctx.waitUntil(runScheduledRssIngestion(env.DB, env.INFOBAE_SCHEDULED_ENABLED === "true").then((summary) => console.log("RSS cron completed", summary)).catch((error) => console.error("RSS cron failed", error)));
+    ctx.waitUntil(runScheduledRssIngestion(env.DB, env.INFOBAE_SCHEDULED_ENABLED === "true", env.DW_RSS_ENABLED === "true").then((summary) => console.log("RSS cron completed", summary)).catch((error) => console.error("RSS cron failed", error)));
   }
 };

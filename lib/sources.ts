@@ -171,7 +171,7 @@ export const MUNDO_RSS_SOURCES: MundoRssSource[] = [
   {
     id: "rss-dw-es",
     name: "DW Español",
-    feedUrl: "https://rss.dw.com/rdf/rss-es-all",
+    feedUrl: "https://rss.dw.com/xml/rss-sp-all",
     region: "Mundo",
     language: "es",
     enabled: true,

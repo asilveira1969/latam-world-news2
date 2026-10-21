@@ -3,6 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2026-08-28"
 
 [vars]
+DW_RSS_ENABLED = "true"
 INFOBAE_MANUAL_ENABLED = "false"
 INFOBAE_SCHEDULED_ENABLED = "false"
 
