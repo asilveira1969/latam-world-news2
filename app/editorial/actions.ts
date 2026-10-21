@@ -8,6 +8,26 @@ import { classifyD1EditorialInput } from "@/lib/d1/editorial/classify";
 import { endEditorialSession, requireEditorialSession, startEditorialSession } from "@/lib/editorial-dashboard/auth";
 import { generateEditorialDraft, type EditorialDraftFields, type EditorialDraftFormat } from "@/lib/editorial-dashboard/ai-drafts";
 import { importD1InfobaePilot, listD1InternalArticles } from "@/lib/d1/internal-client";
+import { isDwArticle, validateDwSummary } from "@/lib/editorial/dw-summary";
+
+export async function saveDwSummary(slug: string, text: string, reviewed: boolean): Promise<{ ok: boolean; summary?: string; error?: string }> {
+  await requireEditorialSession();
+  try {
+    const article = await getD1InternalArticleBySlug(slug);
+    if (!article || !isDwArticle(article)) throw new Error("La noticia no corresponde a DW.");
+    if (reviewed !== true) throw new Error("Confirma que revisaste los hechos y redactaste el resumen propio.");
+    const summary = validateDwSummary(text);
+    await saveD1EditorialDraft(slug, {
+      ...classifyD1EditorialInput(toArticle(article)), latamworldnews_summary: summary,
+      editorial_model: "editorial-manual-dw", editorial_origin: "generated_metadata_only",
+      editorial_status: "pending_review", editorial_review_status: "pending",
+      editorial_validation: { dw_summary_reviewed: true, source_text_stored: false },
+      editorial_updated_at: new Date().toISOString()
+    });
+    revalidatePath("/editorial");
+    return { ok: true, summary };
+  } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "No se pudo guardar el resumen DW." }; }
+}
 
 export async function importInfobaePilot() {
   await requireEditorialSession();
@@ -110,6 +130,7 @@ export async function generateDraft(slug: string, format: string): Promise<{ ok:
   if (!isFormat(format)) return { ok: false, error: "Formato editorial no válido." };
   const article = await getD1InternalArticleBySlug(slug);
   if (!article) return { ok: false, error: "No se encontró el artículo." };
+  if (isDwArticle(article)) return { ok: false, error: "DW utiliza redacción manual del resumen, sin generación de IA." };
   try { return { ok: true, draft: await generateEditorialDraft(toArticle(article), format) }; }
   catch (error) { return { ok: false, error: error instanceof Error ? error.message : "No se pudo generar el borrador." }; }
 }
@@ -120,6 +141,7 @@ export async function saveDraft(slug: string, input: Record<string, unknown>): P
   if (!format) return { ok: false, error: "Selecciona un formato editorial." };
   try {
     const article = await getD1InternalArticleBySlug(slug); if (!article) return { ok: false, error: "No se encontró el artículo." };
+    if (isDwArticle(article)) return { ok: false, error: "Utiliza el editor de resumen propio DW." };
     const draft = savedDraft(input, format); const classification = classifyD1EditorialInput(toArticle(article));
     await saveD1EditorialDraft(slug, { ...classification, ...draft, editorial_origin: "generated_metadata_only", editorial_status: "pending_review", editorial_review_status: "pending" });
     revalidatePath("/editorial"); return { ok: true, draft };

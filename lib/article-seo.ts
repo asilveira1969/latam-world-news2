@@ -1,5 +1,6 @@
 import { cleanExcerpt, cleanPlainText } from "@/lib/text/clean";
 import type { Article } from "@/lib/types/article";
+import { isDwArticle, publicDwArticle } from "@/lib/editorial/dw-summary";
 import { getTopicLabel, getPrimaryTopicSlug } from "@/lib/hubs";
 
 const GENERIC_TAGS = new Set([
@@ -593,6 +594,10 @@ function buildAutoSeoDescription(input: {
 }
 
 export function getEditorialBlocks(article: Article): EditorialBlocks {
+  if (isDwArticle(article)) {
+    const summary = publicDwArticle(article).excerpt;
+    return { summary, latamAngle: "", bodyParagraphs: summary ? [summary] : [], keyPoints: [], conclusion: "", latamWorldNewsSummary: summary, curatedNews: "", faqItems: [], seoTitle: article.title, seoDescription: summary };
+  }
   const title = titleWithoutTrailingPeriod(article.title);
   const excerpt = cleanExcerpt(article.excerpt, 220) || article.title;
   const body = article.content ? cleanPlainText(article.content) : excerpt;

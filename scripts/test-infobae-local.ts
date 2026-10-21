@@ -4,7 +4,10 @@ import { Miniflare } from "miniflare";
 import worker, { parseRssItems } from "../cloudflare/worker/src/index";
 
 async function main() {
-  const xml = readFileSync(process.argv[2] || "../output/infobae-pilot-feed.xml", "utf8");
+  // Keep the default regression independent of an untracked, downloaded feed.
+  // An explicit local XML path remains supported; this test never downloads it.
+  const xml = process.argv[2] ? readFileSync(process.argv[2], "utf8") :
+    `<rss><channel>${Array.from({ length: 5 }, (_, i) => `<item><title>Infobae synthetic fixture ${i}</title><link>https://www.infobae.com/local-fixture-${i}/</link><pubDate>${new Date().toUTCString()}</pubDate><description><![CDATA[<p>Synthetic local excerpt ${i}</p>]]></description></item>`).join("")}</channel></rss>`;
   const items = parseRssItems(xml).slice(0, 5);
   assert.equal(items.length, 5);
   for (const item of items) {
@@ -12,7 +15,7 @@ async function main() {
     assert.ok(Number.isFinite(Date.parse(item.publishedAt)));
     assert.ok(item.excerpt.length <= 280); assert.doesNotMatch(item.excerpt, /<[^>]*>/);
   }
-  console.log("Parser real, sin DB:", JSON.stringify(items.map(({ title, excerpt, publishedAt, sourceUrl }) => ({ title, excerpt, publishedAt, sourceUrl }))));
+  console.log(`Parser local, sin red ni DB: ${items.length} items.`);
   const mf = new Miniflare({ workers: [{ config: { name: "infobae-local-test", type: "worker", compatibilityDate: "2026-08-28", manifest: { mainModule: "index.js", modules: { "index.js": { type: "esm", contents: "export default {fetch(){return new Response('local')}}" } } }, env: { DB: { type: "d1", id: "infobae-local-test-db", dev: { remote: false } } } } }] });
   const originalFetch = globalThis.fetch;
   try {
@@ -62,12 +65,19 @@ async function main() {
     globalThis.fetch = (async (input: RequestInfo | URL) => { urls.push(String(input)); return new Response("<rss><channel/></rss>"); }) as typeof fetch;
     let task: Promise<unknown> = Promise.resolve();
     await worker.scheduled({ cron: "0 */4 * * *" }, env, { waitUntil(p) { task = p; } }); await task;
-    assert.equal(urls.length, 4); assert.ok(urls.every(u => !u.includes("infobae")));
+    const regularFeeds = [
+      "https://actualidad.rt.com/feeds/all.rss",
+      "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/ultimas-noticias/portada",
+      "https://www.france24.com/es/rss",
+      "https://feeds.bbci.co.uk/mundo/rss.xml",
+      "https://es.mercopress.com/rss/"
+    ];
+    assert.deepEqual(urls, regularFeeds, "default cron keeps exactly five sources; neither Infobae nor DW is enabled");
     await worker.scheduled({ cron: "0 3 * * *" }, env, { waitUntil(p) { task = p; } }); await task;
-    assert.equal(urls.length, 4);
+    assert.deepEqual(urls, regularFeeds, "daily cleanup must not fetch any feeds");
     env.INFOBAE_MANUAL_ENABLED = "false"; assert.equal((await post()).status, 503);
     assert.deepEqual((await db.prepare("SELECT * FROM articles ORDER BY published_at DESC").all()).results, rows);
-    console.log("PASS: 5 real items locally; repeat=0; synthetic rejection/tracking blocked; pending list/individual hidden; editorial=5; permissions=0; four cron sources only; disable preserves rows.");
+    console.log("PASS: 5 local items; repeat=0; synthetic rejection/tracking blocked; pending list/individual hidden; editorial=5; permissions=0; five cron sources only; DW and scheduled Infobae off; disable preserves rows.");
   } finally { globalThis.fetch = originalFetch; await mf.dispose(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

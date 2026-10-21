@@ -1,3 +1,4 @@
+import { isDwArticle, hasReviewedDwSummary, publicDwArticle } from "@/lib/editorial/dw-summary";
 import { unstable_cache } from "next/cache";
 import { readEditorialSources, isManualImpactOriginal, isEligibleImpactOriginal, type OriginalImpactFormat } from "@/lib/manual-editorial";
 import { loadImpactOriginalArchive, loadImpactOriginalCategory } from "@/lib/impacto-originals";
@@ -109,6 +110,7 @@ function hasPersistedEditorialCuration(article: Pick<Article, "latamworldnews_su
 }
 
 function passesBaseDisplayChecks(article: Article): boolean {
+  if (isDwArticle(article) && (!hasReviewedDwSummary(article) || article.editorial_status !== "ready" || article.editorial_review_status !== "approved")) return false;
   const combined = `${article.title}\n${article.excerpt}\n${article.source_name}`;
   if (looksLikeSystemError(combined)) {
     return false;
@@ -154,6 +156,7 @@ function isLatamDisplayableArticle(article: Article): boolean {
   if (!passesBaseDisplayChecks(article)) {
     return false;
   }
+  if (isDwArticle(article)) return hasReviewedDwSummary(article);
 
   if (article.is_impact) {
     return true;
@@ -166,7 +169,8 @@ function isLatamDisplayableArticle(article: Article): boolean {
   return hasPersistedEditorialCuration(article);
 }
 
-function hasDisplayableListingImage(article: Pick<Article, "image_url">): boolean {
+function hasDisplayableListingImage(article: Article): boolean {
+  if (isDwArticle(article)) return hasReviewedDwSummary(article);
   return hasUsableRemoteImage(article.image_url);
 }
 
@@ -198,6 +202,7 @@ function sanitizeCountryList(value: unknown): string[] | null {
 }
 
 export function mapRecordToArticle(record: Record<string, unknown>): Article {
+  record = publicDwArticle(record);
   const rawTitle = String(record.title ?? "");
   const title = cleanPlainText(rawTitle) || "Actualizacion internacional";
   const rawExcerpt = String(record.summary ?? record.excerpt ?? "");
@@ -252,6 +257,7 @@ export function mapRecordToArticle(record: Record<string, unknown>): Article {
             : null,
       region: derivedRegion
     }),
+    editorial_validation: record.editorial_validation as Article["editorial_validation"],
     latamworldnews_summary: record.latamworldnews_summary
       ? cleanExcerpt(String(record.latamworldnews_summary), 320)
       : null,

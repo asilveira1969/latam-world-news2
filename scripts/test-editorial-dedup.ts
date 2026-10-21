@@ -41,7 +41,16 @@ function getBySlug(slug: string): TestArticle {
   return article;
 }
 
-const noteWithoutContent = getBySlug("mas-de-45-muertos-en-tres-nuevos-ataques-en-nigeria");
+const historicalDw = getBySlug("mas-de-45-muertos-en-tres-nuevos-ataques-en-nigeria");
+const hiddenDw = getEditorialBlocks(historicalDw as never);
+assert.equal(hiddenDw.summary, "", "Historical DW without human review has no public RSS fallback");
+assert.equal(hiddenDw.latamWorldNewsSummary, "");
+assert.equal(hiddenDw.curatedNews, "");
+assert.deepEqual(hiddenDw.bodyParagraphs, []);
+assert.equal(hiddenDw.seoDescription, "");
+
+// Exercise generic curation independently of the DW-specific publication policy.
+const noteWithoutContent = { ...historicalDw, source_name: "BBC Mundo", source_url: "https://example.test/generic-note" };
 const noteEditorial = getEditorialBlocks(noteWithoutContent as never);
 const noteSummaryWords = noteEditorial.latamWorldNewsSummary.split(/\s+/).filter(Boolean).length;
 const noteCuratedWords = noteEditorial.curatedNews.split(/\s+/).filter(Boolean).length;
@@ -58,7 +67,9 @@ assert.ok(
   "Notes should not duplicate the LatamWorldNews summary and curated block"
 );
 
-const editorialArticle = getBySlug("editorial-impacto-latinoamerica-crisis-iran-presion-geopolitica");
+// The former Iran slug is absent from the checked-in fixtures. Keep exercising
+// the same summary/body/conclusion protections with an existing editorial.
+const editorialArticle = getBySlug("editorial-impacto-securitizacion-global-aeropuertos-fronteras-america-latina");
 const editorialBlocks = getEditorialBlocks(editorialArticle as never);
 assert.ok(editorialBlocks.bodyParagraphs.length >= 1, "Editorial articles should preserve a differentiated body paragraph");
 assert.notEqual(editorialBlocks.summary, editorialBlocks.conclusion, "Summary and conclusion should differ");

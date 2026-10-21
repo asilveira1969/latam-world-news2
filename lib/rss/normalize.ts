@@ -230,7 +230,7 @@ export function normalizeRssItems(
       content: null,
       topic_slug: taxonomy.topic_slug,
       section_slug: taxonomy.section_slug,
-      image_url: item.imageUrl && isValidHttpUrl(item.imageUrl) ? item.imageUrl : "",
+      image_url: sourceConfig.tag !== "rss-dw-es" && item.imageUrl && isValidHttpUrl(item.imageUrl) ? item.imageUrl : "",
       source_name: sourceConfig.name,
       source_url: sourceUrl,
       region: sourceConfig.region,

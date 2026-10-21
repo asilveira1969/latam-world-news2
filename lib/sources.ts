@@ -169,12 +169,22 @@ export const MUNDO_RSS_SOURCES: MundoRssSource[] = [
     tag: "rss-bbc-mundo"
   },
   {
-    id: "rss-dw-es",
-    name: "DW Español",
-    feedUrl: "https://rss.dw.com/rdf/rss-es-all",
+    id: "rss-mercopress",
+    name: "MercoPress",
+    feedUrl: "https://es.mercopress.com/rss/",
     region: "Mundo",
     language: "es",
     enabled: true,
+    priority: 35,
+    tag: "rss-mercopress"
+  },
+  {
+    id: "rss-dw-es",
+    name: "DW Español",
+    feedUrl: "https://rss.dw.com/xml/rss-sp-all",
+    region: "Mundo",
+    language: "es",
+    enabled: false,
     priority: 40,
     tag: "rss-dw-es"
   }
