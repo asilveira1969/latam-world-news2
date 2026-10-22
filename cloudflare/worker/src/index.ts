@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import { resolveDwImage } from "../../../lib/rss/dw-image";
 import { logInfobaeDownloadFailure } from "./infobae-download-diagnostic";
 import { editorialDayStart } from "../../../lib/editorial-dashboard/day-boundary";
 
@@ -196,6 +197,7 @@ async function ingestRssSource(db: D1Database, source: { id: string; name: strin
     }
     const duplicate = await possibleTopicDuplicate(db, { slug, title: item.title, sourceUrl: item.sourceUrl, sourceName: source.name, publishedAt });
     const taxonomy = rssCategory(item.title, item.excerpt);
+    if (source.id === "rss-dw-es") item.imageUrl = await resolveDwImage(item.sourceUrl, item.imageUrl);
     const article = normalizeArticle({ title: item.title, slug, excerpt: item.excerpt, content: null, image_url: item.imageUrl, source_name: source.name, source_url: item.sourceUrl, url: item.sourceUrl, summary: item.excerpt, source: source.name, source_type: "rss", region: "Mundo", category: taxonomy.category, section_slug: taxonomy.section_slug, topic_slug: taxonomy.topic_slug, tags: ["rss", source.tag, taxonomy.topic_slug, "editorial-pendiente"], countries: [], language: "es", raw: { imported_via: "cloudflare-scheduled-rss", rss: true, source_id: source.id }, published_at: publishedAt, editorial_status: "pending_review", editorial_review_status: "pending", possible_topic_duplicate: Boolean(duplicate), topic_duplicate_group: duplicate?.group ?? null, topic_duplicate_confidence: duplicate?.confidence ?? null, topic_duplicate_of_slug: duplicate?.matchedSlug ?? null });
     article.source_url_hash = sourceUrlHash;
     if (manual) article.raw = asJson({ imported_via: "cloudflare-manual-rss", rss: true, source_id: source.id }, {});

@@ -8,6 +8,7 @@ const ARTICLE_COLUMNS = ["id","title","slug","excerpt","content","image_url","so
 type Row = Record<string, unknown>;
 const rows: Row[] = [];
 let useFuturePublicationDate = false;
+let dwPageRequests = 0;
 
 function statement(query: string) {
   let values: unknown[] = [];
@@ -47,10 +48,15 @@ const originalFetch = globalThis.fetch;
 const longHtml = `<p>${"Texto externo de prueba ".repeat(40)}</p>`;
 globalThis.fetch = (async (input: RequestInfo | URL) => {
   const url = String(input);
+  if (url.startsWith("https://www.dw.com/es/test/")) {
+    dwPageRequests++;
+    return new Response('<meta content="https://static.dw.com/image/fixture-og.jpg" property="og:image"/>');
+  }
   const id = url.includes("rss.dw.com") ? "dw" : url.includes("mercopress") ? "mercopress" : url.includes("bbci") ? "bbc" : url.includes("france24") ? "france" : url.includes("elpais") ? "elpais" : "rt";
   const publishedAt = useFuturePublicationDate ? "2099-01-01T10:00:00.000Z" : "2026-08-30T10:00:00.000Z";
   const items = Array.from({ length: id === "dw" ? 30 : 1 }, (_, index) => `<item><title>Noticia ${id} ${index} sobre energía internacional</title><link>https://example.test/${id}/${index}</link><pubDate>${publishedAt}</pubDate><description><![CDATA[${longHtml}]]></description><enclosure url="https://static.dw.com/image/fixture.jpg" type="image/jpeg"/><content:encoded><![CDATA[${"CUERPO COMPLETO ".repeat(100)}]]></content:encoded></item>`).join("");
-  return new Response(`<?xml version="1.0"?><rss><channel>${items}</channel></rss>`, { status: 200, headers: { "content-type": "application/rss+xml" } });
+  const rssItems = id === "dw" ? items.replace('https://example.test/dw/0', 'https://www.dw.com/es/test/a-0').replace('<enclosure url="https://static.dw.com/image/fixture.jpg" type="image/jpeg"/>', '') : items;
+  return new Response(`<?xml version="1.0"?><rss><channel>${rssItems}</channel></rss>`, { status: 200, headers: { "content-type": "application/rss+xml" } });
 }) as typeof fetch;
 
 async function invokeScheduled(controller: { cron?: string } = {}) {
@@ -85,12 +91,13 @@ async function main() {
     assert.equal(row.editorial_review_status, "pending");
     assert.equal(row.content, null);
     assert.ok(String(row.excerpt).length <= 280);
-    assert.equal(row.image_url, "https://static.dw.com/image/fixture.jpg", "DW follows the common RSS image rule");
+    assert.equal(row.image_url, String(row.source_url).includes("/es/test/") ? "https://static.dw.com/image/fixture-og.jpg" : "https://static.dw.com/image/fixture.jpg", "DW persists OG only when the item has no RSS image");
     assert.ok(!JSON.stringify(row).includes("CUERPO COMPLETO"));
     assert.equal(row.latamworldnews_summary, null, "no mandatory manual DW summary");
   }
   await invokeScheduled();
   assert.equal(rows.length, 30, "DW uses the same persistent URL/slug deduplication");
+  assert.equal(dwPageRequests, 1, "other feeds, RSS images and existing DW rows never fetch an article page");
   rows.push(
     { id: "old-pending", slug: "old-pending", editorial_status: "pending_review", editorial_review_status: "pending", created_at: "2000-01-01T00:00:00.000Z" },
     { id: "old-ready", slug: "old-ready", editorial_status: "ready", editorial_review_status: "approved", created_at: "2000-01-01T00:00:00.000Z" }
