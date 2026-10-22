@@ -1,4 +1,4 @@
-import * as cheerio from "cheerio";
+import * as cheerio from "cheerio/slim";
 
 export async function extractOgImage(sourceUrl: string): Promise<string | null> {
   try {
@@ -6,7 +6,8 @@ export async function extractOgImage(sourceUrl: string): Promise<string | null> 
       headers: {
         "user-agent": "LATAMWorldNewsBot/1.0 (+https://localhost)"
       },
-      cache: "no-store"
+      cache: "no-store",
+      signal: AbortSignal.timeout(5_000)
     });
     if (!response.ok) {
       return null;
