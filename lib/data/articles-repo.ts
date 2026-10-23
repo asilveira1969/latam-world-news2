@@ -626,6 +626,16 @@ async function readImpactOriginalPage(format: OriginalImpactFormat, page: number
   return result.data.map((article) => mapRecordToArticle(article as unknown as Record<string, unknown>));
 }
 
+export async function getLatamImpactEditoriales(): Promise<Article[]> {
+  const { latamActivationTimestamp, isEligibleLatamEditorial, LATAM_EDITORIALES_LIMIT } = await import("../impacto-latam-editoriales");
+  const activatedAt = latamActivationTimestamp(process.env.IMPACTO_LATAM_ACTIVATED_AT);
+  if (!activatedAt) return [];
+  const result = await listD1WorkerArticles({ page: 1, pageSize: LATAM_EDITORIALES_LIMIT,
+    sourceType: "rss", editorialFormat: "latam_impact", reviewedAfter: activatedAt });
+  return result.data.map((article) => mapRecordToArticle(article as unknown as Record<string, unknown>))
+    .filter((article) => isEligibleLatamEditorial(article, activatedAt));
+}
+
 export async function getImpactOriginalArchive(page = 1) {
   return loadImpactOriginalArchive(readImpactOriginalPage, page);
 }
