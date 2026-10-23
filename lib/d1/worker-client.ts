@@ -85,6 +85,8 @@ export async function listD1WorkerArticles(input?: {
   sourceType?: string;
   isImpact?: boolean;
   impactFormat?: string;
+  editorialFormat?: "brief" | "context" | "latam_impact";
+  reviewedAfter?: string;
   query?: string;
 }): Promise<D1WorkerArticleList> {
   const params = new URLSearchParams();
@@ -96,6 +98,8 @@ export async function listD1WorkerArticles(input?: {
   if (input?.sourceType) params.set("source_type", input.sourceType);
   if (input?.isImpact !== undefined) params.set("is_impact", input.isImpact ? "1" : "0");
   if (input?.impactFormat) params.set("impact_format", input.impactFormat);
+  if (input?.editorialFormat) params.set("editorial_format", input.editorialFormat);
+  if (input?.reviewedAfter) params.set("reviewed_after", input.reviewedAfter);
   if (input?.query) params.set("q", input.query);
   const suffix = params.size ? `?${params.toString()}` : "";
   return requestD1Worker<D1WorkerArticleList>(`/articles${suffix}`);

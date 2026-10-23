@@ -7,7 +7,7 @@ import { impactOriginalPath } from "@/lib/manual-editorial";
 import { impactArchivePath, parseImpactArchivePage } from "@/lib/impacto-originals";
 import StructuredData from "@/components/StructuredData";
 import { formatEditorialDate } from "@/lib/dates";
-import { getImpactOriginalArchive } from "@/lib/data/articles-repo";
+import { getImpactOriginalArchive, getLatamImpactEditoriales } from "@/lib/data/articles-repo";
 import { getCountryLabel, normalizeCountry } from "@/lib/hubs";
 import { buildCollectionPageJsonLd } from "@/lib/jsonld";
 import { buildMetadata } from "@/lib/seo";
@@ -36,6 +36,7 @@ export default async function ImpactoPage({ searchParams }: ImpactoPageProps) {
   if (rawPage !== undefined && (page === 1 || rawPage !== String(page))) redirect(impactArchivePath(page));
   const { featured, archive, hasNext } = await getImpactOriginalArchive(page);
   if (page > 1 && archive.length === 0) notFound();
+  const latamEditoriales = page === 1 ? await getLatamImpactEditoriales() : [];
   const latestEditorial = featured.editorial;
   const opinionArticles = featured.opinion ? [featured.opinion] : [];
   const columnistArticles = featured.columnist ? [featured.columnist] : [];
@@ -254,6 +255,24 @@ export default async function ImpactoPage({ searchParams }: ImpactoPageProps) {
             </article>
           ))}
         </div>
+        {latamEditoriales.length > 0 ? (
+          <div className="mt-8" data-latam-editoriales>
+            <h3 className="text-xl font-bold text-brand">Impacto LATAM</h3>
+            <ul className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {latamEditoriales.map((article) => (
+                <li key={article.slug} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <article>
+                    <h4 className="text-lg font-bold text-brand">
+                      <Link href={`/nota/${article.slug}`} className="hover:underline">{article.title}</Link>
+                    </h4>
+                    <p className="mt-2 text-xs text-slate-400">{formatEditorialDate(article.published_at)}</p>
+                    <p className="mt-2 text-sm text-slate-600">{article.editorial_latam_impact}</p>
+                  </article>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </section>
 
       {archive.length === 0 ? <p className="mt-4 text-sm text-slate-600">Las publicaciones anteriores aparecerán aquí al incorporar nuevos originales.</p> : null}

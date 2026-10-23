@@ -368,6 +368,18 @@ async function listArticles(db: D1Database, url: URL, publicOnly: boolean) {
   for (const [query, column] of [["region", "region"], ["country", "country"], ["section_slug", "section_slug"], ["source_type", "source_type"], ["editorial_status", "editorial_status"], ["editorial_review_status", "editorial_review_status"], ["is_impact", "is_impact"], ["impact_format", "impact_format"], ["created_after", "created_at"]] as const) {
     const value = url.searchParams.get(query); if (value) { clauses.push(`${column} ${query === "created_after" ? ">=" : "="} ?`); values.push(value); }
   }
+  const editorialFormat = url.searchParams.get("editorial_format");
+  if (editorialFormat !== null) {
+    if (!["brief", "context", "latam_impact"].includes(editorialFormat)) throw new RequestError("Invalid editorial_format.", 400);
+    clauses.push("editorial_format = ?"); values.push(editorialFormat);
+  }
+  const reviewedAfter = url.searchParams.get("reviewed_after");
+  if (reviewedAfter !== null) {
+    const parsed = Date.parse(reviewedAfter);
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(reviewedAfter) ||
+      !Number.isFinite(parsed) || new Date(parsed).toISOString() !== reviewedAfter) throw new RequestError("Invalid reviewed_after.", 400);
+    clauses.push("editorial_reviewed_at > ?"); values.push(reviewedAfter);
+  }
   const search = url.searchParams.get("q");
   if (search) { clauses.push("(title LIKE ? OR excerpt LIKE ? OR summary LIKE ?)"); values.push(`%${search.slice(0, 120)}%`, `%${search.slice(0, 120)}%`, `%${search.slice(0, 120)}%`); }
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
@@ -388,7 +400,7 @@ export default {
     const internalWrite = request.method !== "GET" && path.startsWith("/internal/");
     try {
       if (request.method === "GET" && path === "/health") { await env.DB.prepare("SELECT 1 AS ok").first(); return json({ ok: true, service: "latam-world-news-d1", writesProtected: Boolean(env.INTERNAL_API_SECRET) }); }
-      if (request.method === "GET" && path === "/articles") return listArticles(env.DB, url, true);
+      if (request.method === "GET" && path === "/articles") return await listArticles(env.DB, url, true);
       if (request.method === "GET" && path.startsWith("/articles/")) return getArticleBySlug(env.DB, decodeURIComponent(path.slice("/articles/".length)), true);
       if (!isInternalRequest(request, env)) return internalWrite ? internalWriteJson({ error: "Unauthorized" }, { status: 401 }) : json({ error: "Unauthorized" }, { status: 401 });
       if (request.method === "GET" && path === "/internal/articles") return listArticles(env.DB, url, false);
